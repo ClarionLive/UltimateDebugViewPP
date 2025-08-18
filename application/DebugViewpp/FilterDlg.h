@@ -10,6 +10,7 @@
 #include "RegExDlg.h"
 #include "resource.h"
 #include "Filter.h"
+#include "DebugViewppLib/LogFile.h"
 
 #include "CobaltFusion/AtlWinExt.h"
 #include "atleverything.h"
@@ -24,7 +25,7 @@ class CFilterDlg : public CDialogImpl<CFilterDlg>,
                    public ExceptionHandler<CFilterDlg, std::exception>
 {
 public:
-    explicit CFilterDlg(std::wstring name, const LogFilter& filter = LogFilter());
+    explicit CFilterDlg(std::wstring name, const LogFilter& filter = LogFilter(), const LogFile* logFile = nullptr);
 
     std::wstring GetName() const;
     LogFilter GetFilters() const;
@@ -69,6 +70,7 @@ private:
     SIZE m_border;
     std::wstring m_name;
     LogFilter m_filter;
+    const LogFile* m_logFile;
 };
 
 } // namespace debugviewpp

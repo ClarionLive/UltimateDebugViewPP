@@ -33,7 +33,10 @@ add_library(${PROJECT_NAME}
     ProcessReader.cpp
     SocketReader.cpp
     SourceType.cpp
+    SqlFormatter.cpp
+    SyntaxHighlighter.cpp
     TestSource.cpp
+    ThemeManager.cpp
     TimelineDC.cpp
     VectorLineBuffer.cpp
 )

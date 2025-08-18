@@ -24,6 +24,14 @@ struct Message
     std::string processName;
     std::string text;
     COLORREF color;
+    
+    // Clarion-specific fields
+    std::string clarionThread;
+    std::string clarionApp;
+    std::string clarionModule;
+    std::string clarionProcedure;
+    std::string clarionPrefix;
+    bool isClarionFormat = false;
 };
 
 class LogFile
@@ -39,6 +47,7 @@ public:
     Message operator[](int i) const;
     int GetHistorySize() const;
     void SetHistorySize(int size);
+    std::vector<std::wstring> GetUniqueProcesses() const;
 
 private:
     struct InternalMessage

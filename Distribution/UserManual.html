@@ -1,0 +1,890 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ultimate DebugView++ User Manual</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px;
+            text-align: center;
+        }
+        
+        h1 {
+            font-size: 3em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .subtitle {
+            font-size: 1.2em;
+            opacity: 0.95;
+        }
+        
+        nav {
+            background: #f8f9fa;
+            padding: 20px;
+            border-bottom: 2px solid #e9ecef;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        
+        nav ul {
+            list-style: none;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 15px;
+        }
+        
+        nav a {
+            color: #667eea;
+            text-decoration: none;
+            padding: 8px 15px;
+            border-radius: 20px;
+            transition: all 0.3s;
+            display: inline-block;
+        }
+        
+        nav a:hover {
+            background: #667eea;
+            color: white;
+            transform: translateY(-2px);
+        }
+        
+        .content {
+            padding: 40px;
+        }
+        
+        section {
+            margin-bottom: 50px;
+        }
+        
+        h2 {
+            color: #667eea;
+            font-size: 2.2em;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 3px solid #667eea;
+        }
+        
+        h3 {
+            color: #764ba2;
+            font-size: 1.5em;
+            margin-top: 25px;
+            margin-bottom: 15px;
+        }
+        
+        h4 {
+            color: #495057;
+            font-size: 1.2em;
+            margin-top: 20px;
+            margin-bottom: 10px;
+        }
+        
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 25px;
+            margin-top: 30px;
+        }
+        
+        .feature-card {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        
+        .feature-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        
+        .feature-card h3 {
+            color: #667eea;
+            margin-top: 0;
+        }
+        
+        .new-badge {
+            display: inline-block;
+            background: #28a745;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 0.8em;
+            margin-left: 10px;
+            font-weight: bold;
+        }
+        
+        .improved-badge {
+            display: inline-block;
+            background: #ffc107;
+            color: #333;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 0.8em;
+            margin-left: 10px;
+            font-weight: bold;
+        }
+        
+        code {
+            background: #f1f3f5;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.9em;
+        }
+        
+        .code-block {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 20px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 15px 0;
+        }
+        
+        .code-block code {
+            background: transparent;
+            color: inherit;
+            padding: 0;
+        }
+        
+        .shortcut {
+            display: inline-block;
+            background: #6c757d;
+            color: white;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 0.85em;
+            font-weight: bold;
+            margin: 0 3px;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        
+        th {
+            background: #667eea;
+            color: white;
+            padding: 12px;
+            text-align: left;
+        }
+        
+        td {
+            padding: 10px;
+            border-bottom: 1px solid #dee2e6;
+        }
+        
+        tr:hover {
+            background: #f8f9fa;
+        }
+        
+        .tip {
+            background: #d1ecf1;
+            border-left: 4px solid #0c5460;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        
+        .warning {
+            background: #fff3cd;
+            border-left: 4px solid #856404;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        
+        .color-swatch {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border-radius: 3px;
+            margin-right: 8px;
+            vertical-align: middle;
+            border: 1px solid #ccc;
+        }
+        
+        footer {
+            background: #2d3748;
+            color: white;
+            text-align: center;
+            padding: 30px;
+        }
+        
+        .syntax-example {
+            background: #1a202c;
+            color: #e2e8f0;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+            font-family: 'Consolas', 'Monaco', monospace;
+        }
+        
+        .syntax-keyword { color: #90cdf4; font-weight: bold; }
+        .syntax-string { color: #9ae6b4; }
+        .syntax-number { color: #fbb6ce; }
+        .syntax-comment { color: #718096; font-style: italic; }
+        .syntax-function { color: #f6ad55; }
+        .syntax-tag { color: #fc8181; }
+        .syntax-attribute { color: #f6e05e; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🚀 Ultimate DebugView++</h1>
+            <p class="subtitle">Enhanced Debug Output Viewer with Advanced Features</p>
+        </header>
+        
+        <nav>
+            <ul>
+                <li><a href="#overview">Overview</a></li>
+                <li><a href="#new-features">New Features</a></li>
+                <li><a href="#import-settings">Import Settings</a></li>
+                <li><a href="#dark-mode">Dark Mode</a></li>
+                <li><a href="#detail-pane">Detail Pane</a></li>
+                <li><a href="#syntax">Syntax Highlighting</a></li>
+                <li><a href="#columns">Column Management</a></li>
+                <li><a href="#clarion">Clarion Support</a></li>
+                <li><a href="#auto-views">Auto Views</a></li>
+                <li><a href="#shortcuts">Shortcuts</a></li>
+                <li><a href="#getting-started">Getting Started</a></li>
+            </ul>
+        </nav>
+        
+        <div class="content">
+            <section id="overview">
+                <h2>Overview</h2>
+                <p>Ultimate DebugView++ is a powerful enhancement of the classic Windows debug output viewer. It captures and displays debug output from Windows applications using OutputDebugString API, kernel-mode drivers, and various other sources.</p>
+                
+                <h3>Key Capabilities</h3>
+                <div class="feature-grid">
+                    <div class="feature-card">
+                        <h3>Multiple Sources</h3>
+                        <p>Capture debug output from Win32 applications, kernel drivers, log files, TCP/UDP sockets, and named pipes.</p>
+                    </div>
+                    <div class="feature-card">
+                        <h3>Advanced Filtering</h3>
+                        <p>Create complex include/exclude filters with regex support, process filtering, and message highlighting.</p>
+                    </div>
+                    <div class="feature-card">
+                        <h3>Tabbed Interface</h3>
+                        <p>Organize debug streams into multiple tabs with independent filters and views.</p>
+                    </div>
+                    <div class="feature-card">
+                        <h3>High Performance</h3>
+                        <p>Handle millions of messages efficiently with optimized circular buffers and minimal overhead.</p>
+                    </div>
+                </div>
+            </section>
+            
+            <section id="new-features">
+                <h2>✨ New Features in Ultimate Edition</h2>
+                <p>This enhanced version includes numerous improvements and new capabilities developed to make debugging more efficient and enjoyable.</p>
+                
+                <div class="feature-grid">
+                    <div class="feature-card">
+                        <h3>Settings Import <span class="new-badge">NEW</span></h3>
+                        <p>Seamless migration from DebugView++ with automatic detection and import of all settings, views, and filters.</p>
+                    </div>
+                    <div class="feature-card">
+                        <h3>Dark Mode <span class="new-badge">NEW</span></h3>
+                        <p>Full dark theme support with automatic Windows 10/11 integration for reduced eye strain during long debugging sessions.</p>
+                    </div>
+                    <div class="feature-card">
+                        <h3>Enhanced Detail Pane <span class="improved-badge">IMPROVED</span></h3>
+                        <p>Scintilla-powered detail view with syntax highlighting, line numbers, word wrap, and professional code formatting.</p>
+                    </div>
+                    <div class="feature-card">
+                        <h3>SQL Formatting <span class="new-badge">NEW</span></h3>
+                        <p>Professional SQL statement formatting with automatic indentation and keyword alignment using fsqlf engine.</p>
+                    </div>
+                    <div class="feature-card">
+                        <h3>Clarion Debug Format <span class="new-badge">NEW</span></h3>
+                        <p>Native support for Clarion application debug messages with dedicated columns for thread, module, and procedure.</p>
+                    </div>
+                    <div class="feature-card">
+                        <h3>Auto-Create Views <span class="new-badge">NEW</span></h3>
+                        <p>Automatic view creation when applications send @@NEWDEBUGVIEW@@ marker for zero-configuration debugging.</p>
+                    </div>
+                    <div class="feature-card">
+                        <h3>Column Layouts <span class="new-badge">NEW</span></h3>
+                        <p>Save and restore up to 10 column configurations with drag-and-drop reordering support.</p>
+                    </div>
+                </div>
+            </section>
+            
+            <section id="import-settings">
+                <h2>📥 Import Settings from DebugView++</h2>
+                <p>Ultimate DebugView++ provides seamless migration from the original DebugView++, preserving all your customizations and configurations.</p>
+                
+                <h3>Automatic Import on First Run</h3>
+                <p>When you run Ultimate DebugView++ for the first time, it automatically detects if you have DebugView++ installed and offers to import your settings.</p>
+                
+                <div class="tip">
+                    <strong>💡 Tip:</strong> The import process is non-destructive. Your original DebugView++ settings remain unchanged, allowing both applications to coexist.
+                </div>
+                
+                <h3>What Gets Imported</h3>
+                <ul>
+                    <li><strong>Views and Tabs:</strong> All your saved views with their names and configurations</li>
+                    <li><strong>Filters:</strong> Include/exclude filters, highlight filters, and process filters</li>
+                    <li><strong>Column Layouts:</strong> Column visibility, order, and width settings</li>
+                    <li><strong>Window Position:</strong> Size and position of the main window</li>
+                    <li><strong>Font Settings:</strong> Both main list and detail pane fonts</li>
+                    <li><strong>Preferences:</strong> Auto-scroll, process colors, clock time, and other settings</li>
+                    <li><strong>Custom Colors:</strong> Your color palette for filters and highlights</li>
+                </ul>
+                
+                <h3>Manual Import</h3>
+                <p>You can manually import settings at any time:</p>
+                <ol>
+                    <li>Go to <strong>Options → Import DebugView++ Settings...</strong></li>
+                    <li>Confirm the import when prompted</li>
+                    <li>Restart Ultimate DebugView++ to apply the imported settings</li>
+                </ol>
+                
+                <h3>Registry Locations</h3>
+                <table>
+                    <tr>
+                        <th>Application</th>
+                        <th>Registry Path</th>
+                    </tr>
+                    <tr>
+                        <td>Original DebugView++</td>
+                        <td><code>HKEY_CURRENT_USER\Software\CobaltFusion\DebugView++</code></td>
+                    </tr>
+                    <tr>
+                        <td>Ultimate DebugView++</td>
+                        <td><code>HKEY_CURRENT_USER\Software\ClarionLive\UltimateDebugView++</code></td>
+                    </tr>
+                </table>
+                
+                <div class="warning">
+                    <strong>⚠️ Note:</strong> If you choose to import settings when Ultimate DebugView++ already has settings, your current Ultimate DebugView++ settings will be overwritten.
+                </div>
+            </section>
+            
+            <section id="dark-mode">
+                <h2>🌙 Dark Mode</h2>
+                <p>The comprehensive dark mode implementation provides a modern, eye-friendly interface that integrates seamlessly with Windows 10/11 dark theme settings.</p>
+                
+                <h3>Features</h3>
+                <ul>
+                    <li>Toggle via <strong>View → Dark Mode</strong> menu</li>
+                    <li>Automatic contrast adjustment for process colors</li>
+                    <li>Theme-aware syntax highlighting colors</li>
+                    <li>Native Windows title bar theming</li>
+                    <li>Persistent theme preference</li>
+                </ul>
+                
+                <h3>Color Scheme</h3>
+                <table>
+                    <tr>
+                        <th>Element</th>
+                        <th>Light Mode</th>
+                        <th>Dark Mode</th>
+                    </tr>
+                    <tr>
+                        <td>Background</td>
+                        <td><span class="color-swatch" style="background: #ffffff;"></span>White</td>
+                        <td><span class="color-swatch" style="background: #1e1e1e;"></span>RGB(30, 30, 30)</td>
+                    </tr>
+                    <tr>
+                        <td>Text</td>
+                        <td><span class="color-swatch" style="background: #000000;"></span>Black</td>
+                        <td><span class="color-swatch" style="background: #dcdcdc;"></span>RGB(220, 220, 220)</td>
+                    </tr>
+                    <tr>
+                        <td>Selection</td>
+                        <td><span class="color-swatch" style="background: #3399ff;"></span>RGB(51, 153, 255)</td>
+                        <td><span class="color-swatch" style="background: #3399ff;"></span>RGB(51, 153, 255)</td>
+                    </tr>
+                </table>
+            </section>
+            
+            <section id="detail-pane">
+                <h2>📝 Enhanced Detail Pane</h2>
+                <p>The detail pane has been completely reimplemented using the Scintilla editor component, providing professional-grade text viewing and editing capabilities.</p>
+                
+                <h3>Toggle Detail Pane <span class="improved-badge">FIXED</span></h3>
+                <p>Use <strong>View → Show Detail Pane</strong> or press <span class="shortcut">Ctrl+D</span> to toggle the detail pane visibility. The pane is now hidden by default on first run and remembers its state per view.</p>
+                
+                <h3>Toolbar Controls</h3>
+                <div class="feature-grid">
+                    <div class="feature-card">
+                        <h4>🔍 Find</h4>
+                        <p>Search for selected text in the main view</p>
+                    </div>
+                    <div class="feature-card">
+                        <h4>🎯 Filter</h4>
+                        <p>Create filters from selected text</p>
+                    </div>
+                    <div class="feature-card">
+                        <h4>↩️ Word Wrap</h4>
+                        <p>Toggle word wrapping for long lines</p>
+                    </div>
+                    <div class="feature-card">
+                        <h4>🎨 Syntax</h4>
+                        <p>Enable/disable syntax highlighting</p>
+                    </div>
+                    <div class="feature-card">
+                        <h4>📐 Format</h4>
+                        <p>Auto-format JSON, XML, and SQL content</p>
+                    </div>
+                    <div class="feature-card">
+                        <h4>#️⃣ Line Numbers</h4>
+                        <p>Show/hide line numbers</p>
+                    </div>
+                    <div class="feature-card">
+                        <h4>📋 Copy</h4>
+                        <p>Copy entire detail content to clipboard</p>
+                    </div>
+                    <div class="feature-card">
+                        <h4>🔤 Font</h4>
+                        <p>Customize detail pane font independently</p>
+                    </div>
+                </div>
+                
+                <div class="tip">
+                    <strong>💡 Tip:</strong> Each tab maintains its own detail pane settings, allowing different configurations for different debug scenarios.
+                </div>
+            </section>
+            
+            <section id="syntax">
+                <h2>🎨 Syntax Highlighting</h2>
+                <p>Automatic format detection and syntax highlighting for common debug output formats, making structured data instantly readable.</p>
+                
+                <h3>Supported Formats</h3>
+                
+                <h4>JSON Highlighting</h4>
+                <div class="syntax-example">
+                    {
+                        <span class="syntax-keyword">"user"</span>: <span class="syntax-string">"john.doe"</span>,
+                        <span class="syntax-keyword">"id"</span>: <span class="syntax-number">12345</span>,
+                        <span class="syntax-keyword">"active"</span>: <span class="syntax-number">true</span>,
+                        <span class="syntax-keyword">"permissions"</span>: [<span class="syntax-string">"read"</span>, <span class="syntax-string">"write"</span>]
+                    }
+                </div>
+                
+                <h4>XML Highlighting</h4>
+                <div class="syntax-example">
+                    <span class="syntax-tag">&lt;configuration&gt;</span>
+                        <span class="syntax-tag">&lt;setting</span> <span class="syntax-attribute">name</span>=<span class="syntax-string">"debug"</span> <span class="syntax-attribute">value</span>=<span class="syntax-string">"true"</span><span class="syntax-tag">/&gt;</span>
+                        <span class="syntax-comment">&lt;!-- Debug mode enabled --&gt;</span>
+                    <span class="syntax-tag">&lt;/configuration&gt;</span>
+                </div>
+                
+                <h4>SQL Highlighting & Formatting</h4>
+                <div class="syntax-example">
+                    <span class="syntax-keyword">SELECT</span> u.name, u.email, 
+                           <span class="syntax-function">COUNT</span>(o.id) <span class="syntax-keyword">AS</span> order_count
+                    <span class="syntax-keyword">FROM</span> users u
+                    <span class="syntax-keyword">LEFT JOIN</span> orders o <span class="syntax-keyword">ON</span> u.id = o.user_id
+                    <span class="syntax-keyword">WHERE</span> u.active = <span class="syntax-number">1</span>
+                    <span class="syntax-keyword">GROUP BY</span> u.id
+                    <span class="syntax-keyword">ORDER BY</span> order_count <span class="syntax-keyword">DESC</span>
+                </div>
+                
+                <h4>Log Level Highlighting</h4>
+                <div class="syntax-example">
+                    <span style="color: #ff4444; font-weight: bold;">[ERROR]</span> Failed to connect to database
+                    <span style="color: #ff9944; font-weight: bold;">[WARN]</span> Connection retry in 5 seconds
+                    <span style="color: #4499ff; font-weight: bold;">[INFO]</span> Application started successfully
+                    <span style="color: #44ff44; font-weight: bold;">[DEBUG]</span> Processing request ID: 12345
+                </div>
+                
+                <h4>Stack Trace Highlighting</h4>
+                <div class="syntax-example">
+                    <span style="color: #ff4444; font-weight: bold;">Exception:</span> NullReferenceException
+                        at <span style="color: #4499ff;">MyApp.ProcessData</span>(<span style="color: #44ff44;">Program.cs</span>:<span style="color: #ff9944;">42</span>)
+                        at <span style="color: #4499ff;">MyApp.Main</span>(<span style="color: #44ff44;">Program.cs</span>:<span style="color: #ff9944;">15</span>)
+                </div>
+            </section>
+            
+            <section id="columns">
+                <h2>📊 Column Management</h2>
+                <p>Powerful column customization with drag-and-drop reordering, layout saving, and quick configuration switching.</p>
+                
+                <h3>Column Controls</h3>
+                <ul>
+                    <li><strong>Show/Hide:</strong> Right-click column header → Select columns to display</li>
+                    <li><strong>Reorder:</strong> Drag column headers to rearrange (bookmark column is fixed)</li>
+                    <li><strong>Resize:</strong> Drag column borders to adjust width</li>
+                    <li><strong>Save Layout:</strong> Right-click → "Save Current Layout..." (up to 10 layouts)</li>
+                    <li><strong>Load Layout:</strong> Right-click → Select saved layout or use keyboard shortcuts (1-9, 0)</li>
+                    <li><strong>Reset:</strong> Right-click → "Reset Layout" to restore defaults</li>
+                </ul>
+                
+                <h3>Available Columns</h3>
+                <table>
+                    <tr>
+                        <th>Column</th>
+                        <th>Description</th>
+                        <th>Default</th>
+                    </tr>
+                    <tr>
+                        <td>Bookmark</td>
+                        <td>Bookmark indicator (always first)</td>
+                        <td>Visible</td>
+                    </tr>
+                    <tr>
+                        <td>Line</td>
+                        <td>Line number</td>
+                        <td>Visible</td>
+                    </tr>
+                    <tr>
+                        <td>Date</td>
+                        <td>Message date</td>
+                        <td>Hidden</td>
+                    </tr>
+                    <tr>
+                        <td>Time</td>
+                        <td>Message timestamp</td>
+                        <td>Visible</td>
+                    </tr>
+                    <tr>
+                        <td>PID</td>
+                        <td>Process ID</td>
+                        <td>Visible</td>
+                    </tr>
+                    <tr>
+                        <td>Process</td>
+                        <td>Process name</td>
+                        <td>Visible</td>
+                    </tr>
+                    <tr>
+                        <td>Thread <span class="new-badge">NEW</span></td>
+                        <td>Thread ID (Clarion)</td>
+                        <td>Hidden</td>
+                    </tr>
+                    <tr>
+                        <td>App <span class="new-badge">NEW</span></td>
+                        <td>Application name (Clarion)</td>
+                        <td>Hidden</td>
+                    </tr>
+                    <tr>
+                        <td>Module <span class="new-badge">NEW</span></td>
+                        <td>Module/source file (Clarion)</td>
+                        <td>Hidden</td>
+                    </tr>
+                    <tr>
+                        <td>Procedure <span class="new-badge">NEW</span></td>
+                        <td>Procedure/function (Clarion)</td>
+                        <td>Hidden</td>
+                    </tr>
+                    <tr>
+                        <td>Prefix <span class="new-badge">NEW</span></td>
+                        <td>Filter prefix (Clarion)</td>
+                        <td>Hidden</td>
+                    </tr>
+                    <tr>
+                        <td>Message</td>
+                        <td>Debug message text</td>
+                        <td>Visible</td>
+                    </tr>
+                </table>
+                
+                <div class="tip">
+                    <strong>💡 Pro Tip:</strong> Create different column layouts for different debugging scenarios. For example, a "Clarion Debug" layout with Clarion columns visible, and a "Performance" layout showing only Time, Process, and Message.
+                </div>
+            </section>
+            
+            <section id="clarion">
+                <h2>🔧 Clarion Debug Format Support</h2>
+                <p>Native support for Clarion application debugging with automatic parsing of structured debug messages.</p>
+                
+                <h3>Message Format</h3>
+                <p>Clarion messages following this format are automatically parsed:</p>
+                <div class="code-block">
+                    <code>[||]X,T:&lt;threadId&gt;,P:&lt;procedureName&gt;,M:&lt;moduleName&gt;,A:&lt;appName&gt;,PRE:&lt;prefix&gt;,MSG:&lt;message&gt;</code>
+                </div>
+                
+                <h3>Example</h3>
+                <div class="code-block">
+                    <code>[||]X,T:1234,P:InitDatabase,M:MainModule.clw,A:MyApp.exe,PRE:DB,MSG:Connecting to database...</code>
+                </div>
+                
+                <h3>Benefits</h3>
+                <ul>
+                    <li>Automatic column population for better organization</li>
+                    <li>Filter by thread, module, or procedure</li>
+                    <li>Clean message display without format metadata</li>
+                    <li>Track execution flow across procedures</li>
+                    <li>Professional structured debug output</li>
+                </ul>
+            </section>
+            
+            <section id="auto-views">
+                <h2>🚀 Auto-Create Process Views</h2>
+                <p>Applications can automatically create and manage their own debug views by sending a special marker message.</p>
+                
+                <h3>How It Works</h3>
+                <ol>
+                    <li>Application sends <code>OutputDebugString("@@NEWDEBUGVIEW@@")</code></li>
+                    <li>DebugView++ automatically creates or switches to a view for that process</li>
+                    <li>View is cleared if it already exists (fresh debugging session)</li>
+                    <li>All subsequent messages from that process appear in its dedicated view</li>
+                </ol>
+                
+                <h3>Implementation Example</h3>
+                <div class="code-block">
+                    <code>// C++ Example
+#ifdef _DEBUG
+    OutputDebugString(L"@@NEWDEBUGVIEW@@");
+    OutputDebugString(L"Application started");
+    // All following debug output goes to dedicated view
+#endif
+
+// C# Example
+#if DEBUG
+    System.Diagnostics.Debug.WriteLine("@@NEWDEBUGVIEW@@");
+    System.Diagnostics.Debug.WriteLine("Application started");
+#endif</code>
+                </div>
+                
+                <div class="tip">
+                    <strong>💡 Tip:</strong> Perfect for multi-application debugging scenarios where each app needs its own isolated debug stream.
+                </div>
+            </section>
+            
+            <section id="shortcuts">
+                <h2>⌨️ Keyboard Shortcuts</h2>
+                <table>
+                    <tr>
+                        <th>Action</th>
+                        <th>Shortcut</th>
+                    </tr>
+                    <tr>
+                        <td>Toggle Detail Pane</td>
+                        <td><span class="shortcut">Ctrl+D</span></td>
+                    </tr>
+                    <tr>
+                        <td>Find</td>
+                        <td><span class="shortcut">Ctrl+F</span></td>
+                    </tr>
+                    <tr>
+                        <td>Filter</td>
+                        <td><span class="shortcut">Ctrl+L</span></td>
+                    </tr>
+                    <tr>
+                        <td>Clear View</td>
+                        <td><span class="shortcut">Ctrl+X</span></td>
+                    </tr>
+                    <tr>
+                        <td>Copy Selection</td>
+                        <td><span class="shortcut">Ctrl+C</span></td>
+                    </tr>
+                    <tr>
+                        <td>Select All</td>
+                        <td><span class="shortcut">Ctrl+A</span></td>
+                    </tr>
+                    <tr>
+                        <td>Auto Scroll</td>
+                        <td><span class="shortcut">Ctrl+E</span></td>
+                    </tr>
+                    <tr>
+                        <td>Pause/Resume</td>
+                        <td><span class="shortcut">Space</span></td>
+                    </tr>
+                    <tr>
+                        <td>Bookmark Toggle</td>
+                        <td><span class="shortcut">Ctrl+F2</span></td>
+                    </tr>
+                    <tr>
+                        <td>Next Bookmark</td>
+                        <td><span class="shortcut">F2</span></td>
+                    </tr>
+                    <tr>
+                        <td>Previous Bookmark</td>
+                        <td><span class="shortcut">Shift+F2</span></td>
+                    </tr>
+                    <tr>
+                        <td>New Tab</td>
+                        <td><span class="shortcut">Ctrl+N</span></td>
+                    </tr>
+                    <tr>
+                        <td>Close Tab</td>
+                        <td><span class="shortcut">Ctrl+W</span></td>
+                    </tr>
+                    <tr>
+                        <td>Save Log</td>
+                        <td><span class="shortcut">Ctrl+S</span></td>
+                    </tr>
+                </table>
+            </section>
+            
+            <section id="getting-started">
+                <h2>🎯 Getting Started</h2>
+                
+                <h3>Installation</h3>
+                <ol>
+                    <li>Extract <code>UltimateDebugviewpp.exe</code> and <code>fsqlf.dll</code> to a folder</li>
+                    <li>Run <code>UltimateDebugviewpp.exe</code></li>
+                    <li>If you have DebugView++ installed, you'll be prompted to import your settings</li>
+                    <li>No additional dependencies or installation required!</li>
+                </ol>
+                
+                <h3>First Run Checklist</h3>
+                <div class="feature-grid">
+                    <div class="feature-card">
+                        <h4>1. Enable Dark Mode</h4>
+                        <p>Go to <strong>View → Dark Mode</strong> if you prefer a dark interface</p>
+                    </div>
+                    <div class="feature-card">
+                        <h4>2. Show Detail Pane</h4>
+                        <p>Press <span class="shortcut">Ctrl+D</span> to enable the detail pane</p>
+                    </div>
+                    <div class="feature-card">
+                        <h4>3. Configure Columns</h4>
+                        <p>Right-click column headers to show/hide columns for your needs</p>
+                    </div>
+                    <div class="feature-card">
+                        <h4>4. Set Up Filters</h4>
+                        <p>Use <strong>Log → Filter...</strong> to create include/exclude rules</p>
+                    </div>
+                    <div class="feature-card">
+                        <h4>5. Enable Process Colors</h4>
+                        <p>Turn on <strong>View → Process Colors</strong> for visual separation</p>
+                    </div>
+                    <div class="feature-card">
+                        <h4>6. Save Configuration</h4>
+                        <p>Use <strong>File → Save Configuration</strong> to save your setup</p>
+                    </div>
+                </div>
+                
+                <h3>Common Use Cases</h3>
+                
+                <h4>Debugging Multiple Applications</h4>
+                <ol>
+                    <li>Have each app send <code>@@NEWDEBUGVIEW@@</code> at startup</li>
+                    <li>Each app automatically gets its own tab</li>
+                    <li>Use Process Colors for visual distinction</li>
+                    <li>Save column layout optimized for multi-app debugging</li>
+                </ol>
+                
+                <h4>Analyzing SQL Performance</h4>
+                <ol>
+                    <li>Enable detail pane with syntax highlighting</li>
+                    <li>Turn on SQL formatting in detail pane</li>
+                    <li>Use filters to show only SQL statements</li>
+                    <li>Export formatted SQL for further analysis</li>
+                </ol>
+                
+                <h4>Monitoring System Services</h4>
+                <ol>
+                    <li>Enable kernel message capture</li>
+                    <li>Set up filters for specific drivers</li>
+                    <li>Use bookmarks to mark important events</li>
+                    <li>Save logs with timestamps for audit trails</li>
+                </ol>
+                
+                <div class="warning">
+                    <strong>⚠️ Note:</strong> Capturing kernel messages requires administrator privileges and may impact system performance. Use with caution on production systems.
+                </div>
+            </section>
+            
+            <section id="tips">
+                <h2>💡 Pro Tips & Tricks</h2>
+                
+                <div class="feature-grid">
+                    <div class="feature-card">
+                        <h3>Link Views</h3>
+                        <p>Enable <strong>Options → Link Views</strong> to synchronize scrolling across all tabs - perfect for comparing related logs.</p>
+                    </div>
+                    <div class="feature-card">
+                        <h3>Process Filtering</h3>
+                        <p>Use the new Process dropdown in Filter dialog - it automatically populates with all processes that have sent messages.</p>
+                    </div>
+                    <div class="feature-card">
+                        <h3>Quick Filter</h3>
+                        <p>Select text in the detail pane and click the Filter button to instantly create a filter for that text.</p>
+                    </div>
+                    <div class="feature-card">
+                        <h3>Expanded Toolbar</h3>
+                        <p>Enable <strong>Options → Expanded Toolbar</strong> for text labels on toolbar buttons - helpful for new users.</p>
+                    </div>
+                    <div class="feature-card">
+                        <h3>Per-View Settings</h3>
+                        <p>Each tab remembers its own detail pane settings, splitter position, and column configuration.</p>
+                    </div>
+                    <div class="feature-card">
+                        <h3>Format Detection</h3>
+                        <p>The detail pane shows detected format in the toolbar - helps verify correct syntax highlighting.</p>
+                    </div>
+                </div>
+            </section>
+            
+            <section id="troubleshooting">
+                <h2>🔧 Troubleshooting</h2>
+                
+                <h3>Common Issues</h3>
+                
+                <h4>Q: SQL formatting not working?</h4>
+                <p><strong>A:</strong> Ensure <code>fsqlf.dll</code> is in the same folder as the executable. The DLL is loaded dynamically and will fall back to basic formatting if not found.</p>
+                
+                <h4>Q: Dark mode not affecting title bar?</h4>
+                <p><strong>A:</strong> Title bar theming requires Windows 10 version 1809 or later. Earlier versions will only theme the application content.</p>
+                
+                <h4>Q: Can't see Clarion columns?</h4>
+                <p><strong>A:</strong> Right-click on any column header and enable the Clarion-specific columns (Thread, App, Module, Procedure, Prefix).</p>
+                
+                <h4>Q: Detail pane not showing?</h4>
+                <p><strong>A:</strong> Press <span class="shortcut">Ctrl+D</span> or use <strong>View → Show Detail Pane</strong>. The detail pane is hidden by default on first run.</p>
+                
+                <h4>Q: Lost column configuration?</h4>
+                <p><strong>A:</strong> Right-click column header → "Reset Layout" to restore default configuration, or load a previously saved layout.</p>
+                
+                <h3>Performance Tips</h3>
+                <ul>
+                    <li>Disable syntax highlighting for very large messages</li>
+                    <li>Use filters to reduce the number of displayed messages</li>
+                    <li>Clear old messages periodically with <span class="shortcut">Ctrl+X</span></li>
+                    <li>Limit the log history size in Options</li>
+                    <li>Close unused tabs to free memory</li>
+                </ul>
+            </section>
+        </div>
+        
+        <footer>
+            <p><strong>Ultimate DebugView++</strong> - Enhanced Edition</p>
+            <p>Built with ❤️ for developers who demand the best debugging tools</p>
+            <p>© 2024 - Powered by Scintilla, Lexilla, fsqlf, and Windows Template Library</p>
+        </footer>
+    </div>
+</body>
+</html>

@@ -15,6 +15,7 @@
 #include "resource.h"
 #include "MainFrame.h"
 #include "RenameProcessDlg.h"
+#include "ManageLayoutsDlg.h"
 //#include "VersionHelpers.h"  // IsWindows10OrGreater ??
 
 #include <boost/algorithm/string.hpp>
@@ -136,6 +137,9 @@ BEGIN_MSG_MAP2(CLogView)
     MSG_WM_LBUTTONUP(OnLButtonUp)
     MSG_WM_TIMER(OnTimer)
     MSG_WM_KEYDOWN(OnKeyDown)
+    MSG_WM_ERASEBKGND(OnEraseBkgnd)
+    NOTIFY_CODE_HANDLER_EX(HDN_BEGINDRAG, OnHeaderBeginDrag)
+    NOTIFY_CODE_HANDLER_EX(HDN_ENDDRAG, OnHeaderEndDrag)
     REFLECTED_NOTIFY_CODE_HANDLER_EX(NM_CLICK, OnClick)
     REFLECTED_NOTIFY_CODE_HANDLER_EX(NM_DBLCLK, OnDblClick)
     REFLECTED_NOTIFY_CODE_HANDLER_EX(LVN_ITEMCHANGED, OnItemChanged)
@@ -177,6 +181,10 @@ BEGIN_MSG_MAP2(CLogView)
     COMMAND_ID_HANDLER_EX(ID_VIEW_PREVIOUS_BOOKMARK, OnViewPreviousBookmark)
     COMMAND_ID_HANDLER_EX(ID_VIEW_CLEAR_BOOKMARKS, OnViewClearBookmarks)
     COMMAND_RANGE_HANDLER_EX(ID_VIEW_COLUMN_FIRST, ID_VIEW_COLUMN_LAST, OnViewColumn)
+    COMMAND_ID_HANDLER_EX(ID_COLUMN_SAVE_LAYOUT, OnColumnSaveLayout)
+    COMMAND_ID_HANDLER_EX(ID_COLUMN_MANAGE_LAYOUTS, OnColumnManageLayouts)
+    COMMAND_ID_HANDLER_EX(ID_COLUMN_RESET_LAYOUT, OnColumnResetLayout)
+    COMMAND_RANGE_HANDLER_EX(ID_COLUMN_LAYOUT_FIRST, ID_COLUMN_LAYOUT_LAST, OnColumnLayout)
     CHAIN_MSG_MAP_ALT(COwnerDraw<CLogView>, 1)
     CHAIN_MSG_MAP(CDoubleBufferImpl<CLogView>) //DrMemory: GDI USAGE ERROR: DC 0x3e011cca that contains selected object being deleted
 
@@ -187,6 +195,55 @@ END_MSG_MAP()
 bool CLogView::IsColumnViewed(int nID) const
 {
     return m_columns[nID - ID_VIEW_COLUMN_FIRST].enable;
+}
+
+LRESULT CLogView::OnHeaderBeginDrag(NMHDR* pnmh)
+{
+    auto& nmhdr = *reinterpret_cast<NMHEADER*>(pnmh);
+    // Block dragging of column 0 (bookmark column)
+    if (nmhdr.iItem == 0)
+    {
+        return TRUE; // TRUE means cancel the drag
+    }
+    return FALSE; // FALSE means allow the drag
+}
+
+LRESULT CLogView::OnHeaderEndDrag(NMHDR* /*pnmh*/)
+{
+    // Save the current column order after drag operation
+    int columnCount = GetHeader().GetItemCount();
+    if (columnCount > 0)
+    {
+        std::vector<int> orderArray(columnCount);
+        GetColumnOrderArray(columnCount, orderArray.data());
+        
+        // Update our column info with the new order
+        std::vector<int> columnMapping; // Maps display column index to Column::type
+        for (const auto& item : m_columns)
+        {
+            if (item.enable)
+            {
+                columnMapping.push_back(item.column.iSubItem);
+            }
+        }
+        
+        // Update the order values in our column info
+        for (int i = 0; i < columnCount && i < static_cast<int>(columnMapping.size()); ++i)
+        {
+            int columnType = columnMapping[orderArray[i]];
+            // Update the order for this column type
+            for (auto& item : m_columns)
+            {
+                if (item.column.iSubItem == columnType)
+                {
+                    item.column.iOrder = i;
+                    break;
+                }
+            }
+        }
+    }
+    
+    return FALSE; // Allow the operation
 }
 
 void CLogView::OnKeyDown(UINT nChar, UINT /*nRepCnt*/, UINT /*nFlags*/)
@@ -212,9 +269,222 @@ void CLogView::OnKeyDown(UINT nChar, UINT /*nRepCnt*/, UINT /*nFlags*/)
 
 void CLogView::OnViewColumn(UINT /*uNotifyCode*/, int nID, CWindow /*wndCtl*/)
 {
-    auto& column = m_columns[nID - ID_VIEW_COLUMN_FIRST];
+    // Prevent Message column from being hidden
+    int columnIndex = nID - ID_VIEW_COLUMN_FIRST;
+    if (columnIndex == Column::Message)
+        return;
+    
+    // Save current column order before making changes
+    int columnCount = GetHeader().GetItemCount();
+    std::vector<int> currentOrder;
+    if (columnCount > 0)
+    {
+        currentOrder.resize(columnCount);
+        GetColumnOrderArray(columnCount, currentOrder.data());
+        
+        // Map display columns to their Column::type
+        std::vector<int> columnTypes;
+        for (int i = 0; i < columnCount; ++i)
+        {
+            LVCOLUMN col;
+            col.mask = LVCF_SUBITEM;
+            GetColumn(i, &col);
+            columnTypes.push_back(col.iSubItem);
+        }
+        
+        // Update the iOrder in m_columns based on current display
+        for (int displayPos = 0; displayPos < columnCount; ++displayPos)
+        {
+            int displayIndex = currentOrder[displayPos];
+            if (displayIndex < static_cast<int>(columnTypes.size()))
+            {
+                int columnType = columnTypes[displayIndex];
+                m_columns[columnType].column.iOrder = displayPos;
+            }
+        }
+    }
+    
+    // Toggle the column
+    auto& column = m_columns[columnIndex];
     column.enable = !column.enable;
+    
+    // If enabling a column, assign it a proper order
+    if (column.enable)
+    {
+        // Count currently enabled columns
+        int enabledCount = 0;
+        for (const auto& col : m_columns)
+        {
+            if (col.enable)
+                enabledCount++;
+        }
+        
+        // Place the new column at the end (but before Message column)
+        column.column.iOrder = enabledCount - 2; // -1 for 0-based, -1 to put before Message
+        
+        // Ensure Message column stays last
+        m_columns[Column::Message].column.iOrder = enabledCount - 1;
+    }
+    
     UpdateColumns();
+}
+
+void CLogView::OnColumnSaveLayout(UINT /*uNotifyCode*/, int /*nID*/, CWindow /*wndCtl*/)
+{
+    // Use the rename process dialog as a simple input dialog
+    CRenameProcessDlg dlg(L"");
+    if (dlg.DoModal(m_mainFrame) == IDOK)
+    {
+        std::wstring layoutName = dlg.GetName();
+        
+        if (layoutName.empty())
+        {
+            ::MessageBox(m_mainFrame, L"Please enter a layout name.", L"Error", MB_OK | MB_ICONWARNING);
+            return;
+        }
+        
+        // Check if layout already exists
+        if (LayoutExists(layoutName))
+        {
+            std::wstring msg = L"Layout '" + layoutName + L"' already exists. Overwrite?";
+            if (::MessageBox(m_mainFrame, msg.c_str(), L"Confirm", MB_YESNO | MB_ICONQUESTION) != IDYES)
+                return;
+        }
+        
+        SaveColumnLayout(layoutName);
+        
+        std::wstring msg = L"Layout '" + layoutName + L"' saved successfully!";
+        ::MessageBox(m_mainFrame, msg.c_str(), L"Success", MB_OK | MB_ICONINFORMATION);
+    }
+}
+
+void CLogView::OnColumnManageLayouts(UINT /*uNotifyCode*/, int /*nID*/, CWindow /*wndCtl*/)
+{
+    CManageLayoutsDlg dlg(*this);
+    if (dlg.DoModal(m_mainFrame) == IDOK && dlg.ShouldLoadLayout())
+    {
+        std::wstring layoutName = dlg.GetSelectedLayout();
+        if (!layoutName.empty())
+        {
+            LoadColumnLayout(layoutName);
+            UpdateColumns();
+        }
+    }
+}
+
+void CLogView::OnColumnResetLayout(UINT /*uNotifyCode*/, int /*nID*/, CWindow /*wndCtl*/)
+{
+    // Confirm before resetting
+    if (::MessageBox(m_mainFrame, L"Reset column layout to default settings?", L"Confirm Reset", 
+                      MB_YESNO | MB_ICONQUESTION) != IDYES)
+        return;
+    
+    // First, clear all existing columns from the ListView
+    int columnCount = GetHeader().GetItemCount();
+    for (int i = 0; i < columnCount; ++i)
+    {
+        DeleteColumn(0);
+    }
+    
+    // Reset all columns to their default state with proper sequential order
+    int visibleOrder = 0;
+    
+    // Bookmark column - always visible and first
+    m_columns[Column::Bookmark].enable = true;
+    m_columns[Column::Bookmark].column.cx = 20;
+    m_columns[Column::Bookmark].column.iOrder = visibleOrder++;
+    m_columns[Column::Bookmark].column.iSubItem = Column::Bookmark;
+    
+    // Line column - visible
+    m_columns[Column::Line].enable = true;
+    m_columns[Column::Line].column.cx = 60;
+    m_columns[Column::Line].column.iOrder = visibleOrder++;
+    m_columns[Column::Line].column.iSubItem = Column::Line;
+    
+    // Date column - hidden by default
+    m_columns[Column::Date].enable = false;
+    m_columns[Column::Date].column.cx = 90;
+    m_columns[Column::Date].column.iOrder = 0;  // Order doesn't matter when hidden
+    m_columns[Column::Date].column.iSubItem = Column::Date;
+    
+    // Time column - visible
+    m_columns[Column::Time].enable = true;
+    m_columns[Column::Time].column.cx = 90;
+    m_columns[Column::Time].column.iOrder = visibleOrder++;
+    m_columns[Column::Time].column.iSubItem = Column::Time;
+    
+    // PID column - visible
+    m_columns[Column::Pid].enable = true;
+    m_columns[Column::Pid].column.cx = 60;
+    m_columns[Column::Pid].column.iOrder = visibleOrder++;
+    m_columns[Column::Pid].column.iSubItem = Column::Pid;
+    
+    // Process column - visible
+    m_columns[Column::Process].enable = true;
+    m_columns[Column::Process].column.cx = 140;
+    m_columns[Column::Process].column.iOrder = visibleOrder++;
+    m_columns[Column::Process].column.iSubItem = Column::Process;
+    
+    // Clarion-specific columns - hidden by default
+    m_columns[Column::Thread].enable = false;
+    m_columns[Column::Thread].column.cx = 80;
+    m_columns[Column::Thread].column.iOrder = 0;
+    m_columns[Column::Thread].column.iSubItem = Column::Thread;
+    
+    m_columns[Column::App].enable = false;
+    m_columns[Column::App].column.cx = 120;
+    m_columns[Column::App].column.iOrder = 0;
+    m_columns[Column::App].column.iSubItem = Column::App;
+    
+    m_columns[Column::Module].enable = false;
+    m_columns[Column::Module].column.cx = 150;
+    m_columns[Column::Module].column.iOrder = 0;
+    m_columns[Column::Module].column.iSubItem = Column::Module;
+    
+    m_columns[Column::Procedure].enable = false;
+    m_columns[Column::Procedure].column.cx = 150;
+    m_columns[Column::Procedure].column.iOrder = 0;
+    m_columns[Column::Procedure].column.iSubItem = Column::Procedure;
+    
+    m_columns[Column::Prefix].enable = false;
+    m_columns[Column::Prefix].column.cx = 80;
+    m_columns[Column::Prefix].column.iOrder = 0;
+    m_columns[Column::Prefix].column.iSubItem = Column::Prefix;
+    
+    // Message column - always visible and last
+    m_columns[Column::Message].enable = true;
+    m_columns[Column::Message].column.cx = 1500;
+    m_columns[Column::Message].column.iOrder = visibleOrder++;
+    m_columns[Column::Message].column.iSubItem = Column::Message;
+    
+    // Apply the reset layout - this will recreate all columns
+    UpdateColumns();
+    
+    // Force the correct column order after UpdateColumns
+    std::vector<int> orderArray;
+    orderArray.push_back(0); // Bookmark
+    orderArray.push_back(1); // Line  
+    orderArray.push_back(2); // Time
+    orderArray.push_back(3); // PID
+    orderArray.push_back(4); // Process
+    orderArray.push_back(5); // Message
+    
+    SetColumnOrderArray(static_cast<int>(orderArray.size()), orderArray.data());
+    
+    ::MessageBox(m_mainFrame, L"Column layout has been reset to defaults.", L"Layout Reset", 
+                 MB_OK | MB_ICONINFORMATION);
+}
+
+void CLogView::OnColumnLayout(UINT /*uNotifyCode*/, int nID, CWindow /*wndCtl*/)
+{
+    auto layouts = GetSavedLayouts();
+    int layoutIndex = nID - ID_COLUMN_LAYOUT_FIRST;
+    
+    if (layoutIndex >= 0 && layoutIndex < static_cast<int>(layouts.size()))
+    {
+        LoadColumnLayout(layouts[layoutIndex]);
+        UpdateColumns();
+    }
 }
 
 CLogView::CLogView(std::wstring name, CMainFrame& mainFrame, LogFile& logFile, LogFilter filter) :
@@ -274,20 +544,49 @@ Column::type CLogView::SubItemToColumn(int iSubItem) const
 
 void CLogView::UpdateColumns()
 {
+    // Delete all existing columns
     int columns = GetHeader().GetItemCount();
     for (int i = 0; i < columns; ++i)
     {
         DeleteColumn(0);
     }
 
-    int col = 0;
+    // Collect all enabled columns with their order info
+    struct ColumnData {
+        ColumnInfo* info;
+        int order;
+        int insertIndex;
+    };
+    std::vector<ColumnData> enabledColumns;
+    
     for (auto& item : m_columns)
     {
         if (item.enable)
         {
-            InsertColumn(col++, &item.column);
+            ColumnData data;
+            data.info = &item;
+            data.order = item.column.iOrder;
+            data.insertIndex = 0; // Will be set later
+            enabledColumns.push_back(data);
         }
     }
+    
+    // Sort by saved order
+    std::sort(enabledColumns.begin(), enabledColumns.end(), 
+              [](const ColumnData& a, const ColumnData& b) {
+                  return a.order < b.order;
+              });
+    
+    // Insert columns in sorted order
+    int col = 0;
+    for (auto& colData : enabledColumns)
+    {
+        colData.insertIndex = col;
+        InsertColumn(col++, &colData.info->column);
+    }
+    
+    // The columns should now be in the correct order since we inserted them in order
+    // No need to call SetColumnOrderArray
 }
 
 ColumnInfo MakeColumn(Column::type column, const wchar_t* name, int format, int width)
@@ -306,6 +605,12 @@ ColumnInfo MakeColumn(Column::type column, const wchar_t* name, int format, int 
 LRESULT CLogView::OnCreate(const CREATESTRUCT* /*pCreate*/)
 {
     DefWindowProc();
+    
+    // Explicitly set the extended ListView styles to ensure drag-drop is enabled
+    DWORD dwExStyle = GetExtendedListViewStyle();
+    dwExStyle |= LVS_EX_FULLROWSELECT | LVS_EX_INFOTIP | LVS_EX_HEADERDRAGDROP | LVS_EX_DOUBLEBUFFER;
+    SetExtendedListViewStyle(dwExStyle);
+    
     m_hdr.SubclassWindow(GetHeader());
     m_columns.push_back(MakeColumn(Column::Bookmark, L"", LVCFMT_RIGHT, 20));
     m_columns.push_back(MakeColumn(Column::Line, L"Line", LVCFMT_RIGHT, 60));
@@ -314,6 +619,18 @@ LRESULT CLogView::OnCreate(const CREATESTRUCT* /*pCreate*/)
     m_columns.push_back(MakeColumn(Column::Time, L"Time", LVCFMT_RIGHT, 90));
     m_columns.push_back(MakeColumn(Column::Pid, L"PID", LVCFMT_RIGHT, 60));
     m_columns.push_back(MakeColumn(Column::Process, L"Process", LVCFMT_LEFT, 140));
+    // Clarion-specific columns (default hidden)
+    m_columns.push_back(MakeColumn(Column::Thread, L"Thread", LVCFMT_RIGHT, 80));
+    m_columns.back().enable = false; // Default hidden
+    m_columns.push_back(MakeColumn(Column::App, L"App", LVCFMT_LEFT, 120));
+    m_columns.back().enable = false; // Default hidden
+    m_columns.push_back(MakeColumn(Column::Module, L"Module", LVCFMT_LEFT, 150));
+    m_columns.back().enable = false; // Default hidden
+    m_columns.push_back(MakeColumn(Column::Procedure, L"Procedure", LVCFMT_LEFT, 150));
+    m_columns.back().enable = false; // Default hidden
+    m_columns.push_back(MakeColumn(Column::Prefix, L"Prefix", LVCFMT_LEFT, 80));
+    m_columns.back().enable = false; // Default hidden
+    // Message column must be last
     m_columns.push_back(MakeColumn(Column::Message, L"Message", LVCFMT_LEFT, 1500));
     UpdateColumns();
 
@@ -330,6 +647,13 @@ LRESULT CLogView::OnCreate(const CREATESTRUCT* /*pCreate*/)
 CLogView::~CLogView()
 {
     m_pDropTargetSupport->Unregister();
+}
+
+BOOL CLogView::OnEraseBkgnd(CDCHandle /*dc*/)
+{
+    // Return TRUE to prevent erasing the background
+    // This reduces flickering during resize operations
+    return TRUE;
 }
 
 bool Contains(const RECT& rect, const POINT& pt)
@@ -441,6 +765,26 @@ void CLogView::OnContextMenu(HWND /*hWnd*/, CPoint pt)
     CMenu menuContext;
     menuContext.LoadMenu(menuId);
     CMenuHandle menuPopup(menuContext.GetSubMenu(0));
+    
+    // Set checkmarks for column visibility in header context menu
+    if (menuId == IDR_HEADER_CONTEXTMENU)
+    {
+        for (int id = ID_VIEW_COLUMN_FIRST; id <= ID_VIEW_COLUMN_LAST; ++id)
+        {
+            // Skip bookmark column (ID_VIEW_COLUMN_BOOKMARK) as it's not in the menu
+            if (id == ID_VIEW_COLUMN_BOOKMARK)
+                continue;
+            
+            if (IsColumnViewed(id))
+            {
+                menuPopup.CheckMenuItem(id, MF_BYCOMMAND | MF_CHECKED);
+            }
+        }
+        
+        // Add saved layouts to the menu
+        PopulateLayoutMenu(menuPopup);
+    }
+    
     ClientToScreen(&pt);
     menuPopup.TrackPopupMenu(TPM_LEFTALIGN | TPM_RIGHTBUTTON, pt.x, pt.y, m_mainFrame);
 }
@@ -703,16 +1047,43 @@ LRESULT CLogView::OnItemChanged(NMHDR* pnmh)
 {
     auto& nmhdr = *reinterpret_cast<NMLISTVIEW*>(pnmh);
 
-    if ((nmhdr.uNewState & LVIS_FOCUSED) == 0 ||
-        nmhdr.iItem < 0 ||
-        static_cast<size_t>(nmhdr.iItem) >= m_logLines.size())
+    // Handle selection changes (including multi-selection)
+    if ((nmhdr.uNewState & LVIS_SELECTED) || (nmhdr.uOldState & LVIS_SELECTED))
     {
-        return 0;
+        // Collect all selected line indices
+        std::vector<int> selectedLines;
+        int item = -1;
+        while ((item = GetNextItem(item, LVNI_ALL | LVNI_SELECTED)) >= 0)
+        {
+            if (static_cast<size_t>(item) < m_logLines.size())
+            {
+                selectedLines.push_back(m_logLines[item].line);
+            }
+        }
+        
+        // Sort the line indices to ensure they appear in chronological order
+        std::sort(selectedLines.begin(), selectedLines.end());
+        
+        // Update detail view with all selected lines
+        if (!selectedLines.empty())
+        {
+            m_mainFrame.UpdateDetailView(this, selectedLines);
+        }
+        else
+        {
+            m_mainFrame.UpdateDetailView(this, std::vector<int>());  // Clear detail view when nothing selected
+        }
     }
 
-    if (m_autoScrollStop)
+    // Handle focus changes for auto-scroll
+    if ((nmhdr.uNewState & LVIS_FOCUSED) && 
+        nmhdr.iItem >= 0 && 
+        static_cast<size_t>(nmhdr.iItem) < m_logLines.size())
     {
-        m_autoScrollDown = nmhdr.iItem == GetItemCount() - 1;
+        if (m_autoScrollStop)
+        {
+            m_autoScrollDown = nmhdr.iItem == GetItemCount() - 1;
+        }
     }
 
     //this breaks F3/ShiftF3 //  SetHighlightText(L"");
@@ -889,11 +1260,13 @@ void CLogView::DrawBookmark(CDCHandle dc, int iItem) const
 ItemData CLogView::GetItemData(int iItem) const
 {
     ItemData data;
-    data.text[Column::Line] = GetItemWText(iItem, ColumnToSubItem(Column::Line));
-    data.text[Column::Date] = GetItemWText(iItem, ColumnToSubItem(Column::Date));
-    data.text[Column::Time] = GetItemWText(iItem, ColumnToSubItem(Column::Time));
-    data.text[Column::Pid] = GetItemWText(iItem, ColumnToSubItem(Column::Pid));
-    data.text[Column::Process] = GetItemWText(iItem, ColumnToSubItem(Column::Process));
+    // Get all column text using GetColumnText which handles Clarion parsing
+    for (int col = 0; col < Column::Count; ++col)
+    {
+        data.text[col] = GetColumnText(iItem, static_cast<Column::type>(col));
+    }
+    
+    // Special handling for Message column (highlights and tabs)
     auto text = TabsToSpaces(m_logFile[m_logLines[iItem].line].text);
     data.highlights = GetHighlights(WStr(m_logFile[m_logLines[iItem].line].text).str());
     data.text[Column::Message] = WStr(text).str();
@@ -978,6 +1351,13 @@ std::wstring CLogView::GetColumnText(int iItem, Column::type column) const
     case Column::Time: return WStr(m_clockTime ? GetTimeText(msg.systemTime) : GetTimeText(msg.time));
     case Column::Pid: return std::to_wstring(msg.processId + 0ULL);
     case Column::Process: return WStr(msg.processName);
+    // Clarion-specific columns - populated from parsed Clarion data
+    case Column::Thread: 
+        return WStr(msg.clarionThread);
+    case Column::App: return WStr(msg.clarionApp);
+    case Column::Module: return WStr(msg.clarionModule);
+    case Column::Procedure: return WStr(msg.clarionProcedure);
+    case Column::Prefix: return WStr(msg.clarionPrefix);
     case Column::Message: return WStr(msg.text);
     default: break;
     }
@@ -1945,6 +2325,39 @@ void CLogView::SaveSettings(CRegKey& reg)
     reg.SetDWORDValue(L"ClockTime", static_cast<DWORD>(GetClockTime()));
     reg.SetDWORDValue(L"ShowProcessColors", static_cast<DWORD>(GetViewProcessColors()));
 
+    // Update column order from current ListView state before saving
+    int columnCount = GetHeader().GetItemCount();
+    if (columnCount > 0)
+    {
+        std::vector<int> orderArray(columnCount);
+        GetColumnOrderArray(columnCount, orderArray.data());
+        
+        // Build mapping of currently displayed columns
+        std::vector<int> columnMapping; // Maps display column index to Column::type
+        for (const auto& item : m_columns)
+        {
+            if (item.enable)
+            {
+                columnMapping.push_back(item.column.iSubItem);
+            }
+        }
+        
+        // Update the order values in our column info
+        for (int i = 0; i < columnCount && i < static_cast<int>(columnMapping.size()); ++i)
+        {
+            int columnType = columnMapping[orderArray[i]];
+            // Update the order for this column type
+            for (auto& item : m_columns)
+            {
+                if (item.column.iSubItem == columnType)
+                {
+                    item.column.iOrder = i;
+                    break;
+                }
+            }
+        }
+    }
+
     int i = 0;
     for (auto& col : m_columns)
     {
@@ -2155,7 +2568,16 @@ TextColor CLogView::GetTextColor(const Message& msg) const
         }
     }
 
-    return TextColor(m_processColors ? msg.color : Colors::BackGround, Colors::Text);
+    if (m_processColors)
+    {
+        // When process colors are enabled, calculate appropriate text color for contrast
+        COLORREF textColor = GetContrastingTextColor(msg.color);
+        return TextColor(msg.color, textColor);
+    }
+    else
+    {
+        return TextColor(Colors::BackGround, Colors::Text);
+    }
 }
 
 bool CLogView::IsClearMessage(const Message& msg) const
@@ -2181,6 +2603,162 @@ bool CLogView::MatchFilterType(FilterType::type type, const Message& msg) const
     using debugviewpp::MatchFilterType;
     return MatchFilterType(m_filter.messageFilters, type, msg.text) ||
            MatchFilterType(m_filter.processFilters, type, msg.processName);
+}
+
+// Column layout management implementations
+void CLogView::SaveColumnLayout(const std::wstring& layoutName)
+{
+    // Update column order and widths from current ListView state before saving
+    int columnCount = GetHeader().GetItemCount();
+    if (columnCount > 0)
+    {
+        std::vector<int> orderArray(columnCount);
+        GetColumnOrderArray(columnCount, orderArray.data());
+        
+        // Build mapping of currently displayed columns
+        std::vector<int> columnMapping;
+        for (const auto& item : m_columns)
+        {
+            if (item.enable)
+            {
+                columnMapping.push_back(item.column.iSubItem);
+            }
+        }
+        
+        // Update order and widths in m_columns based on current display
+        for (int displayPos = 0; displayPos < columnCount; ++displayPos)
+        {
+            int displayIndex = orderArray[displayPos];
+            if (displayIndex < static_cast<int>(columnMapping.size()))
+            {
+                int columnType = columnMapping[displayIndex];
+                m_columns[columnType].column.iOrder = displayPos;
+                
+                // Also capture current column width
+                m_columns[columnType].column.cx = GetColumnWidth(displayIndex);
+            }
+        }
+    }
+    
+    // Save to registry
+    CRegKey reg;
+    reg.Create(HKEY_CURRENT_USER, L"Software\\ClarionLive\\UltimateDebugView++\\ColumnLayouts");
+    
+    CRegKey layoutReg;
+    layoutReg.Create(reg, layoutName.c_str());
+    
+    // Save each column's settings
+    for (size_t i = 0; i < m_columns.size(); ++i)
+    {
+        CRegKey columnReg;
+        columnReg.Create(layoutReg, WStr(wstringbuilder() << L"Column" << i));
+        
+        columnReg.SetDWORDValue(L"Enable", m_columns[i].enable ? 1 : 0);
+        columnReg.SetDWORDValue(L"Width", m_columns[i].column.cx);
+        columnReg.SetDWORDValue(L"Order", m_columns[i].column.iOrder);
+    }
+}
+
+void CLogView::LoadColumnLayout(const std::wstring& layoutName)
+{
+    CRegKey reg;
+    if (reg.Open(HKEY_CURRENT_USER, L"Software\\ClarionLive\\UltimateDebugView++\\ColumnLayouts", KEY_READ) != ERROR_SUCCESS)
+        return;
+    
+    CRegKey layoutReg;
+    if (layoutReg.Open(reg, layoutName.c_str(), KEY_READ) != ERROR_SUCCESS)
+        return;
+    
+    // Load each column's settings
+    for (size_t i = 0; i < m_columns.size(); ++i)
+    {
+        CRegKey columnReg;
+        if (columnReg.Open(layoutReg, WStr(wstringbuilder() << L"Column" << i), KEY_READ) == ERROR_SUCCESS)
+        {
+            DWORD enable = 0, width = 0, order = 0;
+            columnReg.QueryDWORDValue(L"Enable", enable);
+            columnReg.QueryDWORDValue(L"Width", width);
+            columnReg.QueryDWORDValue(L"Order", order);
+            
+            m_columns[i].enable = (enable != 0);
+            if (width > 0)
+                m_columns[i].column.cx = width;
+            m_columns[i].column.iOrder = order;
+        }
+    }
+}
+
+void CLogView::DeleteColumnLayout(const std::wstring& layoutName)
+{
+    CRegKey reg;
+    if (reg.Open(HKEY_CURRENT_USER, L"Software\\ClarionLive\\UltimateDebugView++\\ColumnLayouts", KEY_WRITE) == ERROR_SUCCESS)
+    {
+        reg.RecurseDeleteKey(layoutName.c_str());
+    }
+}
+
+std::vector<std::wstring> CLogView::GetSavedLayouts() const
+{
+    std::vector<std::wstring> layouts;
+    
+    CRegKey reg;
+    if (reg.Open(HKEY_CURRENT_USER, L"Software\\ClarionLive\\UltimateDebugView++\\ColumnLayouts", KEY_READ) != ERROR_SUCCESS)
+        return layouts;
+    
+    DWORD index = 0;
+    wchar_t name[256];
+    DWORD nameLen = 256;
+    
+    while (::RegEnumKeyEx(reg, index++, name, &nameLen, nullptr, nullptr, nullptr, nullptr) == ERROR_SUCCESS)
+    {
+        layouts.push_back(name);
+        nameLen = 256; // Reset for next iteration
+    }
+    
+    return layouts;
+}
+
+void CLogView::PopulateLayoutMenu(CMenuHandle menu)
+{
+    auto layouts = GetSavedLayouts();
+    
+    if (!layouts.empty())
+    {
+        // Add separator before saved layouts
+        menu.AppendMenu(MF_SEPARATOR);
+        
+        // Add saved layouts (up to 10)
+        int count = 0;
+        for (const auto& layoutName : layouts)
+        {
+            if (count >= 10) // Limit to 10 layouts
+                break;
+            
+            // Create menu text with accelerator
+            std::wstring menuText = layoutName;
+            if (count < 9)
+            {
+                menuText = WStr(wstringbuilder() << L"&" << (count + 1) << L" " << layoutName).str();
+            }
+            else if (count == 9)
+            {
+                menuText = WStr(wstringbuilder() << L"&0 " << layoutName).str();
+            }
+            
+            menu.AppendMenu(MF_STRING, ID_COLUMN_LAYOUT_FIRST + count, menuText.c_str());
+            count++;
+        }
+    }
+}
+
+bool CLogView::LayoutExists(const std::wstring& layoutName) const
+{
+    CRegKey reg;
+    if (reg.Open(HKEY_CURRENT_USER, L"Software\\ClarionLive\\UltimateDebugView++\\ColumnLayouts", KEY_READ) != ERROR_SUCCESS)
+        return false;
+    
+    CRegKey layoutReg;
+    return layoutReg.Open(reg, layoutName.c_str(), KEY_READ) == ERROR_SUCCESS;
 }
 
 } // namespace debugviewpp

@@ -129,6 +129,8 @@ BEGIN
         MENUITEM "Auto Scroll Stop",            ID_VIEW_SCROLL_STOP
         MENUITEM "Clock Time\tCtrl+T",          ID_VIEW_TIME
         MENUITEM "Process Colors",              ID_VIEW_PROCESSCOLORS
+        MENUITEM "Dark Mode",                   ID_VIEW_DARKMODE
+        MENUITEM "Show Detail Pane\tCtrl+D",    ID_VIEW_DETAIL_PANE
         MENUITEM SEPARATOR
         POPUP "&Bookmarks"
         BEGIN
@@ -147,10 +149,14 @@ BEGIN
         MENUITEM "&Font...",                    ID_OPTIONS_FONT
         MENUITEM "Always On &Top",              ID_OPTIONS_ALWAYSONTOP
         MENUITEM "&Hide When Minimized",        ID_OPTIONS_HIDE
+        MENUITEM SEPARATOR
+        MENUITEM "&Expanded Toolbar",           ID_OPTIONS_EXPANDED_TOOLBAR
+        MENUITEM SEPARATOR
+        MENUITEM "&Import DebugView++ Settings...", ID_OPTIONS_IMPORT_SETTINGS
     END
     POPUP "&Help"
     BEGIN
-        MENUITEM "&About DebugView++...",       ID_APP_ABOUT
+        MENUITEM "&About Ultimate DebugView++...",       ID_APP_ABOUT
     END
 END
 
@@ -233,6 +239,16 @@ BEGIN
         MENUITEM "Time",                        ID_VIEW_COLUMN_TIME
         MENUITEM "PID",                         ID_VIEW_COLUMN_PID
         MENUITEM "Process",                     ID_VIEW_COLUMN_PROCESS
+        MENUITEM "Thread",                      ID_VIEW_COLUMN_THREAD
+        MENUITEM "App",                         ID_VIEW_COLUMN_APP
+        MENUITEM "Module",                      ID_VIEW_COLUMN_MODULE
+        MENUITEM "Procedure",                   ID_VIEW_COLUMN_PROCEDURE
+        MENUITEM "Prefix",                      ID_VIEW_COLUMN_PREFIX
+        MENUITEM SEPARATOR
+        MENUITEM "&Save Current Layout...",     ID_COLUMN_SAVE_LAYOUT
+        MENUITEM "&Manage Layouts...",          ID_COLUMN_MANAGE_LAYOUTS
+        MENUITEM SEPARATOR
+        MENUITEM "&Reset Layout",               ID_COLUMN_RESET_LAYOUT
     END
 END
 
@@ -248,6 +264,11 @@ IDR_MAINFRAME           ICON                    "res\\DebugView++.ico"
 
 IDR_BOOKMARK            ICON                    "res\\Bookmark.ico"
 
+IDI_DETAIL_FORMAT       ICON                    "res\\DetailFormat.ico"
+IDI_DETAIL_LINENUMBERS  ICON                    "res\\DetailLineNumbers.ico"
+IDI_DETAIL_SYNTAX       ICON                    "res\\DetailSyntax.ico"
+IDI_DETAIL_WORDWRAP     ICON                    "res\\DetailWordWrap.ico"
+
 /////////////////////////////////////////////////////////////////////////////
 //
 // RCDATA
@@ -260,19 +281,27 @@ IDR_DBGV_DRIVER         RCDATA                  "res\\Dbgv.sys"
 // Dialog
 //
 
-IDD_ABOUTBOX DIALOGEX 0, 0, 210, 127
+IDD_ABOUTBOX DIALOGEX 0, 0, 250, 200
 STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSMENU
-CAPTION "About DebugView++"
+CAPTION "About Ultimate DebugView++"
 FONT 8, "MS Shell Dlg", 0, 0, 0x0
 BEGIN
-    DEFPUSHBUTTON   "OK",IDOK,140,108,50,14
-    ICON            IDR_MAINFRAME,IDC_STATIC,21,26,20,20
-    GROUPBOX        "",IDC_STATIC,7,7,193,91
-    CTEXT           "DebugView++ VX.X",IDC_VERSION,54,22,118,8
-    CTEXT           "<date replaced in CAboutDlg::OnInitDialog>",IDC_DATE,54,35,118,8
-    CTEXT           "(c) Gert-Jan de Vos and Jan Wilmans",IDC_STATIC,54,48,118,8
-    CTEXT           "https://github.com/djeedjay/DebugViewPP",IDC_DEBUGVIEW_SRC_URL,16,68,156,8
-    CTEXT           "http://debugviewpp.wordpress.com/",IDC_DEBUGVIEW_URL,16,82,156,8
+    DEFPUSHBUTTON   "OK",IDOK,180,180,50,14
+    ICON            IDR_MAINFRAME,IDC_STATIC,21,16,20,20
+    GROUPBOX        "",IDC_STATIC,7,7,236,165
+    CTEXT           "Ultimate DebugView++ VX.X",IDC_VERSION,54,16,150,8
+    CTEXT           "Beta - Pre-release",IDC_STATIC,54,26,150,8
+    CTEXT           "<date replaced in CAboutDlg::OnInitDialog>",IDC_DATE,54,36,150,8
+    LTEXT           "Based on DebugView++ by:",IDC_STATIC,16,52,200,8
+    CTEXT           "Gert-Jan de Vos and Jan Wilmans",IDC_STATIC,16,62,200,8
+    CTEXT           "https://github.com/djeedjay/DebugViewPP",IDC_DEBUGVIEW_SRC_URL,16,72,200,8
+    LTEXT           "Enhanced with:",IDC_STATIC,16,88,200,8
+    LTEXT           "- Dark Mode and Modern UI",IDC_STATIC,26,98,200,8
+    LTEXT           "- Scintilla Editor with Syntax Highlighting",IDC_STATIC,26,108,200,8
+    LTEXT           "- Clarion Debug Format Support",IDC_STATIC,26,118,200,8
+    LTEXT           "- Extended Toolbar and Column Management",IDC_STATIC,26,128,200,8
+    LTEXT           "Third-party components:",IDC_STATIC,16,144,200,8
+    LTEXT           "- fsqlf SQL Formatter (LGPL v3)",IDC_STATIC,26,154,200,8
 END
 
 IDD_FILTER DIALOGEX 0, 0, 381, 241
@@ -309,13 +338,14 @@ BEGIN
     PUSHBUTTON      "Cancel",IDCANCEL,247,137,50,14
 END
 
-IDD_FIND DIALOGEX 0, 0, 145, 12
+IDD_FIND DIALOGEX 0, 0, 190, 12
 STYLE DS_SETFONT | DS_FIXEDSYS | WS_CHILD | WS_SYSMENU
 FONT 8, "MS Shell Dlg", 400, 0, 0x1
 BEGIN
     EDITTEXT        IDC_TEXT,0,0,68,12,ES_AUTOHSCROLL
-    DEFPUSHBUTTON   "&Next",IDC_NEXT,70,0,35,12
-    PUSHBUTTON      "&Previous",IDC_PREVIOUS,108,0,35,12
+    PUSHBUTTON      "&Clear",IDC_CLEAR,70,0,35,12
+    DEFPUSHBUTTON   "&Next",IDC_NEXT,107,0,35,12
+    PUSHBUTTON      "&Previous",IDC_PREVIOUS,145,0,40,12
 END
 
 IDD_RUN DIALOGEX 0, 0, 306, 68
@@ -452,6 +482,20 @@ BEGIN
     PUSHBUTTON      "Cancel",IDCANCEL,242,70,50,14
 END
 
+IDD_MANAGE_LAYOUTS DIALOGEX 0, 0, 250, 200
+STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "Manage Column Layouts"
+FONT 8, "MS Shell Dlg", 400, 0, 0x0
+BEGIN
+    LTEXT           "Saved Layouts:",IDC_STATIC,7,7,236,8
+    LISTBOX         IDC_LAYOUTS_LIST,7,20,236,130,LBS_SORT | LBS_NOINTEGRALHEIGHT | WS_VSCROLL | WS_TABSTOP
+    PUSHBUTTON      "&Load",IDC_LOAD_LAYOUT,7,157,50,14
+    PUSHBUTTON      "&Rename",IDC_RENAME_LAYOUT,61,157,50,14
+    PUSHBUTTON      "&Delete",IDC_DELETE_LAYOUT,115,157,50,14
+    PUSHBUTTON      "Close",IDCANCEL,193,157,50,14
+    LTEXT           "Select a layout to load, rename, or delete.",IDC_STATIC,7,180,236,8
+END
+
 /////////////////////////////////////////////////////////////////////////////
 //
 // DESIGNINFO
@@ -463,9 +507,9 @@ BEGIN
     IDD_ABOUTBOX, DIALOG
     BEGIN
         LEFTMARGIN, 7
-        RIGHTMARGIN, 180
+        RIGHTMARGIN, 243
         TOPMARGIN, 7
-        BOTTOMMARGIN, 98
+        BOTTOMMARGIN, 193
     END
 
     IDD_FILTER, DIALOG
@@ -543,6 +587,7 @@ BEGIN
     "S",            ID_FILE_SAVE_VIEW,      VIRTKEY, CONTROL, NOINVERT
     "S",            ID_FILE_SAVE_VIEW_SELECTION, VIRTKEY, ALT, NOINVERT
     "X",            ID_LOG_CLEAR,           VIRTKEY, SHIFT, CONTROL, NOINVERT
+    "D",            ID_VIEW_DETAIL_PANE,    VIRTKEY, CONTROL, NOINVERT
     VK_F2,          ID_VIEW_BOOKMARK,       VIRTKEY, CONTROL, NOINVERT
     VK_F2,          ID_VIEW_CLEAR_BOOKMARKS, VIRTKEY, SHIFT, CONTROL, NOINVERT
     VK_INSERT,      ID_VIEW_COPY,           VIRTKEY, CONTROL, NOINVERT
@@ -591,7 +636,7 @@ END
 
 STRINGTABLE
 BEGIN
-    IDR_APPNAME             "DebugView++"
+    IDR_APPNAME             "Ultimate DebugView++"
     IDC_DEBUGVIEW_URL       "http://debugviewpp.wordpress.com/"
     IDS_LASTVALUE           "<< Click to add a new filter, drag to rearrange >>"
 END
@@ -610,13 +655,14 @@ END
 STRINGTABLE
 BEGIN
     ID_VIEW_PROCESSCOLORS   "Highlight processes\nProcess Colors"
+    ID_VIEW_DETAIL_PANE     "Toggle detail pane visibility\nShow Detail Pane"
     ID_LOG_SOURCES          "Configure log sources\nSources"
     ID_FILE_SAVE_VIEW_SELECTION "Save view selection\nSave Selection"
 END
 
 STRINGTABLE
 BEGIN
-    ID_APP_ABOUT            "About DebugView++\nAbout DebugView++"
+    ID_APP_ABOUT            "About Ultimate DebugView++\nAbout Ultimate DebugView++"
     ID_APP_EXIT             "Exit\nExit"
 END
 
@@ -668,8 +714,8 @@ BEGIN
     ID_OPTIONS_AUTONEWLINE  "Append newline at end of each message\nAuto Newline"
     ID_OPTIONS_PROCESS_PREFIX "Prefix all messages with the process ID\nPrefix PID"
     ID_OPTIONS_FONT         "Select font\nFont"
-    ID_OPTIONS_HIDE         "Hide DebugView++ when it is minimized\nHide When Minimized"
-    ID_OPTIONS_ALWAYSONTOP  "Keep DebugView++ window on top\nAlways On Top"
+    ID_OPTIONS_HIDE         "Hide Ultimate DebugView++ when it is minimized\nHide When Minimized"
+    ID_OPTIONS_ALWAYSONTOP  "Keep Ultimate DebugView++ window on top\nAlways On Top"
 END
 
 STRINGTABLE

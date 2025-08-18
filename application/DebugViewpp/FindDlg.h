@@ -31,11 +31,14 @@ public:
         COMMAND_ID_HANDLER_EX(IDOK, OnNext)
         COMMAND_ID_HANDLER_EX(IDC_NEXT, OnNext)
         COMMAND_ID_HANDLER_EX(IDC_PREVIOUS, OnPrevious)
+        COMMAND_ID_HANDLER_EX(IDC_CLEAR, OnClear)
+        COMMAND_HANDLER_EX(IDC_TEXT, EN_CHANGE, OnTextChange)
         CHAIN_MSG_MAP(CDialogResize<CFindDlg>)
     END_MSG_MAP()
 
     BEGIN_DLGRESIZE_MAP(CFindDlg)
         DLGRESIZE_CONTROL(IDC_TEXT, DLSZ_SIZE_X)
+        DLGRESIZE_CONTROL(IDC_CLEAR, DLSZ_MOVE_X)
         DLGRESIZE_CONTROL(IDC_NEXT, DLSZ_MOVE_X)
         DLGRESIZE_CONTROL(IDC_PREVIOUS, DLSZ_MOVE_X)
     END_DLGRESIZE_MAP()
@@ -50,6 +53,8 @@ public:
     BOOL OnInitDialog(CWindow wndFocus, LPARAM lInitParam);
     void OnPrevious(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/) const;
     void OnNext(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/) const;
+    void OnClear(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/);
+    void OnTextChange(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/);
 
 private:
     CMainFrame& m_mainFrame;

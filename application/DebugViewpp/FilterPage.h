@@ -30,6 +30,7 @@ public:
 
     std::vector<Filter> GetFilters();
     void SetFilters(const std::vector<Filter>& filters);
+    void SetAvailableProcesses(const std::vector<std::wstring>& processes);
 
     enum
     {
@@ -81,6 +82,8 @@ private:
     bool m_supportAutoBg;
     CPropertyGridCtrl m_grid;
     std::vector<Filter> m_filters;
+    std::vector<std::wstring> m_availableProcesses;
+    std::vector<std::wstring> m_processListStrings;  // Storage for dropdown strings
     CImageList m_dragImage;
     int m_dragItem;
     std::unique_ptr<Win32::ScopedCursor> m_dragCursor;

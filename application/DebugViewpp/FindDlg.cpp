@@ -28,6 +28,13 @@ BOOL CFindDlg::OnInitDialog(CWindow /*wndFocus*/, LPARAM /*lInitParam*/)
     CMessageLoop* pLoop = _Module.GetMessageLoop();
     ATLASSERT(pLoop != nullptr);
     pLoop->AddMessageFilter(this);
+    
+    // Initially disable the Clear button since there's no text
+    HWND hClearBtn = GetDlgItem(IDC_CLEAR);
+    if (::IsWindow(hClearBtn))
+    {
+        ::EnableWindow(hClearBtn, FALSE);
+    }
 
     return TRUE;
 }
@@ -51,6 +58,30 @@ void CFindDlg::OnPrevious(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/) 
 {
     m_mainFrame.FindPrevious(Win32::GetDlgItemText(*this, IDC_TEXT));
 }
+
+void CFindDlg::OnClear(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/)
+{
+    // Clear the text field
+    SetDlgItemText(IDC_TEXT, L"");
+    
+    // Clear the highlighting in the view
+    m_mainFrame.ClearFind();
+    
+    // Set focus back to the edit control
+    ::SetFocus(GetDlgItem(IDC_TEXT));
+}
+
+void CFindDlg::OnTextChange(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/)
+{
+    // Enable or disable the clear button based on whether there's text
+    HWND hClearBtn = GetDlgItem(IDC_CLEAR);
+    if (::IsWindow(hClearBtn))
+    {
+        auto text = Win32::GetDlgItemText(*this, IDC_TEXT);
+        ::EnableWindow(hClearBtn, !text.empty());
+    }
+}
+
 
 } // namespace debugviewpp
 } // namespace fusion

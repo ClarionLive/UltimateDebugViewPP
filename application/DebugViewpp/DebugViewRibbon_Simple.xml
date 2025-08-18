@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Application xmlns="http://schemas.microsoft.com/windows/2009/Ribbon">
+  <Application.Commands>
+    
+    <!-- Tab Commands -->
+    <Command Name="cmdTabHome" Symbol="ID_TAB_HOME" Id="4">
+      <Command.LabelTitle>Home</Command.LabelTitle>
+    </Command>
+    
+    <!-- Group Commands -->
+    <Command Name="cmdGroupFile" Symbol="ID_GROUP_FILE" Id="10">
+      <Command.LabelTitle>File Operations</Command.LabelTitle>
+    </Command>
+    
+    <Command Name="cmdGroupEdit" Symbol="ID_GROUP_EDIT" Id="11">
+      <Command.LabelTitle>Log Control</Command.LabelTitle>
+    </Command>
+    
+    <!-- File Commands - Use existing IDs from resource.h -->
+    <Command Name="cmdFileOpen" Symbol="ID_FILE_OPEN" Id="32774">
+      <Command.LabelTitle>Open</Command.LabelTitle>
+      <Command.TooltipTitle>Open Log File</Command.TooltipTitle>
+      <Command.TooltipDescription>Open a saved debug log file</Command.TooltipDescription>
+    </Command>
+    
+    <Command Name="cmdFileSaveLog" Symbol="ID_FILE_SAVE_LOG" Id="32884">
+      <Command.LabelTitle>Save Log</Command.LabelTitle>
+      <Command.TooltipTitle>Save Log</Command.TooltipTitle>
+      <Command.TooltipDescription>Save all messages in memory buffer</Command.TooltipDescription>
+    </Command>
+    
+    <!-- Edit Commands -->
+    <Command Name="cmdEditCopy" Symbol="ID_VIEW_COPY" Id="32776">
+      <Command.LabelTitle>Copy</Command.LabelTitle>
+      <Command.TooltipTitle>Copy</Command.TooltipTitle>
+      <Command.TooltipDescription>Copy selected messages to clipboard</Command.TooltipDescription>
+    </Command>
+    
+    <Command Name="cmdEditClear" Symbol="ID_LOG_CLEAR" Id="32878">
+      <Command.LabelTitle>Clear</Command.LabelTitle>
+      <Command.TooltipTitle>Clear Log</Command.TooltipTitle>
+      <Command.TooltipDescription>Clear all messages from memory</Command.TooltipDescription>
+    </Command>
+    
+    <!-- View Commands -->
+    <Command Name="cmdViewFilter" Symbol="ID_VIEW_FILTER" Id="32785">
+      <Command.LabelTitle>Filter</Command.LabelTitle>
+      <Command.TooltipTitle>Edit Filters</Command.TooltipTitle>
+      <Command.TooltipDescription>Configure message filters</Command.TooltipDescription>
+    </Command>
+    
+    <Command Name="cmdLogPause" Symbol="ID_LOG_PAUSE" Id="32871">
+      <Command.LabelTitle>Pause</Command.LabelTitle>
+      <Command.TooltipTitle>Pause Logging</Command.TooltipTitle>
+      <Command.TooltipDescription>Pause or resume message capture</Command.TooltipDescription>
+    </Command>
+  </Application.Commands>
+
+  <Application.Views>
+    <Ribbon>
+      <!-- Tabs -->
+      <Ribbon.Tabs>
+        <Tab CommandName="cmdTabHome">
+          <Group CommandName="cmdGroupFile" SizeDefinition="ThreeButtons">
+            <Button CommandName="cmdFileOpen"/>
+            <Button CommandName="cmdFileSaveLog"/>
+            <Button CommandName="cmdEditCopy"/>
+          </Group>
+          
+          <Group CommandName="cmdGroupEdit" SizeDefinition="ThreeButtons">
+            <Button CommandName="cmdEditClear"/>
+            <Button CommandName="cmdLogPause"/>
+            <Button CommandName="cmdViewFilter"/>
+          </Group>
+        </Tab>
+      </Ribbon.Tabs>
+    </Ribbon>
+  </Application.Views>
+</Application>

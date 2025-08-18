@@ -1,0 +1,34 @@
+Here are some examples of the code that Clarion sends over. Parameters are separated by commas. 
+
+The [||]X let's it know that this is Clarion
+If it opens like this [||]X [OpenClose] that means a procedure is opening or closing. The first time it appears the procedure is opening, the second time it appears on the same thread it is closing. I used this to build a tree of procedures as they are being called and closed. If there is a prefix, then after the [||]X that prefix would be in brackets, like for example [PRE]
+
+The seoond parameter is starts with T for Thread, followed by the Thread number
+
+The third parameter is P for Procedure, followed by the procedure name. Notice that the Procedure name is only sent over once when it uses the [OpenClose] tag. Then I was tracking what Procedure to display in suceeding debug messages.
+
+The fourth parameter is M for Module, again the Module name is sent over once and then I kept track of it in the debug
+
+The fifth parameter is A for Application, again sent over once
+
+The last parameter is L for Last Modified and that's followed by a Date and time, again just once
+
+Now, this format can be changed, if it's too complicated to keep track of these items that are sent over once, I can send them over each time. and maybe it should be formatted as json, I think originally my thoughts were to keep from sending the same information over and over again. So let's think this through and decide if we're going to keep the same format or change to another format.
+
+Here is an example of some debug code being sent over:
+
+[||]X [OpenClose],T 1,P Main[||]>>,M UltimateRED001.clw,A UltimateRED.EXE,L 09/04/2024 @ 10:12AM
+[||]X ,T 1,P [||]INIT ID at Gatekeeper 1
+[||]X !,T 1,P Main[||]ROW TYPE Fetching record
+[||]X !,T 1,P Main[||]ROW TYPE Fetching record
+[||]X !,T 1,P Main[||]ROW TYPE Fetching record
+[||]X !,T 1,P Main[||]TYPE
+[||]X !,T 1,P Main[||]ROW TYPE Fetching record
+[||]X [OpenClose],T 2,P FolderContents[||]>>,M UltimateRED007.clw,A UltimateRED.EXE,L 02/22/2024 @ 09:13AM
+[||]X ,T 2,P [||]INIT ID at Gatekeeper 2
+[||]X !,T 2,P FolderContents[||]stFolderLine
+[||]X !,T 2,P FolderContents[||]should be tab1
+[||]X [OpenClose],T 3,P FindContents[||]>>,M UltimateRED008.clw,A UltimateRED.EXE,L 09/03/2024 @ 09:37AM
+[||]X ,T 3,P [||]INIT ID at Gatekeeper 3
+[||]X [OpenClose],T 1,P ClarionForm[||]>>,M UltimateRED002.clw,A UltimateRED.EXE,L 09/03/2023 @ 02:12PM
+[||]X [OpenClose],T 1,P ClarionForm[||]<<,MT UltimateRED002.clw,A UltimateRED.EXE,L 09/03/2023 @ 02:12PM

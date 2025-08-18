@@ -1,0 +1,118 @@
+// ******************************************************************************
+// * This is an automatically generated file containing the ribbon resource for *
+// * your application.                                                          *
+// ******************************************************************************
+
+#include ".\DebugViewRibbon.h"
+
+STRINGTABLE 
+BEGIN
+    ID_TAB_HOME_LabelTitle_RESID L"Home" /* LabelTitle ID_TAB_HOME_LabelTitle_RESID: (null) */
+END
+
+STRINGTABLE 
+BEGIN
+    ID_GROUP_FILE_LabelTitle_RESID L"File Operations" /* LabelTitle ID_GROUP_FILE_LabelTitle_RESID: (null) */
+END
+
+STRINGTABLE 
+BEGIN
+    ID_GROUP_EDIT_LabelTitle_RESID L"Log Control" /* LabelTitle ID_GROUP_EDIT_LabelTitle_RESID: (null) */
+END
+
+STRINGTABLE 
+BEGIN
+    ID_FILE_OPEN_LabelTitle_RESID L"Open" /* LabelTitle ID_FILE_OPEN_LabelTitle_RESID: (null) */
+END
+
+STRINGTABLE 
+BEGIN
+    ID_FILE_OPEN_TooltipTitle_RESID L"Open Log File" /* TooltipTitle ID_FILE_OPEN_TooltipTitle_RESID: (null) */
+END
+
+STRINGTABLE 
+BEGIN
+    ID_FILE_OPEN_TooltipDescription_RESID L"Open a saved debug log file" /* TooltipDescription ID_FILE_OPEN_TooltipDescription_RESID: (null) */
+END
+
+STRINGTABLE 
+BEGIN
+    ID_FILE_SAVE_LOG_LabelTitle_RESID L"Save Log" /* LabelTitle ID_FILE_SAVE_LOG_LabelTitle_RESID: (null) */
+END
+
+STRINGTABLE 
+BEGIN
+    ID_FILE_SAVE_LOG_TooltipTitle_RESID L"Save Log" /* TooltipTitle ID_FILE_SAVE_LOG_TooltipTitle_RESID: (null) */
+END
+
+STRINGTABLE 
+BEGIN
+    ID_FILE_SAVE_LOG_TooltipDescription_RESID L"Save all messages in memory buffer" /* TooltipDescription ID_FILE_SAVE_LOG_TooltipDescription_RESID: (null) */
+END
+
+STRINGTABLE 
+BEGIN
+    ID_VIEW_COPY_LabelTitle_RESID L"Copy" /* LabelTitle ID_VIEW_COPY_LabelTitle_RESID: (null) */
+END
+
+STRINGTABLE 
+BEGIN
+    ID_VIEW_COPY_TooltipTitle_RESID L"Copy" /* TooltipTitle ID_VIEW_COPY_TooltipTitle_RESID: (null) */
+END
+
+STRINGTABLE 
+BEGIN
+    ID_VIEW_COPY_TooltipDescription_RESID L"Copy selected messages to clipboard" /* TooltipDescription ID_VIEW_COPY_TooltipDescription_RESID: (null) */
+END
+
+STRINGTABLE 
+BEGIN
+    ID_LOG_CLEAR_LabelTitle_RESID L"Clear" /* LabelTitle ID_LOG_CLEAR_LabelTitle_RESID: (null) */
+END
+
+STRINGTABLE 
+BEGIN
+    ID_LOG_CLEAR_TooltipTitle_RESID L"Clear Log" /* TooltipTitle ID_LOG_CLEAR_TooltipTitle_RESID: (null) */
+END
+
+STRINGTABLE 
+BEGIN
+    ID_LOG_CLEAR_TooltipDescription_RESID L"Clear all messages from memory" /* TooltipDescription ID_LOG_CLEAR_TooltipDescription_RESID: (null) */
+END
+
+STRINGTABLE 
+BEGIN
+    ID_VIEW_FILTER_LabelTitle_RESID L"Filter" /* LabelTitle ID_VIEW_FILTER_LabelTitle_RESID: (null) */
+END
+
+STRINGTABLE 
+BEGIN
+    ID_VIEW_FILTER_TooltipTitle_RESID L"Edit Filters" /* TooltipTitle ID_VIEW_FILTER_TooltipTitle_RESID: (null) */
+END
+
+STRINGTABLE 
+BEGIN
+    ID_VIEW_FILTER_TooltipDescription_RESID L"Configure message filters" /* TooltipDescription ID_VIEW_FILTER_TooltipDescription_RESID: (null) */
+END
+
+STRINGTABLE 
+BEGIN
+    ID_LOG_PAUSE_LabelTitle_RESID L"Pause" /* LabelTitle ID_LOG_PAUSE_LabelTitle_RESID: (null) */
+END
+
+STRINGTABLE 
+BEGIN
+    ID_LOG_PAUSE_TooltipTitle_RESID L"Pause Logging" /* TooltipTitle ID_LOG_PAUSE_TooltipTitle_RESID: (null) */
+END
+
+STRINGTABLE 
+BEGIN
+    ID_LOG_PAUSE_TooltipDescription_RESID L"Pause or resume message capture" /* TooltipDescription ID_LOG_PAUSE_TooltipDescription_RESID: (null) */
+END
+
+STRINGTABLE 
+BEGIN
+    InternalCmd2_LabelTitle_RESID L"Label:InternalCmd2" /* LabelTitle InternalCmd2_LabelTitle_RESID: (null) */
+END
+
+APPLICATION_RIBBON    UIFILE    "DebugViewRibbon.bml"

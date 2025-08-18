@@ -13,18 +13,23 @@ namespace debugviewpp {
 namespace Colors {
 
 extern const COLORREF Auto;
-extern const COLORREF BackGround;
-extern const COLORREF Text;
-extern const COLORREF Highlight;
-extern const COLORREF Selection;
-extern const COLORREF ItemHighlight;
-extern const COLORREF ItemHighlightText;
+extern COLORREF BackGround;
+extern COLORREF Text;
+extern COLORREF Highlight;
+extern COLORREF Selection;
+extern COLORREF ItemHighlight;
+extern COLORREF ItemHighlightText;
+
+void UpdateThemeColors();
 
 } // namespace Colors
 
 COLORREF GetRandomBackColor();
 COLORREF GetRandomTextColor();
 COLORREF GetRandomProcessColor();
+
+// Calculate a contrasting text color (black or white) based on background color
+COLORREF GetContrastingTextColor(COLORREF backgroundColor);
 
 } // namespace debugviewpp
 } // namespace fusion

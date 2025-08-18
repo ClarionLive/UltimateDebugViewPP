@@ -9,6 +9,7 @@
 #include <iostream>
 #include <format>
 #include <cstdio>
+#include <functional>
 
 #include <boost/optional.hpp>
 #include <boost/algorithm/string.hpp>
@@ -30,6 +31,9 @@
 #include "DebugViewppLib/FileReader.h"
 #include "DebugViewppLib/FileIO.h"
 #include "DebugViewppLib/LogFilter.h"
+#include "DebugViewppLib/Conversions.h"
+#include "DebugViewppLib/ThemeManager.h"
+#include "DebugViewppLib/Colors.h"
 
 #include "resource.h"
 #include "RunDlg.h"
@@ -43,6 +47,11 @@
 
 namespace fusion {
 namespace debugviewpp {
+
+// Registry paths
+const wchar_t* RegistryPath = L"Software\\ClarionLive\\UltimateDebugView++";
+const wchar_t* OldRegistryPath = L"Software\\Cobalt Fusion\\DebugView++";
+const wchar_t* OldRegistryPath2 = L"Software\\CobaltFusion\\DebugView++";  // Alternative path without space
 
 using namespace std::chrono_literals;
 
@@ -116,6 +125,8 @@ BEGIN_MSG_MAP2(CMainFrame)
     MSG_WM_CONTEXTMENU(OnContextMenu)
     MSG_WM_SYSCOMMAND(OnSysCommand)
     MESSAGE_HANDLER_EX(WM_SYSTEMTRAYICON, OnSystemTrayIcon)
+    MESSAGE_HANDLER(WM_ERASEBKGND, OnEraseBkgnd)
+    NOTIFY_CODE_HANDLER(NM_CUSTOMDRAW, OnCustomDraw)
     COMMAND_ID_HANDLER_EX(SC_RESTORE, OnScRestore)
     COMMAND_ID_HANDLER_EX(SC_CLOSE, OnScClose)
     COMMAND_ID_HANDLER_EX(ID_FILE_NEWVIEW, OnFileNewTab)
@@ -138,8 +149,10 @@ BEGIN_MSG_MAP2(CMainFrame)
     COMMAND_ID_HANDLER_EX(ID_LOG_DEBUGVIEW_AGENT, OnLogDebugviewAgent)
     COMMAND_ID_HANDLER_EX(ID_VIEW_FIND, OnViewFind)
     COMMAND_ID_HANDLER_EX(ID_VIEW_FILTER, OnViewFilter)
+    COMMAND_ID_HANDLER_EX(ID_VIEW_DETAIL_PANE, OnViewDetailPane)
     COMMAND_ID_HANDLER_EX(ID_VIEW_CLOSE, OnViewClose)
     COMMAND_ID_HANDLER_EX(ID_VIEW_DUPLICATE, OnViewDuplicate)
+    COMMAND_ID_HANDLER_EX(ID_VIEW_DARKMODE, OnViewDarkMode)
     COMMAND_ID_HANDLER_EX(ID_LOG_SOURCES, OnSources)
     COMMAND_ID_HANDLER_EX(ID_OPTIONS_LINKVIEWS, OnLinkViews)
     COMMAND_ID_HANDLER_EX(ID_OPTIONS_AUTONEWLINE, OnAutoNewline)
@@ -147,6 +160,8 @@ BEGIN_MSG_MAP2(CMainFrame)
     COMMAND_ID_HANDLER_EX(ID_OPTIONS_FONT, OnViewFont)
     COMMAND_ID_HANDLER_EX(ID_OPTIONS_ALWAYSONTOP, OnAlwaysOnTop)
     COMMAND_ID_HANDLER_EX(ID_OPTIONS_HIDE, OnHide)
+    COMMAND_ID_HANDLER_EX(ID_OPTIONS_EXPANDED_TOOLBAR, OnExpandedToolbar)
+    COMMAND_ID_HANDLER_EX(ID_OPTIONS_IMPORT_SETTINGS, OnImportSettings)
     COMMAND_ID_HANDLER_EX(ID_APP_ABOUT, OnAppAbout)
     NOTIFY_CODE_HANDLER_EX(CTCN_BEGINITEMDRAG, OnBeginTabDrag)
     NOTIFY_CODE_HANDLER_EX(CTCN_SELCHANGE, OnChangeTab)
@@ -236,15 +251,33 @@ LRESULT CMainFrame::OnCreate(const CREATESTRUCT* /*pCreate*/)
     m_cmdBar.LoadImages(IDR_MAINFRAME);
     SetMenu(nullptr); // disable second menu bar
 
+    // Load the expanded toolbar setting early so we know which toolbar to create
+    {
+        CRegKey reg;
+        if (reg.Open(HKEY_CURRENT_USER, RegistryPath, KEY_READ) == ERROR_SUCCESS)
+        {
+            DWORD expandedValue = 0;
+            if (reg.QueryDWORDValue(L"ExpandedToolbar", expandedValue) == ERROR_SUCCESS)
+            {
+                m_expandedToolbar = (expandedValue != 0);
+            }
+        }
+    }
+
     CreateSimpleReBar(ATL_SIMPLE_REBAR_NOBORDER_STYLE);
     CReBarCtrl rebar(m_hWndToolBar);
 
     AddSimpleReBarBand(hWndCmdBar);
 
-    HWND hWndToolBar =
-        CreateSimpleToolBarCtrl(rebar, IDR_MAINFRAME, 0, ATL_SIMPLE_TOOLBAR_PANE_STYLE); // DrMemory: LEAK 1696 direct bytes
-    AddSimpleReBarBand(hWndToolBar, nullptr, 1);
-    UIAddToolBar(hWndToolBar);
+    // Don't create the standard toolbar here if we're going to immediately replace it
+    // with the expanded toolbar. This will be handled in ApplyExpandedToolbarState()
+    if (!m_expandedToolbar)
+    {
+        HWND hWndToolBar =
+            CreateSimpleToolBarCtrl(rebar, IDR_MAINFRAME, 0, ATL_SIMPLE_TOOLBAR_PANE_STYLE); // DrMemory: LEAK 1696 direct bytes
+        AddSimpleReBarBand(hWndToolBar, nullptr, 1);
+        UIAddToolBar(hWndToolBar);
+    }
 
     m_findDlg.Create(rebar);
     AddSimpleReBarBand(m_findDlg, L"Find: ", 0, 10000);
@@ -258,12 +291,58 @@ LRESULT CMainFrame::OnCreate(const CREATESTRUCT* /*pCreate*/)
     m_statusBar.SetPanes(paneIds, 5, false);
     UIAddStatusBar(m_hWndStatusBar);
 
-    CreateTabWindow(*this, rcDefault, CTCS_CLOSEBUTTON | CTCS_DRAGREARRANGE);
+    CreateTabWindow(*this, rcDefault, CTCS_DRAGREARRANGE | CTCS_CLOSEBUTTON);
     AddFilterView(L"View");
     HideTabControl();
 
     SetLogFont();
     LoadSettings();
+    
+    // Load and apply theme
+    auto& themeManager = ThemeManager::Instance();
+    themeManager.LoadFromRegistry();
+    Colors::UpdateThemeColors();
+    themeManager.ApplyToWindow(m_hWnd);
+    UISetCheck(ID_VIEW_DARKMODE, themeManager.IsDarkTheme());
+    
+    // Apply dark mode to toolbar and status bar if needed
+    if (themeManager.IsDarkTheme())
+    {
+        // Apply dark theme to status bar
+        if (m_hWndStatusBar)
+        {
+            themeManager.ApplyToWindow(m_hWndStatusBar);
+            ::SendMessage(m_hWndStatusBar, SB_SETBKCOLOR, 0, RGB(45, 45, 45));
+            ::InvalidateRect(m_hWndStatusBar, nullptr, TRUE);
+        }
+        
+        // Note: We're NOT applying dark theme to the rebar/toolbar because
+        // the "Find:" label text becomes invisible in dark mode due to Windows limitations.
+        // The rebar will remain in light mode for better usability.
+        
+        // Find dialog no longer needs custom theme handling
+    }
+    
+    // Apply expanded toolbar state if it was previously enabled
+    if (m_expandedToolbar)
+    {
+        ApplyExpandedToolbarState();
+    }
+    
+    // Apply word wrap state and detail font to the detail view that was already created
+    // The first tab was created before LoadSettings, so we need to apply the setting now
+    if (GetViewCount() > 0)
+    {
+        auto pTabItem = GetTabCtrl().GetItem(0);
+        if (pTabItem)
+        {
+            pTabItem->SetMainFrame(this);  // This will re-apply the word wrap state
+            if (m_hDetailFont)
+            {
+                pTabItem->SetDetailFont(m_hDetailFont.get());
+            }
+        }
+    }
 
     // register object for message filtering and idle updates
     CMessageLoop* pLoop = _Module.GetMessageLoop();
@@ -313,6 +392,21 @@ void CMainFrame::UpdateUI()
 
     UISetCheck(ID_VIEW_TIME, GetView().GetClockTime());
     UISetCheck(ID_VIEW_PROCESSCOLORS, GetView().GetViewProcessColors());
+    UISetCheck(ID_VIEW_DARKMODE, ThemeManager::Instance().IsDarkTheme());
+    
+    // Check if detail pane is visible for current tab
+    bool detailPaneVisible = false;
+    int tabIndex = std::max(0, GetTabCtrl().GetCurSel());
+    if (tabIndex < GetTabCtrl().GetItemCount())
+    {
+        auto pTabItem = GetTabCtrl().GetItem(tabIndex);
+        if (pTabItem)
+        {
+            detailPaneVisible = pTabItem->IsDetailPaneVisible();
+        }
+    }
+    UISetCheck(ID_VIEW_DETAIL_PANE, detailPaneVisible);
+    
     UISetCheck(ID_VIEW_SCROLL, GetView().GetAutoScroll());
     UISetCheck(ID_VIEW_SCROLL_STOP, GetView().GetAutoScrollStop());
     UISetCheck(ID_VIEW_BOOKMARK, GetView().GetBookmark());
@@ -665,8 +759,6 @@ LRESULT CMainFrame::OnScClose(UINT /*unused*/, INT /*unused*/, HWND /*unused*/)
     return 0;
 }
 
-const wchar_t* RegistryPath = L"Software\\Cobalt Fusion\\DebugView++";
-
 int CMainFrame::LogFontSizeFromPointSize(int fontSize)
 {
     CDC dc(GetDC());
@@ -683,6 +775,41 @@ bool CMainFrame::LoadSettings()
 {
     auto mutex = Win32::CreateMutex(nullptr, false, L"Local\\DebugView++");
     Win32::MutexLock lock(mutex.get());
+
+    // Check if this is the first run of Ultimate DebugView++
+    CRegKey testReg;
+    bool isFirstRun = false;
+    if (testReg.Open(HKEY_CURRENT_USER, RegistryPath, KEY_READ) != ERROR_SUCCESS)
+    {
+        isFirstRun = true;
+        testReg.Close();
+        
+        // Check if original DebugView++ settings exist
+        CRegKey oldReg;
+        bool foundOldSettings = false;
+        
+        if (oldReg.Open(HKEY_CURRENT_USER, OldRegistryPath, KEY_READ) == ERROR_SUCCESS ||
+            oldReg.Open(HKEY_CURRENT_USER, OldRegistryPath2, KEY_READ) == ERROR_SUCCESS)
+        {
+            foundOldSettings = true;
+            oldReg.Close();
+        }
+        
+        if (foundOldSettings)
+        {
+            int result = MessageBox(
+                L"This appears to be the first run of Ultimate DebugView++.\n\n"
+                L"Would you like to import your settings from DebugView++?\n"
+                L"This includes your views, filters, column layouts, and preferences.",
+                L"Import Settings",
+                MB_YESNO | MB_ICONQUESTION);
+            
+            if (result == IDYES)
+            {
+                ImportDebugViewPPSettings();
+            }
+        }
+    }
 
     DWORD x = 0;
     DWORD y = 0;
@@ -737,10 +864,11 @@ bool CMainFrame::LoadSettings()
     m_logSources.SetAutoNewLine(Win32::RegGetDWORDValue(reg, L"AutoNewLine", 1) != 0);
     SetAlwaysOnTop(Win32::RegGetDWORDValue(reg, L"AlwaysOnTop", 0) != 0);
 
-    m_applicationName = Win32::RegGetStringValue(reg, L"ApplicationName", L"DebugView++");
+    m_applicationName = Win32::RegGetStringValue(reg, L"ApplicationName", L"Ultimate Debugview ++");
     SetTitle();
 
     m_hide = Win32::RegGetDWORDValue(reg, L"Hide", 0) != 0;
+    m_expandedToolbar = Win32::RegGetDWORDValue(reg, L"ExpandedToolbar", 0) != 0;
 
     auto fontName = Win32::RegGetStringValue(reg, L"FontName", L"").substr(0, LF_FACESIZE - 1);
     int fontSize = Win32::RegGetDWORDValue(reg, L"FontSize", 8);
@@ -751,6 +879,21 @@ bool CMainFrame::LoadSettings()
         std::copy(fontName.begin(), fontName.end(), m_logfont.lfFaceName);
         m_logfont.lfHeight = LogFontSizeFromPointSize(fontSize);
         SetLogFont();
+    }
+    
+    // Load detail pane font
+    auto detailFontName = Win32::RegGetStringValue(reg, L"DetailFontName", L"Consolas").substr(0, LF_FACESIZE - 1);
+    int detailFontSize = Win32::RegGetDWORDValue(reg, L"DetailFontSize", 9);
+    {
+        LOGFONT lf = {0};
+        m_detailLogfont = lf;
+        std::copy(detailFontName.begin(), detailFontName.end(), m_detailLogfont.lfFaceName);
+        m_detailLogfont.lfHeight = LogFontSizeFromPointSize(detailFontSize);
+        Win32::HFont hFont(CreateFontIndirect(&m_detailLogfont));
+        if (hFont)
+        {
+            m_hDetailFont = std::move(hFont);
+        }
     }
 
     CRegKey regViews;
@@ -774,10 +917,43 @@ bool CMainFrame::LoadSettings()
                 AddFilterView(name);
             }
             GetView().LoadSettings(regView);
+            
+            // Load the splitter position for this view
+            auto pTabItem = GetTabCtrl().GetItem(static_cast<int>(i));
+            if (pTabItem)
+            {
+                // Load detail pane visibility (default to false for new views)
+                bool detailPaneVisible = Win32::RegGetDWORDValue(regView, L"DetailPaneVisible", 0) != 0;
+                pTabItem->ShowDetailPane(detailPaneVisible);
+                
+                int splitterPos = Win32::RegGetDWORDValue(regView, L"DetailSplitterPos", 75);
+                pTabItem->SetSplitterPos(splitterPos);
+                
+                // Load per-view detail pane settings (all default to on for new views)
+                bool wordWrap = Win32::RegGetDWORDValue(regView, L"DetailWordWrap", 1) != 0;
+                bool syntaxHighlight = Win32::RegGetDWORDValue(regView, L"DetailSyntaxHighlight", 1) != 0;
+                bool formatContent = Win32::RegGetDWORDValue(regView, L"DetailFormatContent", 1) != 0;
+                bool lineNumbers = Win32::RegGetDWORDValue(regView, L"DetailLineNumbers", 1) != 0;
+                
+                pTabItem->SetDetailWordWrap(wordWrap);
+                pTabItem->SetDetailSyntaxHighlight(syntaxHighlight);
+                pTabItem->SetDetailFormatContent(formatContent);
+                pTabItem->SetDetailLineNumbers(lineNumbers);
+            }
         }
         GetTabCtrl().SetCurSel(Win32::RegGetDWORDValue(regViews, L"Current", 0));
         GetTabCtrl().UpdateLayout();
         GetTabCtrl().Invalidate();
+    }
+    else
+    {
+        // First run - no registry settings exist
+        // Ensure the initial view created in OnCreate has detail pane hidden
+        auto pTabItem = GetTabCtrl().GetItem(0);
+        if (pTabItem)
+        {
+            pTabItem->ShowDetailPane(false);  // Explicitly hide detail pane on first run
+        }
     }
 
     CRegKey regColors;
@@ -817,9 +993,14 @@ void CMainFrame::SaveSettings()
     reg.SetDWORDValue(L"AutoNewLine", static_cast<DWORD>(m_logSources.GetAutoNewLine()));
     reg.SetDWORDValue(L"AlwaysOnTop", static_cast<DWORD>(GetAlwaysOnTop()));
     reg.SetDWORDValue(L"Hide", static_cast<DWORD>(m_hide));
+    reg.SetDWORDValue(L"ExpandedToolbar", static_cast<DWORD>(m_expandedToolbar));
 
     reg.SetStringValue(L"FontName", m_logfont.lfFaceName);
     reg.SetDWORDValue(L"FontSize", LogFontSizeToPointSize(m_logfont.lfHeight));
+    
+    // Save detail pane font
+    reg.SetStringValue(L"DetailFontName", m_detailLogfont.lfFaceName);
+    reg.SetDWORDValue(L"DetailFontSize", LogFontSizeToPointSize(m_detailLogfont.lfHeight));
 
     reg.RecurseDeleteKey(L"Views");
 
@@ -834,6 +1015,23 @@ void CMainFrame::SaveSettings()
         regView.Create(regViews, WStr(wstringbuilder() << L"View" << i));
         regView.SetStringValue(L"", GetView(i).GetName().c_str());
         GetView(i).SaveSettings(regView);
+        
+        // Update and save the splitter position for this view
+        auto pTabItem = GetTabCtrl().GetItem(i);
+        if (pTabItem)
+        {
+            // Save detail pane visibility
+            regView.SetDWORDValue(L"DetailPaneVisible", static_cast<DWORD>(pTabItem->IsDetailPaneVisible()));
+            
+            pTabItem->UpdateSplitterPos();  // Get current position before saving
+            regView.SetDWORDValue(L"DetailSplitterPos", static_cast<DWORD>(pTabItem->GetSplitterPos()));
+            
+            // Save per-view detail pane settings
+            regView.SetDWORDValue(L"DetailWordWrap", static_cast<DWORD>(pTabItem->GetDetailWordWrap()));
+            regView.SetDWORDValue(L"DetailSyntaxHighlight", static_cast<DWORD>(pTabItem->GetDetailSyntaxHighlight()));
+            regView.SetDWORDValue(L"DetailFormatContent", static_cast<DWORD>(pTabItem->GetDetailFormatContent()));
+            regView.SetDWORDValue(L"DetailLineNumbers", static_cast<DWORD>(pTabItem->GetDetailLineNumbers()));
+        }
     }
 
     CRegKey regColors;
@@ -843,6 +1041,133 @@ void CMainFrame::SaveSettings()
     {
         regColors.SetDWORDValue(WStr(wstringbuilder() << L"Color" << i), colors[i]);
     }
+}
+
+bool CMainFrame::ImportDebugViewPPSettings()
+{
+    // Check if Ultimate settings already exist
+    CRegKey testReg;
+    if (testReg.Open(HKEY_CURRENT_USER, RegistryPath, KEY_READ) == ERROR_SUCCESS)
+    {
+        // Check if we have any views saved
+        CRegKey viewsReg;
+        if (viewsReg.Open(testReg, L"Views", KEY_READ) == ERROR_SUCCESS)
+        {
+            // Settings already exist, ask user if they want to overwrite
+            int result = MessageBox(
+                L"Ultimate DebugView++ settings already exist.\n\n"
+                L"Do you want to overwrite them with settings from DebugView++?",
+                L"Import Settings",
+                MB_YESNO | MB_ICONQUESTION);
+            
+            if (result != IDYES)
+                return false;
+        }
+    }
+    
+    // Try to find original DebugView++ settings
+    CRegKey oldReg;
+    bool foundOldSettings = false;
+    const wchar_t* sourcePath = nullptr;
+    
+    // Try first path (with space)
+    if (oldReg.Open(HKEY_CURRENT_USER, OldRegistryPath, KEY_READ) == ERROR_SUCCESS)
+    {
+        foundOldSettings = true;
+        sourcePath = OldRegistryPath;
+        oldReg.Close();
+    }
+    // Try second path (without space)
+    else if (oldReg.Open(HKEY_CURRENT_USER, OldRegistryPath2, KEY_READ) == ERROR_SUCCESS)
+    {
+        foundOldSettings = true;
+        sourcePath = OldRegistryPath2;
+        oldReg.Close();
+    }
+    
+    if (!foundOldSettings)
+    {
+        MessageBox(
+            L"No DebugView++ settings found to import.",
+            L"Import Settings",
+            MB_OK | MB_ICONINFORMATION);
+        return false;
+    }
+    
+    // Helper function to copy registry values recursively
+    std::function<void(HKEY, HKEY)> CopyRegistryKey = [&](HKEY hKeySrc, HKEY hKeyDst)
+    {
+        // Copy all values
+        DWORD index = 0;
+        wchar_t valueName[256];
+        DWORD valueNameLen;
+        DWORD type;
+        BYTE data[4096];
+        DWORD dataLen;
+        
+        while (true)
+        {
+            valueNameLen = 256;
+            dataLen = 4096;
+            
+            LONG result = RegEnumValue(hKeySrc, index++, valueName, &valueNameLen,
+                                      nullptr, &type, data, &dataLen);
+            if (result != ERROR_SUCCESS)
+                break;
+                
+            RegSetValueEx(hKeyDst, valueName, 0, type, data, dataLen);
+        }
+        
+        // Copy all subkeys
+        index = 0;
+        wchar_t keyName[256];
+        DWORD keyNameLen;
+        
+        while (true)
+        {
+            keyNameLen = 256;
+            LONG result = RegEnumKeyEx(hKeySrc, index++, keyName, &keyNameLen,
+                                      nullptr, nullptr, nullptr, nullptr);
+            if (result != ERROR_SUCCESS)
+                break;
+                
+            CRegKey srcSubKey, dstSubKey;
+            if (srcSubKey.Open(hKeySrc, keyName, KEY_READ) == ERROR_SUCCESS)
+            {
+                dstSubKey.Create(hKeyDst, keyName);
+                CopyRegistryKey(srcSubKey.m_hKey, dstSubKey.m_hKey);
+            }
+        }
+    };
+    
+    // Import the settings
+    CRegKey srcReg, dstReg;
+    if (srcReg.Open(HKEY_CURRENT_USER, sourcePath, KEY_READ) == ERROR_SUCCESS)
+    {
+        dstReg.Create(HKEY_CURRENT_USER, RegistryPath);
+        CopyRegistryKey(srcReg.m_hKey, dstReg.m_hKey);
+        srcReg.Close();
+        dstReg.Close();
+    }
+    
+    // Also import column layouts if they exist
+    std::wstring srcColumnPath = std::wstring(sourcePath) + L"\\ColumnLayouts";
+    std::wstring dstColumnPath = std::wstring(RegistryPath) + L"\\ColumnLayouts";
+    
+    CRegKey srcColumns, dstColumns;
+    if (srcColumns.Open(HKEY_CURRENT_USER, srcColumnPath.c_str(), KEY_READ) == ERROR_SUCCESS)
+    {
+        dstColumns.Create(HKEY_CURRENT_USER, dstColumnPath.c_str());
+        CopyRegistryKey(srcColumns.m_hKey, dstColumns.m_hKey);
+    }
+    
+    MessageBox(
+        L"Settings imported successfully from DebugView++.\n\n"
+        L"Please restart Ultimate DebugView++ to apply the imported settings.",
+        L"Import Complete",
+        MB_OK | MB_ICONINFORMATION);
+    
+    return true;
 }
 
 void CMainFrame::FindNext(const std::wstring& text)
@@ -861,10 +1186,188 @@ void CMainFrame::FindPrevious(const std::wstring& text)
     }
 }
 
+void CMainFrame::UpdateDetailView(CLogView* pCallingView, int lineIndex)
+{
+    if (GetViewCount() == 0 || !pCallingView)
+        return;
+        
+    // Get the current tab item
+    auto tabIndex = std::max(0, GetTabCtrl().GetCurSel());
+    auto pTabItem = GetTabCtrl().GetItem(tabIndex);
+    
+    // Only update if the calling view is the current tab's view
+    if (pTabItem && &pTabItem->GetView() == pCallingView && lineIndex >= 0 && lineIndex < m_logFile.Count())
+    {
+        // Get the full message text
+        const auto& message = m_logFile[lineIndex];
+        
+        // Build status text with metadata
+        std::wstring statusText = L"Line: " + std::to_wstring(lineIndex + 1) + 
+                                 L"  |  Time: " + WStr(GetTimeText(message.systemTime)).str() + 
+                                 L"  |  Process: [" + std::to_wstring(message.processId) + L"] " + 
+                                 WStr(message.processName).str();
+        
+        // Content is just the message text
+        std::wstring contentText = WStr(message.text).str();
+        
+        // Update the detail view with separated status and content
+        pTabItem->UpdateDetailView(statusText, contentText);
+    }
+}
+
+void CMainFrame::UpdateDetailView(CLogView* pCallingView, const std::vector<int>& lineIndices)
+{
+    if (GetViewCount() == 0 || !pCallingView)
+        return;
+        
+    // Get the current tab item
+    auto tabIndex = std::max(0, GetTabCtrl().GetCurSel());
+    auto pTabItem = GetTabCtrl().GetItem(tabIndex);
+    
+    // Only update if the calling view is the current tab's view
+    if (!pTabItem || &pTabItem->GetView() != pCallingView)
+        return;
+    
+    if (lineIndices.empty())
+    {
+        // Clear the detail view when nothing is selected
+        pTabItem->UpdateDetailView(L"", L"");
+        return;
+    }
+    
+    std::wstring statusText;
+    std::wstring contentText;
+    
+    // If only one line selected, show detailed metadata
+    if (lineIndices.size() == 1)
+    {
+        int lineIndex = lineIndices[0];
+        if (lineIndex >= 0 && lineIndex < m_logFile.Count())
+        {
+            const auto& message = m_logFile[lineIndex];
+            
+            // Build status text with metadata
+            statusText = L"Line: " + std::to_wstring(lineIndex + 1) + 
+                        L"  |  Time: " + WStr(GetTimeText(message.systemTime)).str() + 
+                        L"  |  Process: [" + std::to_wstring(message.processId) + L"] " + 
+                        WStr(message.processName).str();
+            
+            // Content is just the message text
+            contentText = WStr(message.text).str();
+        }
+    }
+    else
+    {
+        // Multiple lines selected - status shows count
+        statusText = L"Selected: " + std::to_wstring(lineIndices.size()) + L" lines";
+        
+        // Combine all message texts with CR/LF
+        for (int lineIndex : lineIndices)
+        {
+            if (lineIndex >= 0 && lineIndex < m_logFile.Count())
+            {
+                const auto& message = m_logFile[lineIndex];
+                if (!contentText.empty())
+                    contentText += L"\r\n";
+                contentText += WStr(message.text).str();
+            }
+        }
+    }
+    
+    // Update the detail view with separated status and content
+    pTabItem->UpdateDetailView(statusText, contentText);
+}
+
+void CMainFrame::FindTextInView(const std::wstring& text)
+{
+    if (GetViewCount() == 0 || text.empty())
+        return;
+        
+    // Set the search text in the find dialog
+    m_findDlg.SetDlgItemText(IDC_TEXT, text.c_str());
+    
+    // Trigger find next
+    GetView().SetHighlightText(text);
+    if (!GetView().FindNext(text))
+    {
+        MessageBeep(MB_ICONASTERISK);
+    }
+}
+
+void CMainFrame::HighlightTextInView(const std::wstring& text)
+{
+    if (GetViewCount() == 0 || text.empty())
+        return;
+        
+    // Set the search text in the find dialog
+    m_findDlg.SetDlgItemText(IDC_TEXT, text.c_str());
+    
+    // Just highlight the text without searching for next occurrence
+    GetView().SetHighlightText(text);
+}
+
+void CMainFrame::ClearFind()
+{
+    if (GetViewCount() == 0)
+        return;
+    
+    // Clear the highlighting in the current view
+    GetView().SetHighlightText(L"");
+    
+    // Clear the highlighting in the detail pane
+    int tabIndex = std::max(0, GetTabCtrl().GetCurSel());
+    if (tabIndex < GetTabCtrl().GetItemCount())
+    {
+        auto pTabItem = GetTabCtrl().GetItem(tabIndex);
+        if (pTabItem)
+        {
+            pTabItem->ClearDetailHighlight();
+        }
+    }
+    
+    // Update the status bar
+    UpdateStatusBar();
+}
+
+void CMainFrame::ShowFilterDialogWithText(const std::wstring& text)
+{
+    if (GetViewCount() == 0 || text.empty())
+        return;
+        
+    // Get current filters from the active view
+    auto filters = GetView().GetFilters();
+    
+    // Create a new include filter with the provided text
+    Filter newFilter;
+    newFilter.text = Str(text).str();
+    newFilter.matchType = MatchType::Simple;
+    newFilter.filterType = FilterType::Include;
+    newFilter.bgColor = RGB(255, 255, 255);
+    newFilter.fgColor = RGB(0, 0, 0);
+    newFilter.enable = true;
+    newFilter.matched = false;
+    
+    // Add the new filter to the message filters
+    filters.messageFilters.push_back(newFilter);
+    
+    // Open the filter dialog with the modified filters
+    CFilterDlg dlg(GetView().GetName(), filters, &m_logFile);
+    if (dlg.DoModal() == IDOK)
+    {
+        int tabIdx = GetTabCtrl().GetCurSel();
+        GetTabCtrl().GetItem(tabIdx)->SetText(dlg.GetName().c_str());
+        GetTabCtrl().UpdateLayout();
+        GetTabCtrl().Invalidate();
+        GetView().SetName(dlg.GetName());
+        GetView().SetFilters(dlg.GetFilters());
+        SaveSettings();
+    }
+}
+
 void CMainFrame::AddFilterView()
 {
     ++m_filterNr;
-    CFilterDlg dlg(wstringbuilder() << L"View " << m_filterNr);
+    CFilterDlg dlg(wstringbuilder() << L"View " << m_filterNr, LogFilter(), &m_logFile);
     if (dlg.DoModal() != IDOK)
     {
         return;
@@ -883,6 +1386,13 @@ void CMainFrame::AddFilterView(std::shared_ptr<CLogView> logview)
 {
     auto pTabItem = std::make_unique<SelectedTabItem>();
     pTabItem->Create(*this);
+    pTabItem->SetMainFrame(this);
+    
+    // Apply detail font if available
+    if (m_hDetailFont)
+    {
+        pTabItem->SetDetailFont(m_hDetailFont.get());
+    }
 
     logview->Create(pTabItem->GetLogViewParent(), rcDefault, nullptr, WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN);
     logview->SetFont(m_hFont.get());
@@ -891,6 +1401,12 @@ void CMainFrame::AddFilterView(std::shared_ptr<CLogView> logview)
     pTabItem->SetView(logview);
 
     int newIndex = GetTabCtrl().GetItemCount();
+    
+    // The first tab (View) should not be closeable
+    if (newIndex == 0)
+    {
+        pTabItem->SetCanClose(false);
+    }
 
     // notice: InsertItem takes ownership of the raw pointer, DeleteItem calls delete
     GetTabCtrl().InsertItem(newIndex, pTabItem.release());
@@ -914,6 +1430,16 @@ LRESULT CMainFrame::OnChangeTab(NMHDR* pnmh)
     if (nmhdr.iItem2 >= 0 && nmhdr.iItem2 < GetViewCount())
     {
         SetModifiedMark(nmhdr.iItem2, false);
+        
+        // Restore the detail pane content for the newly activated tab
+        auto pTabItem = GetTabCtrl().GetItem(nmhdr.iItem2);
+        if (pTabItem)
+        {
+            pTabItem->RestoreDetailContent();
+        }
+        
+        // Update UI to reflect the detail pane state of the new tab
+        UpdateUI();
     }
 
     if (!m_linkViews || nmhdr.iItem1 == nmhdr.iItem2 || nmhdr.iItem1 < 0 || nmhdr.iItem1 >= GetViewCount() || nmhdr.iItem2 < 0 ||
@@ -1385,6 +1911,223 @@ void CMainFrame::OnHide(UINT /*uNotifyCode*/, int /*nID*/, CWindow /*wndCtl*/)
     m_hide = !m_hide;
 }
 
+void CMainFrame::ApplyExpandedToolbarState()
+{
+    // Get the rebar control
+    CReBarCtrl rebar(m_hWndToolBar);
+    
+    // Find and save the Find dialog handle if it exists
+    HWND hWndFindDialog = NULL;
+    int findDialogBandIndex = -1;
+    
+    // Remove ALL toolbar bands except the command bar (band 0)
+    // We'll iterate through bands and remove any ToolbarWindow32 that isn't band 0
+    // Must iterate backwards to avoid index shifting issues
+    int bandCount = rebar.GetBandCount();
+    for (int i = bandCount - 1; i > 0; i--)  // Start from last band, stop before band 0
+    {
+        REBARBANDINFO rbbi = {0};
+        rbbi.cbSize = sizeof(REBARBANDINFO);
+        rbbi.fMask = RBBIM_CHILD;
+        
+        if (rebar.GetBandInfo(i, &rbbi) && rbbi.hwndChild != NULL)
+        {
+            wchar_t className[256] = {0};
+            ::GetClassName(rbbi.hwndChild, className, 256);
+            
+            // Check if this is the Find dialog
+            if (rbbi.hwndChild == m_findDlg.m_hWnd)
+            {
+                hWndFindDialog = rbbi.hwndChild;
+                findDialogBandIndex = i;
+                // Don't delete the Find dialog, just remember it
+            }
+            // Remove if it's a toolbar (ToolbarWindow32 class)
+            else if (wcscmp(className, L"ToolbarWindow32") == 0)
+            {
+                ::DestroyWindow(rbbi.hwndChild);
+                rebar.DeleteBand(i);
+            }
+        }
+    }
+    
+    // Now create the appropriate toolbar
+    HWND hWndNewToolBar = NULL;
+    
+    if (m_expandedToolbar)
+    {
+        // Create expanded toolbar with text labels
+        hWndNewToolBar = CreateSimpleToolBarCtrl(rebar, IDR_MAINFRAME, FALSE, 
+            ATL_SIMPLE_TOOLBAR_PANE_STYLE | TBSTYLE_LIST);
+        
+        // Set extended style for mixed buttons (icon + text)
+        CToolBarCtrl toolbar(hWndNewToolBar);
+        toolbar.SetExtendedStyle(TBSTYLE_EX_MIXEDBUTTONS);
+        
+        // Get all buttons and set text for each
+        int nButtonCount = toolbar.GetButtonCount();
+        for (int i = 0; i < nButtonCount; i++)
+        {
+            TBBUTTON tb = {0};
+            toolbar.GetButton(i, &tb);
+            
+            if (tb.fsStyle & BTNS_SEP)
+                continue;  // Skip separators
+            
+            TBBUTTONINFO tbbi = {0};
+            tbbi.cbSize = sizeof(TBBUTTONINFO);
+            tbbi.dwMask = TBIF_STYLE | TBIF_TEXT;
+            tbbi.fsStyle = tb.fsStyle | BTNS_SHOWTEXT | BTNS_AUTOSIZE;
+            
+            // Set text based on command ID
+            switch (tb.idCommand)
+            {
+            case ID_FILE_OPEN:
+                tbbi.pszText = const_cast<LPWSTR>(L"Open");
+                break;
+            case ID_FILE_SAVE_LOG:
+                tbbi.pszText = const_cast<LPWSTR>(L"Save Log");
+                break;
+            case ID_LOG_CLEAR:
+                tbbi.pszText = const_cast<LPWSTR>(L"Clear");
+                break;
+            case ID_LOG_PAUSE:
+                tbbi.pszText = const_cast<LPWSTR>(L"Pause");
+                break;
+            case ID_LOG_GLOBAL:
+                tbbi.pszText = const_cast<LPWSTR>(L"Global");
+                break;
+            case ID_VIEW_FILTER:
+                tbbi.pszText = const_cast<LPWSTR>(L"Filter");
+                break;
+            case ID_VIEW_FIND:
+                tbbi.pszText = const_cast<LPWSTR>(L"Find");
+                break;
+            case ID_VIEW_COPY:
+                tbbi.pszText = const_cast<LPWSTR>(L"Copy");
+                break;
+            case ID_VIEW_SCROLL:
+                tbbi.pszText = const_cast<LPWSTR>(L"Auto Scroll");
+                break;
+            case ID_VIEW_SCROLL_STOP:
+                tbbi.pszText = const_cast<LPWSTR>(L"Stop");
+                break;
+            case ID_VIEW_TIME:
+                tbbi.pszText = const_cast<LPWSTR>(L"Clock Time");
+                break;
+            case ID_OPTIONS_LINKVIEWS:
+                tbbi.pszText = const_cast<LPWSTR>(L"Link Views");
+                break;
+            case ID_VIEW_BOOKMARK:
+                tbbi.pszText = const_cast<LPWSTR>(L"Bookmark");
+                break;
+            case ID_VIEW_PREVIOUS_BOOKMARK:
+                tbbi.pszText = const_cast<LPWSTR>(L"Previous");
+                break;
+            case ID_VIEW_NEXT_BOOKMARK:
+                tbbi.pszText = const_cast<LPWSTR>(L"Next");
+                break;
+            case ID_VIEW_CLEAR_BOOKMARKS:
+                tbbi.pszText = const_cast<LPWSTR>(L"Clear");
+                break;
+            case ID_OPTIONS_FONT:
+                tbbi.pszText = const_cast<LPWSTR>(L"Font");
+                break;
+            default:
+                continue;  // Skip unknown buttons
+            }
+            
+            toolbar.SetButtonInfo(tb.idCommand, &tbbi);
+        }
+        
+        // Insert the toolbar band at position 1 (after command bar)
+        REBARBANDINFO rbbi = {0};
+        rbbi.cbSize = sizeof(REBARBANDINFO);
+        rbbi.fMask = RBBIM_STYLE | RBBIM_CHILD | RBBIM_CHILDSIZE | RBBIM_SIZE;
+        rbbi.fStyle = RBBS_BREAK | RBBS_CHILDEDGE | RBBS_GRIPPERALWAYS;  // RBBS_BREAK forces new line
+        rbbi.hwndChild = hWndNewToolBar;
+        
+        // Get the ideal size of the toolbar
+        SIZE size = {0};
+        CToolBarCtrl tb(hWndNewToolBar);
+        tb.GetMaxSize(&size);
+        rbbi.cxMinChild = 0;
+        rbbi.cyMinChild = size.cy;
+        rbbi.cx = size.cx;
+        
+        rebar.InsertBand(1, &rbbi);
+        
+        // Move Find bar to a new line if it exists
+        int newBandCount = rebar.GetBandCount();
+        if (newBandCount > 2)  // We have cmd bar + toolbar + find dialog
+        {
+            REBARBANDINFO rbbi2 = {0};
+            rbbi2.cbSize = sizeof(REBARBANDINFO);
+            rbbi2.fMask = RBBIM_STYLE;
+            rbbi2.fStyle = RBBS_BREAK | RBBS_CHILDEDGE;  // RBBS_BREAK forces new line
+            rebar.SetBandInfo(2, &rbbi2);  // Band 2 is the Find bar
+        }
+    }
+    else
+    {
+        // Create standard compact toolbar
+        hWndNewToolBar = CreateSimpleToolBarCtrl(rebar, IDR_MAINFRAME, FALSE, 
+            ATL_SIMPLE_TOOLBAR_PANE_STYLE);
+        
+        // Insert the toolbar band at position 1 (after command bar)
+        REBARBANDINFO rbbi = {0};
+        rbbi.cbSize = sizeof(REBARBANDINFO);
+        rbbi.fMask = RBBIM_STYLE | RBBIM_CHILD | RBBIM_CHILDSIZE | RBBIM_SIZE;
+        rbbi.fStyle = RBBS_BREAK | RBBS_CHILDEDGE | RBBS_GRIPPERALWAYS;  // RBBS_BREAK forces new line
+        rbbi.hwndChild = hWndNewToolBar;
+        
+        // Get the ideal size of the toolbar
+        SIZE size = {0};
+        CToolBarCtrl tb(hWndNewToolBar);
+        tb.GetMaxSize(&size);
+        rbbi.cxMinChild = 0;
+        rbbi.cyMinChild = size.cy;
+        rbbi.cx = size.cx;
+        
+        rebar.InsertBand(1, &rbbi);
+        
+        // Put Find bar back on same line if it exists
+        int newBandCount = rebar.GetBandCount();
+        if (newBandCount > 2)  // We have cmd bar + toolbar + find dialog
+        {
+            REBARBANDINFO rbbi2 = {0};
+            rbbi2.cbSize = sizeof(REBARBANDINFO);
+            rbbi2.fMask = RBBIM_STYLE;
+            rbbi2.fStyle = RBBS_CHILDEDGE;  // Remove RBBS_BREAK to put on same line
+            rebar.SetBandInfo(2, &rbbi2);
+        }
+    }
+    
+    // Update UI with the actual toolbar handle we just created
+    if (hWndNewToolBar != NULL)
+    {
+        UIAddToolBar(hWndNewToolBar);
+    }
+    UpdateLayout();
+    
+    // Update menu checkmark
+    UISetCheck(ID_OPTIONS_EXPANDED_TOOLBAR, m_expandedToolbar);
+}
+
+void CMainFrame::OnExpandedToolbar(UINT /*uNotifyCode*/, int /*nID*/, CWindow /*wndCtl*/)
+{
+    // Toggle expanded toolbar state
+    m_expandedToolbar = !m_expandedToolbar;
+    
+    // Apply the new state
+    ApplyExpandedToolbarState();
+}
+
+void CMainFrame::OnImportSettings(UINT /*uNotifyCode*/, int /*nID*/, CWindow /*wndCtl*/)
+{
+    ImportDebugViewPPSettings();
+}
+
 bool CMainFrame::GetAlwaysOnTop() const
 {
     return (GetWindowLong(GWL_EXSTYLE) & WS_EX_TOPMOST) != 0;
@@ -1428,20 +2171,7 @@ void CMainFrame::Pause()
 
 void CMainFrame::UpdateTitle()
 {
-    std::wstring title = L"Paused";
-    if ((m_pLocalReader != nullptr) && (m_pGlobalReader != nullptr))
-    {
-        title = L"Capture Win32 & Global Win32 Messages";
-    }
-    else if (m_pLocalReader != nullptr)
-    {
-        title = L"Capture Win32";
-    }
-    else if (m_pGlobalReader != nullptr)
-    {
-        title = L"Capture Global Win32";
-    }
-    SetTitle(title);
+    SetTitle();
 }
 
 void CMainFrame::Resume()
@@ -1639,7 +2369,7 @@ void CMainFrame::OnLogDebugviewAgent(UINT /*uNotifyCode*/, int /*nID*/, CWindow 
 
 void CMainFrame::OnViewFilter(UINT /*uNotifyCode*/, int /*nID*/, CWindow /*wndCtl*/)
 {
-    CFilterDlg dlg(GetView().GetName(), GetView().GetFilters());
+    CFilterDlg dlg(GetView().GetName(), GetView().GetFilters(), &m_logFile);
     if (dlg.DoModal() != IDOK)
     {
         return;
@@ -1654,6 +2384,92 @@ void CMainFrame::OnViewFilter(UINT /*uNotifyCode*/, int /*nID*/, CWindow /*wndCt
     SaveSettings();
 }
 
+void CMainFrame::OnViewDetailPane(UINT /*uNotifyCode*/, int /*nID*/, CWindow /*wndCtl*/)
+{
+    // Get the current tab
+    int tabIndex = std::max(0, GetTabCtrl().GetCurSel());
+    if (tabIndex < GetTabCtrl().GetItemCount())
+    {
+        auto pTabItem = GetTabCtrl().GetItem(tabIndex);
+        if (pTabItem)
+        {
+            // Toggle detail pane visibility
+            bool isVisible = pTabItem->IsDetailPaneVisible();
+            pTabItem->ShowDetailPane(!isVisible);
+            
+            // Update UI check state
+            UpdateUI();
+        }
+    }
+}
+
+void CMainFrame::OnViewDarkMode(UINT /*uNotifyCode*/, int /*nID*/, CWindow /*wndCtl*/)
+{
+    auto& themeManager = ThemeManager::Instance();
+    
+    // Toggle between light and dark (if system theme, switch to explicit dark)
+    Theme newTheme = themeManager.IsDarkTheme() ? Theme::Light : Theme::Dark;
+    themeManager.SetTheme(newTheme);
+    
+    // Update global colors
+    Colors::UpdateThemeColors();
+    
+    // Apply theme to main window
+    themeManager.ApplyToWindow(m_hWnd);
+    
+    // Note: We're NOT applying dark theme to the rebar/toolbar because
+    // the "Find:" label text becomes invisible in dark mode due to Windows limitations.
+    // Just refresh the rebar to ensure it's properly displayed
+    if (m_hWndToolBar)
+    {
+        ::InvalidateRect(m_hWndToolBar, nullptr, TRUE);
+        ::UpdateWindow(m_hWndToolBar);
+    }
+    
+    // Update status bar colors
+    if (m_hWndStatusBar)
+    {
+        if (themeManager.IsDarkTheme())
+        {
+            // Apply dark theme to status bar
+            themeManager.ApplyToWindow(m_hWndStatusBar);
+            
+            // Set dark background color for status bar
+            ::SendMessage(m_hWndStatusBar, SB_SETBKCOLOR, 0, RGB(45, 45, 45));
+        }
+        else
+        {
+            // Reset to default colors
+            ::SendMessage(m_hWndStatusBar, SB_SETBKCOLOR, 0, CLR_DEFAULT);
+        }
+        
+        ::InvalidateRect(m_hWndStatusBar, nullptr, TRUE);
+    }
+    
+    // Refresh all views and detail panes
+    for (int i = 0; i < GetTabCtrl().GetItemCount(); ++i)
+    {
+        auto pItem = GetTabCtrl().GetItem(i);
+        if (pItem)
+        {
+            pItem->GetView().InvalidateRect(nullptr, TRUE);
+            pItem->RefreshTheme();  // Refresh detail pane theme
+        }
+    }
+    
+    // Find dialog no longer needs custom theme handling
+    
+    // Update menu checkmark
+    UISetCheck(ID_VIEW_DARKMODE, themeManager.IsDarkTheme());
+    
+    // Force UI update
+    UIUpdateMenuBar();
+    
+    // Force main window to repaint
+    InvalidateRect(nullptr, TRUE);
+    UpdateWindow();
+}
+
 void CMainFrame::OnViewClose(UINT /*uNotifyCode*/, int /*nID*/, CWindow /*wndCtl*/)
 {
     CloseView(GetTabCtrl().GetCurSel());
@@ -1662,7 +2478,7 @@ void CMainFrame::OnViewClose(UINT /*uNotifyCode*/, int /*nID*/, CWindow /*wndCtl
 void CMainFrame::OnViewDuplicate(UINT /*uNotifyCode*/, int /*nID*/, CWindow /*wndCtl*/)
 {
     auto name = GetView().GetName() + L" (copy)";
-    CFilterDlg dlg(name, GetView().GetFilters());
+    CFilterDlg dlg(name, GetView().GetFilters(), &m_logFile);
     if (dlg.DoModal() != IDOK)
     {
         return;
@@ -1774,6 +2590,33 @@ void CMainFrame::SetLogFont()
     m_hFont = std::move(hFont);
 }
 
+void CMainFrame::SetDetailFont(const LOGFONT& lf)
+{
+    m_detailLogfont = lf;
+    Win32::HFont hFont(CreateFontIndirect(&m_detailLogfont));
+    if (!hFont)
+    {
+        return;
+    }
+    
+    m_hDetailFont = std::move(hFont);
+    
+    // Apply to all existing detail panes
+    for (int i = 0; i < GetTabCtrl().GetItemCount(); ++i)
+    {
+        auto pItem = GetTabCtrl().GetItem(i);
+        if (pItem)
+        {
+            pItem->SetDetailFont(m_hDetailFont.get());
+        }
+    }
+}
+
+HFONT CMainFrame::GetDetailFont() const
+{
+    return m_hDetailFont.get();
+}
+
 void CMainFrame::OnAppAbout(UINT /*uNotifyCode*/, int /*nID*/, CWindow /*wndCtl*/)
 {
     CAboutDlg dlg;
@@ -1803,6 +2646,28 @@ bool IsClearBufferMessage(const std::string& message)
 
 void CMainFrame::AddMessage(const Message& message)
 {
+    // Check for special "NewDebugView" message
+    if (message.text == "@@NEWDEBUGVIEW@@")
+    {
+        std::wstring processName = WStr(message.processName).str();
+        if (!processName.empty())
+        {
+            int existingViewIndex = FindViewWithProcessFilter(processName);
+            if (existingViewIndex >= 0)
+            {
+                // View exists - switch to it and clear it
+                SwitchToView(existingViewIndex);
+                GetView(existingViewIndex).Clear();
+            }
+            else
+            {
+                // Create new view for this process
+                CreateProcessView(processName);
+            }
+        }
+        return; // Don't add this special message to the log
+    }
+
     if (IsClearBufferMessage(message.text))
     {
         ClearLog();
@@ -1817,6 +2682,100 @@ void CMainFrame::AddMessage(const Message& message)
     {
         GetView(i).Add(beginIndex, index, message);
     }
+}
+
+int CMainFrame::FindViewWithProcessFilter(const std::wstring& processName)
+{
+    int viewCount = GetViewCount();
+    for (int i = 0; i < viewCount; ++i)
+    {
+        auto filters = GetView(i).GetFilters();
+        // Check if this view has a single process include filter matching our process
+        if (filters.processFilters.size() == 1)
+        {
+            const auto& filter = filters.processFilters[0];
+            if (filter.filterType == FilterType::Include && 
+                filter.matchType == MatchType::Simple &&
+                filter.enable &&
+                WStr(filter.text).str() == processName)
+            {
+                return i;
+            }
+        }
+    }
+    return -1; // Not found
+}
+
+void CMainFrame::CreateProcessView(const std::wstring& processName)
+{
+    // Create a filter for this specific process
+    LogFilter filter;
+    Filter processFilter;
+    processFilter.text = Str(processName).str();
+    processFilter.matchType = MatchType::Simple;
+    processFilter.filterType = FilterType::Include;
+    processFilter.bgColor = Colors::Auto;
+    processFilter.fgColor = Colors::Text;
+    processFilter.enable = true;
+    filter.processFilters.push_back(processFilter);
+    
+    // Create the view with the process name as the tab name
+    AddFilterView(processName, filter);
+    
+    // Switch to the newly created view
+    int newViewIndex = GetViewCount() - 1;
+    SwitchToView(newViewIndex);
+    
+    // Populate the new view with existing messages from this process
+    auto& newView = GetView(newViewIndex);
+    int messageCount = m_logFile.Count();
+    for (int i = 0; i < messageCount; ++i)
+    {
+        auto msg = m_logFile[i];
+        // Add the message to the new view (it will be filtered by the process filter)
+        newView.Add(i, i, msg);
+    }
+}
+
+void CMainFrame::SwitchToView(int index)
+{
+    if (index >= 0 && index < GetViewCount())
+    {
+        GetTabCtrl().SetCurSel(index);
+        // Send a selection change notification to update the UI
+        NMHDR nmhdr = {0};
+        nmhdr.hwndFrom = GetTabCtrl().m_hWnd;
+        nmhdr.idFrom = GetTabCtrl().GetDlgCtrlID();
+        nmhdr.code = TCN_SELCHANGE;
+        SendMessage(WM_NOTIFY, nmhdr.idFrom, reinterpret_cast<LPARAM>(&nmhdr));
+    }
+}
+
+LRESULT CMainFrame::OnEraseBkgnd(UINT /*uMsg*/, WPARAM wParam, LPARAM /*lParam*/, BOOL& bHandled)
+{
+    auto& themeManager = ThemeManager::Instance();
+    if (themeManager.IsDarkTheme())
+    {
+        // Paint the background dark for dark mode
+        HDC hdc = (HDC)wParam;
+        RECT rc;
+        GetClientRect(&rc);
+        HBRUSH hBrush = ::CreateSolidBrush(RGB(45, 45, 45));
+        ::FillRect(hdc, &rc, hBrush);
+        ::DeleteObject(hBrush);
+        return 1;  // We handled it
+    }
+    
+    bHandled = FALSE;
+    return 0;
+}
+
+LRESULT CMainFrame::OnCustomDraw(int /*idCtrl*/, LPNMHDR pnmh, BOOL& bHandled)
+{
+    // We're not applying dark mode to the toolbar/rebar anymore
+    // due to the "Find:" label visibility issue
+    bHandled = FALSE;
+    return 0;
 }
 
 } // namespace debugviewpp

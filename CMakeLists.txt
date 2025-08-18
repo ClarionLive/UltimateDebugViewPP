@@ -69,7 +69,20 @@ add_library(project::compile_options ALIAS project_compile_options)
 add_library(project::gui_link_options ALIAS msvc_gui_link_options)
 add_library(project::console_link_options ALIAS msvc_console_link_options)
 
+add_subdirectory(scintilla)
+add_subdirectory(lexilla)
+add_subdirectory(fsqlf_dll)
 add_subdirectory(application)
+
+# Add test program for Clarion messages
+add_executable(TestClarionMessages TestClarionMessages.cpp)
+target_link_libraries(TestClarionMessages PRIVATE kernel32)
+set_target_properties(TestClarionMessages PROPERTIES FOLDER "Tests")
+
+# Add debug test for Clarion
+add_executable(TestDebugClarion TestDebugClarion.cpp)
+target_link_libraries(TestDebugClarion PRIVATE kernel32)
+set_target_properties(TestDebugClarion PROPERTIES FOLDER "Tests")
 
 set_property(DIRECTORY PROPERTY VS_STARTUP_PROJECT Debugviewpp)
 

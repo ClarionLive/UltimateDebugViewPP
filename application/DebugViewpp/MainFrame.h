@@ -6,6 +6,7 @@
 #pragma once
 
 #include <memory>
+#include <vector>
 
 #include "atleverything.h"
 
@@ -20,6 +21,7 @@ using ATL::CString;
 
 #include "CustomTabCtrl.h"
 #include "DotNetTabCtrl.h"
+// #include "DotNetTabCtrlWithCloseButtons.h"  // Removed - reverting to original tab control
 #include "TabbedFrame.h"
 #pragma warning(pop)
 
@@ -42,7 +44,7 @@ namespace debugviewpp {
 struct SelectionInfo;
 class DbgviewReader;
 
-using SelectedTabItem = CLogViewTabItem;
+using SelectedTabItem = CLogViewTabItem2;
 
 void RemoveDriver();
 
@@ -70,6 +72,8 @@ public:
         UPDATE_ELEMENT(ID_VIEW_SCROLL_STOP, UPDUI_MENUPOPUP | UPDUI_TOOLBAR)
         UPDATE_ELEMENT(ID_VIEW_TIME, UPDUI_MENUPOPUP | UPDUI_TOOLBAR)
         UPDATE_ELEMENT(ID_VIEW_PROCESSCOLORS, UPDUI_MENUPOPUP)
+        UPDATE_ELEMENT(ID_VIEW_DARKMODE, UPDUI_MENUPOPUP)
+        UPDATE_ELEMENT(ID_VIEW_DETAIL_PANE, UPDUI_MENUPOPUP)
         UPDATE_ELEMENT(ID_VIEW_BOOKMARK, UPDUI_MENUPOPUP | UPDUI_TOOLBAR)
         UPDATE_ELEMENT(ID_VIEW_COLUMN_LINE, UPDUI_MENUPOPUP)
         UPDATE_ELEMENT(ID_VIEW_COLUMN_DATE, UPDUI_MENUPOPUP)
@@ -81,6 +85,7 @@ public:
         UPDATE_ELEMENT(ID_OPTIONS_PROCESS_PREFIX, UPDUI_MENUPOPUP)
         UPDATE_ELEMENT(ID_OPTIONS_ALWAYSONTOP, UPDUI_MENUPOPUP)
         UPDATE_ELEMENT(ID_OPTIONS_HIDE, UPDUI_MENUPOPUP)
+        UPDATE_ELEMENT(ID_OPTIONS_EXPANDED_TOOLBAR, UPDUI_MENUPOPUP)
         UPDATE_ELEMENT(ID_DEFAULT_PANE, UPDUI_STATUSBAR)
         UPDATE_ELEMENT(ID_SELECTION_PANE, UPDUI_STATUSBAR)
         UPDATE_ELEMENT(ID_VIEW_PANE, UPDUI_STATUSBAR)
@@ -98,11 +103,19 @@ public:
     void CapturePipe(HANDLE hPipe);
     void FindNext(const std::wstring& text);
     void FindPrevious(const std::wstring& text);
+    void ClearFind();
     void OnDropped(std::wstring uri);
+    void UpdateDetailView(CLogView* pCallingView, int lineIndex);
+    void UpdateDetailView(CLogView* pCallingView, const std::vector<int>& lineIndices);
+    void FindTextInView(const std::wstring& text);
+    void HighlightTextInView(const std::wstring& text);  // Just highlight, don't search
+    void ShowFilterDialogWithText(const std::wstring& text);
 
     // Return the command which should be used to show the window, it is
     // restored from the registry when creating it.
     int GetShowCommand() const { return m_showCmd; }
+    void SaveSettings();
+    bool ImportDebugViewPPSettings();
 
 private:
     enum
@@ -134,7 +147,6 @@ private:
     void UpdateUI();
     void UpdateStatusBar();
     bool LoadSettings();
-    void SaveSettings();
 
     bool IsPaused() const;
     void Pause();
@@ -148,6 +160,11 @@ private:
     void AddFilterView(std::shared_ptr<CLogView> logview);
     void AddMessage(const Message& message);
 
+    // Auto-view creation for processes
+    int FindViewWithProcessFilter(const std::wstring& processName);
+    void CreateProcessView(const std::wstring& processName);
+    void SwitchToView(int index);
+
     void SetModifiedMark(int tabindex, bool modified);
     void ClearLog();
     void SaveLogFile(const std::wstring& fileName);
@@ -159,6 +176,8 @@ private:
     LRESULT OnSystemTrayIcon(UINT /*unused*/, WPARAM wParam, LPARAM lParam);
     LRESULT OnScRestore(UINT /*unused*/, INT /*unused*/, HWND /*unused*/);
     LRESULT OnScClose(UINT /*unused*/, INT /*unused*/, HWND /*unused*/);
+    LRESULT OnEraseBkgnd(UINT /*uMsg*/, WPARAM wParam, LPARAM /*lParam*/, BOOL& bHandled);
+    LRESULT OnCustomDraw(int /*idCtrl*/, LPNMHDR pnmh, BOOL& bHandled);
     LRESULT OnBeginTabDrag(NMHDR* pnmh);
     LRESULT OnChangeTab(NMHDR* pnmh);
     LRESULT OnCloseTab(NMHDR* pnmh);
@@ -177,6 +196,9 @@ private:
     void OnProcessPrefix(UINT uNotifyCode, int nID, CWindow wndCtl);
     void OnHide(UINT uNotifyCode, int nID, CWindow wndCtl);
     void OnAlwaysOnTop(UINT uNotifyCode, int nID, CWindow wndCtl);
+    void OnExpandedToolbar(UINT uNotifyCode, int nID, CWindow wndCtl);
+    void ApplyExpandedToolbarState();
+    void OnImportSettings(UINT uNotifyCode, int nID, CWindow wndCtl);
     void OnLogClear(UINT uNotifyCode, int nID, CWindow wndCtl);
     void OnLogCrop(UINT uNotifyCode, int nID, CWindow wndCtl);
     void OnLogPause(UINT uNotifyCode, int nID, CWindow wndCtl);
@@ -189,6 +211,8 @@ private:
     void OnViewFind(UINT uNotifyCode, int nID, CWindow wndCtl);
     void OnViewFont(UINT uNotifyCode, int nID, CWindow wndCtl);
     void OnViewFilter(UINT uNotifyCode, int nID, CWindow wndCtl);
+    void OnViewDarkMode(UINT uNotifyCode, int nID, CWindow wndCtl);
+    void OnViewDetailPane(UINT uNotifyCode, int nID, CWindow wndCtl);
     void OnViewClose(UINT uNotifyCode, int nID, CWindow wndCtl);
     void OnViewDuplicate(UINT uNotifyCode, int nID, CWindow wndCtl);
     void OnSources(UINT uNotifyCode, int nID, CWindow wndCtl);
@@ -198,6 +222,12 @@ private:
     CLogView& GetView(int i);
     CLogView& GetView();
     void SetLogFont();
+    
+public:
+    void SetDetailFont(const LOGFONT& lf);
+    HFONT GetDetailFont() const;
+    
+private:
     void SetTitle(const std::wstring& title = L"");
     void HandleDroppedFile(const std::wstring& file);
     void Run(const std::wstring& pathName = L"");
@@ -216,6 +246,7 @@ private:
     int m_filterNr = 1;
     CFindDlg m_findDlg;
     Win32::HFont m_hFont;
+    Win32::HFont m_hDetailFont;
     bool m_linkViews = false;
     bool m_hide = false;
     bool m_tryGlobal = false;
@@ -227,6 +258,7 @@ private:
     size_t m_initialPrivateBytes;
     NOTIFYICONDATA m_notifyIconData;
     LOGFONT m_logfont;
+    LOGFONT m_detailLogfont;
     std::wstring m_applicationName;
     DBWinReader* m_pLocalReader = nullptr;
     DBWinReader* m_pGlobalReader = nullptr;
@@ -241,6 +273,7 @@ private:
     Win32::Handle m_httpMonitorHandle;
     std::deque<Lines> m_incomingMessages;
     int m_showCmd = SW_SHOWDEFAULT;
+    bool m_expandedToolbar = false;
     std::string m_driverLocation = GetDebugviewDriverLocation();
 };
 

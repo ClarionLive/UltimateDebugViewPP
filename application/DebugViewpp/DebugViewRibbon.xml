@@ -1,0 +1,255 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Application xmlns="http://schemas.microsoft.com/windows/2009/Ribbon">
+  <Application.Commands>
+    <!-- File Commands -->
+    <Command Name="cmdFileMenu" Symbol="ID_FILE_MENU" Id="30001"/>
+    <Command Name="cmdQAT" Symbol="ID_QAT" Id="30002"/>
+    
+    <Command Name="cmdFileNew" Symbol="ID_FILE_NEW" Id="32777">
+      <Command.LabelTitle>New View</Command.LabelTitle>
+      <Command.TooltipTitle>New View</Command.TooltipTitle>
+      <Command.TooltipDescription>Create a new filtered view</Command.TooltipDescription>
+      <Command.Keytip>N</Command.Keytip>
+    </Command>
+    
+    <Command Name="cmdFileOpen" Symbol="ID_FILE_OPEN" Id="32778">
+      <Command.LabelTitle>Open</Command.LabelTitle>
+      <Command.TooltipTitle>Open Log File</Command.TooltipTitle>
+      <Command.TooltipDescription>Open a saved debug log file (Ctrl+O)</Command.TooltipDescription>
+      <Command.Keytip>O</Command.Keytip>
+    </Command>
+    
+    <Command Name="cmdFileSaveLog" Symbol="ID_FILE_SAVE_LOG" Id="32779">
+      <Command.LabelTitle>Save Log</Command.LabelTitle>
+      <Command.TooltipTitle>Save Log</Command.TooltipTitle>
+      <Command.TooltipDescription>Save all messages in memory buffer (Ctrl+Shift+S)</Command.TooltipDescription>
+      <Command.Keytip>S</Command.Keytip>
+    </Command>
+    
+    <Command Name="cmdFileSaveView" Symbol="ID_FILE_SAVE_VIEW" Id="32780">
+      <Command.LabelTitle>Save View</Command.LabelTitle>
+      <Command.TooltipTitle>Save Current View</Command.TooltipTitle>
+      <Command.TooltipDescription>Save messages in the current view</Command.TooltipDescription>
+      <Command.Keytip>V</Command.Keytip>
+    </Command>
+    
+    <!-- Edit Commands -->
+    <Command Name="cmdEditCopy" Symbol="ID_VIEW_COPY" Id="32790">
+      <Command.LabelTitle>Copy</Command.LabelTitle>
+      <Command.TooltipTitle>Copy</Command.TooltipTitle>
+      <Command.TooltipDescription>Copy selected messages to clipboard (Ctrl+C)</Command.TooltipDescription>
+      <Command.Keytip>C</Command.Keytip>
+    </Command>
+    
+    <Command Name="cmdEditClear" Symbol="ID_LOG_CLEAR" Id="32783">
+      <Command.LabelTitle>Clear Log</Command.LabelTitle>
+      <Command.TooltipTitle>Clear Log</Command.TooltipTitle>
+      <Command.TooltipDescription>Clear all messages from memory (Ctrl+Shift+X)</Command.TooltipDescription>
+      <Command.Keytip>X</Command.Keytip>
+    </Command>
+    
+    <Command Name="cmdEditSelectAll" Symbol="ID_VIEW_SELECTALL" Id="32789">
+      <Command.LabelTitle>Select All</Command.LabelTitle>
+      <Command.TooltipTitle>Select All</Command.TooltipTitle>
+      <Command.TooltipDescription>Select all messages in current view (Ctrl+A)</Command.TooltipDescription>
+      <Command.Keytip>A</Command.Keytip>
+    </Command>
+    
+    <!-- View Commands -->
+    <Command Name="cmdViewScroll" Symbol="ID_VIEW_SCROLL" Id="32791">
+      <Command.LabelTitle>Auto Scroll</Command.LabelTitle>
+      <Command.TooltipTitle>Auto Scroll</Command.TooltipTitle>
+      <Command.TooltipDescription>Automatically scroll to show new messages</Command.TooltipDescription>
+      <Command.Keytip>AS</Command.Keytip>
+    </Command>
+    
+    <Command Name="cmdViewTime" Symbol="ID_VIEW_TIME" Id="32793">
+      <Command.LabelTitle>Clock Time</Command.LabelTitle>
+      <Command.TooltipTitle>Clock Time</Command.TooltipTitle>
+      <Command.TooltipDescription>Toggle between relative and clock time (Ctrl+T)</Command.TooltipDescription>
+      <Command.Keytip>T</Command.Keytip>
+    </Command>
+    
+    <Command Name="cmdViewFilter" Symbol="ID_VIEW_FILTER" Id="32794">
+      <Command.LabelTitle>Filters...</Command.LabelTitle>
+      <Command.TooltipTitle>Edit Filters</Command.TooltipTitle>
+      <Command.TooltipDescription>Configure message filters (F5)</Command.TooltipDescription>
+      <Command.Keytip>F</Command.Keytip>
+    </Command>
+    
+    <Command Name="cmdViewFind" Symbol="ID_VIEW_FIND" Id="32795">
+      <Command.LabelTitle>Find</Command.LabelTitle>
+      <Command.TooltipTitle>Find</Command.TooltipTitle>
+      <Command.TooltipDescription>Search for text in messages (Ctrl+F)</Command.TooltipDescription>
+      <Command.Keytip>FD</Command.Keytip>
+    </Command>
+    
+    <!-- Log Commands -->
+    <Command Name="cmdLogPause" Symbol="ID_LOG_PAUSE" Id="32784">
+      <Command.LabelTitle>Pause</Command.LabelTitle>
+      <Command.TooltipTitle>Pause Logging</Command.TooltipTitle>
+      <Command.TooltipDescription>Pause or resume message capture (Pause)</Command.TooltipDescription>
+      <Command.Keytip>P</Command.Keytip>
+    </Command>
+    
+    <Command Name="cmdLogSources" Symbol="ID_LOG_SOURCES" Id="32850">
+      <Command.LabelTitle>Sources...</Command.LabelTitle>
+      <Command.TooltipTitle>Manage Sources</Command.TooltipTitle>
+      <Command.TooltipDescription>Configure debug message sources</Command.TooltipDescription>
+      <Command.Keytip>SR</Command.Keytip>
+    </Command>
+    
+    <!-- Bookmark Commands -->
+    <Command Name="cmdViewBookmark" Symbol="ID_VIEW_BOOKMARK" Id="32801">
+      <Command.LabelTitle>Toggle Bookmark</Command.LabelTitle>
+      <Command.TooltipTitle>Bookmark</Command.TooltipTitle>
+      <Command.TooltipDescription>Toggle bookmark on selected line (Ctrl+F2)</Command.TooltipDescription>
+      <Command.Keytip>B</Command.Keytip>
+    </Command>
+    
+    <Command Name="cmdViewNextBookmark" Symbol="ID_VIEW_NEXT_BOOKMARK" Id="32802">
+      <Command.LabelTitle>Next</Command.LabelTitle>
+      <Command.TooltipTitle>Next Bookmark</Command.TooltipTitle>
+      <Command.TooltipDescription>Jump to next bookmark (F2)</Command.TooltipDescription>
+      <Command.Keytip>BN</Command.Keytip>
+    </Command>
+    
+    <Command Name="cmdViewPrevBookmark" Symbol="ID_VIEW_PREVIOUS_BOOKMARK" Id="32803">
+      <Command.LabelTitle>Previous</Command.LabelTitle>
+      <Command.TooltipTitle>Previous Bookmark</Command.TooltipTitle>
+      <Command.TooltipDescription>Jump to previous bookmark (Shift+F2)</Command.TooltipDescription>
+      <Command.Keytip>BP</Command.Keytip>
+    </Command>
+    
+    <!-- Tab Groups -->
+    <Command Name="tabHome" Symbol="ID_TAB_HOME" Id="2" LabelTitle="Home" Keytip="H"/>
+    <Command Name="tabLog" Symbol="ID_TAB_LOG" Id="3" LabelTitle="Log" Keytip="L"/>
+    <Command Name="tabView" Symbol="ID_TAB_VIEW" Id="4" LabelTitle="View" Keytip="V"/>
+    
+    <!-- Groups -->
+    <Command Name="grpFile" Symbol="ID_GROUP_FILE" Id="100" LabelTitle="File" Keytip="F"/>
+    <Command Name="grpEdit" Symbol="ID_GROUP_EDIT" Id="101" LabelTitle="Edit" Keytip="E"/>
+    <Command Name="grpView" Symbol="ID_GROUP_VIEW" Id="102" LabelTitle="View" Keytip="V"/>
+    <Command Name="grpSearch" Symbol="ID_GROUP_SEARCH" Id="103" LabelTitle="Search" Keytip="S"/>
+    <Command Name="grpBookmarks" Symbol="ID_GROUP_BOOKMARKS" Id="104" LabelTitle="Bookmarks" Keytip="B"/>
+    <Command Name="grpSources" Symbol="ID_GROUP_SOURCES" Id="105" LabelTitle="Sources" Keytip="S"/>
+    <Command Name="grpControl" Symbol="ID_GROUP_CONTROL" Id="106" LabelTitle="Control" Keytip="C"/>
+    <Command Name="grpOptions" Symbol="ID_GROUP_OPTIONS" Id="107" LabelTitle="Options" Keytip="O"/>
+    <Command Name="grpAppearance" Symbol="ID_GROUP_APPEARANCE" Id="108" LabelTitle="Appearance" Keytip="A"/>
+    <Command Name="grpFilters" Symbol="ID_GROUP_FILTERS" Id="109" LabelTitle="Filters" Keytip="F"/>
+    <Command Name="grpWindows" Symbol="ID_GROUP_WINDOWS" Id="110" LabelTitle="Windows" Keytip="W"/>
+  </Application.Commands>
+  
+  <Application.Views>
+    <Ribbon>
+      <!-- Application Menu -->
+      <Ribbon.ApplicationMenu>
+        <ApplicationMenu CommandName="cmdFileMenu">
+          <MenuGroup>
+            <Button CommandName="cmdFileNew"/>
+            <Button CommandName="cmdFileOpen"/>
+          </MenuGroup>
+          <MenuGroup>
+            <SplitButton>
+              <SplitButton.ButtonItem>
+                <Button CommandName="cmdFileSaveLog"/>
+              </SplitButton.ButtonItem>
+              <SplitButton.MenuGroups>
+                <MenuGroup>
+                  <Button CommandName="cmdFileSaveLog"/>
+                  <Button CommandName="cmdFileSaveView"/>
+                </MenuGroup>
+              </SplitButton.MenuGroups>
+            </SplitButton>
+          </MenuGroup>
+        </ApplicationMenu>
+      </Ribbon.ApplicationMenu>
+      
+      <!-- Quick Access Toolbar -->
+      <Ribbon.QuickAccessToolbar>
+        <QuickAccessToolbar CommandName="cmdQAT">
+          <QuickAccessToolbar.ApplicationDefaults>
+            <Button CommandName="cmdFileOpen"/>
+            <Button CommandName="cmdFileSaveLog"/>
+            <Button CommandName="cmdEditCopy"/>
+            <Button CommandName="cmdEditClear"/>
+            <Button CommandName="cmdViewFind"/>
+          </QuickAccessToolbar.ApplicationDefaults>
+        </QuickAccessToolbar>
+      </Ribbon.QuickAccessToolbar>
+      
+      <!-- Tabs -->
+      <Ribbon.Tabs>
+        <!-- Home Tab -->
+        <Tab CommandName="tabHome">
+          <!-- File Group -->
+          <Group CommandName="grpFile" SizeDefinition="ThreeButtons">
+            <Button CommandName="cmdFileOpen"/>
+            <Button CommandName="cmdFileSaveLog"/>
+            <Button CommandName="cmdFileSaveView"/>
+          </Group>
+          
+          <!-- Edit Group -->
+          <Group CommandName="grpEdit" SizeDefinition="ThreeButtons">
+            <Button CommandName="cmdEditCopy"/>
+            <Button CommandName="cmdEditClear"/>
+            <Button CommandName="cmdEditSelectAll"/>
+          </Group>
+          
+          <!-- View Group -->
+          <Group CommandName="grpView" SizeDefinition="ThreeButtons">
+            <ToggleButton CommandName="cmdViewScroll"/>
+            <ToggleButton CommandName="cmdViewTime"/>
+            <Button CommandName="cmdViewFilter"/>
+          </Group>
+          
+          <!-- Search Group -->
+          <Group CommandName="grpSearch" SizeDefinition="TwoButtons">
+            <Button CommandName="cmdViewFind"/>
+            <Button CommandName="cmdViewFilter"/>
+          </Group>
+          
+          <!-- Bookmarks Group -->
+          <Group CommandName="grpBookmarks" SizeDefinition="FourButtons">
+            <Button CommandName="cmdViewBookmark"/>
+            <Button CommandName="cmdViewNextBookmark"/>
+            <Button CommandName="cmdViewPrevBookmark"/>
+          </Group>
+        </Tab>
+        
+        <!-- Log Tab -->
+        <Tab CommandName="tabLog">
+          <!-- Sources Group -->
+          <Group CommandName="grpSources" SizeDefinition="OneButton">
+            <Button CommandName="cmdLogSources"/>
+          </Group>
+          
+          <!-- Control Group -->
+          <Group CommandName="grpControl" SizeDefinition="TwoButtons">
+            <ToggleButton CommandName="cmdLogPause"/>
+            <Button CommandName="cmdEditClear"/>
+          </Group>
+        </Tab>
+        
+        <!-- View Tab -->
+        <Tab CommandName="tabView">
+          <!-- Appearance Group -->
+          <Group CommandName="grpAppearance" SizeDefinition="TwoButtons">
+            <Button CommandName="cmdViewFilter"/>
+            <ToggleButton CommandName="cmdViewTime"/>
+          </Group>
+          
+          <!-- Filters Group -->
+          <Group CommandName="grpFilters" SizeDefinition="OneButton">
+            <Button CommandName="cmdViewFilter"/>
+          </Group>
+          
+          <!-- Windows Group -->
+          <Group CommandName="grpWindows" SizeDefinition="OneButton">
+            <Button CommandName="cmdFileNew"/>
+          </Group>
+        </Tab>
+      </Ribbon.Tabs>
+    </Ribbon>
+  </Application.Views>
+</Application>

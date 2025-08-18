@@ -99,14 +99,21 @@ static const MatchType::type ProcessMatchTypes[] =
         MatchType::Wildcard,
         MatchType::Regex};
 
-CFilterDlg::CFilterDlg(std::wstring name, const LogFilter& filters) :
+CFilterDlg::CFilterDlg(std::wstring name, const LogFilter& filters, const LogFile* logFile) :
     m_messagePage(MessageFilterTypes, MessageMatchTypes, true),
     m_processPage(ProcessFilterTypes, ProcessMatchTypes, false),
     m_name(std::move(name)),
-    m_filter(filters)
+    m_filter(filters),
+    m_logFile(logFile)
 {
     m_messagePage.SetFilters(filters.messageFilters);
     m_processPage.SetFilters(filters.processFilters);
+    
+    // If we have a LogFile, pass the list of processes to the process page
+    if (m_logFile)
+    {
+        m_processPage.SetAvailableProcesses(m_logFile->GetUniqueProcesses());
+    }
 }
 
 std::wstring CFilterDlg::GetName() const

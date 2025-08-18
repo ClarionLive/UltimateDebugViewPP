@@ -71,7 +71,12 @@ struct Column
         Time,
         Pid,
         Process,
-        Message,
+        Thread,      // Clarion: Thread ID
+        App,         // Clarion: Application name
+        Module,      // Clarion: Module name (.clw file)
+        Procedure,   // Clarion: Procedure/function name
+        Prefix,      // Clarion: Filter prefix (DB, UI, etc.)
+        Message,     // Keep as last visible column
         Count
     };
 };
@@ -91,14 +96,21 @@ struct ColumnInfo
     LVCOLUMN column;
 };
 
+struct ColumnLayout
+{
+    std::wstring name;
+    std::vector<ColumnInfo> columns;
+};
+
 boost::property_tree::ptree MakePTree(const std::vector<ColumnInfo>& columns);
 
 class CMyHeaderCtrl : public CWindowImpl<CMyHeaderCtrl, CHeaderCtrl>
 {
 public:
     BEGIN_MSG_MAP_EX(CMyHeaderCtrl)
-        REFLECTED_NOTIFY_CODE_HANDLER_EX(HDN_BEGINTRACK, BlockColumn0)
-        REFLECTED_NOTIFY_CODE_HANDLER_EX(HDN_ENDTRACK, OnEndDrag)
+        REFLECTED_NOTIFY_CODE_HANDLER_EX(HDN_BEGINTRACK, BlockColumn0Resize)
+        REFLECTED_NOTIFY_CODE_HANDLER_EX(HDN_ENDTRACK, OnEndResize)
+        // Note: HDN_BEGINDRAG and HDN_ENDDRAG are sent to the parent ListView, not the header itself
     END_MSG_MAP()
 
     // on windows 10 listview headers are missing depth, we manually draw them to compensate
@@ -119,13 +131,13 @@ public:
         GetParent().Invalidate();
     }
 
-    LRESULT OnEndDrag(NMHDR* pnmh)
+    LRESULT OnEndResize(NMHDR* pnmh)
     {
         TriggerHeaderRedraw();
-        return BlockColumn0(pnmh);
+        return BlockColumn0Resize(pnmh);
     }
 
-    LRESULT BlockColumn0(NMHDR* pnmh)
+    LRESULT BlockColumn0Resize(NMHDR* pnmh)
     {
         auto& nmhdr = *reinterpret_cast<NMHEADER*>(pnmh);
         if (nmhdr.iItem == 0)
@@ -212,6 +224,13 @@ public:
     void CopyToClipboard(std::wstring_view str);
     void CopyMessagesToClipboard();
     std::wstring GetSelectedMessagesAsWString() const;
+    
+    // Column layout management - public for ManageLayoutsDlg
+    void SaveColumnLayout(const std::wstring& layoutName);
+    void LoadColumnLayout(const std::wstring& layoutName);
+    void DeleteColumnLayout(const std::wstring& layoutName);
+    std::vector<std::wstring> GetSavedLayouts() const;
+    bool LayoutExists(const std::wstring& layoutName) const;
 
 private:
     DECLARE_MSG_MAP()
@@ -219,6 +238,7 @@ private:
     void OnException() const;
     void OnException(const std::exception& ex);
     LRESULT OnCreate(const CREATESTRUCT* pCreate);
+    BOOL OnEraseBkgnd(CDCHandle dc);
     void OnContextMenu(HWND hWnd, CPoint pt);
     void OnLButtonDown(UINT flags, CPoint point);
     void OnMouseMove(UINT flags, CPoint point);
@@ -267,14 +287,21 @@ private:
     void OnViewPreviousBookmark(UINT uNotifyCode, int nID, CWindow wndCtl);
     void OnViewClearBookmarks(UINT uNotifyCode, int nID, CWindow wndCtl);
     void OnViewColumn(UINT uNotifyCode, int nID, CWindow wndCtl);
+    void OnColumnSaveLayout(UINT uNotifyCode, int nID, CWindow wndCtl);
+    void OnColumnManageLayouts(UINT uNotifyCode, int nID, CWindow wndCtl);
+    void OnColumnResetLayout(UINT uNotifyCode, int nID, CWindow wndCtl);
+    void OnColumnLayout(UINT uNotifyCode, int nID, CWindow wndCtl);
     void OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags);
     LRESULT OnCustomDraw(NMHDR* pnmh);
+    LRESULT OnHeaderBeginDrag(NMHDR* pnmh);
+    LRESULT OnHeaderEndDrag(NMHDR* pnmh);
 
     std::vector<std::string> GetSelectedMessages() const;
     std::wstring GetSelectedLines() const;
     void UpdateColumns();
     int ColumnToSubItem(Column::type column) const;
     Column::type SubItemToColumn(int iSubItem) const;
+    void PopulateLayoutMenu(CMenuHandle menu);
     int GetTextIndex(int iItem, int xPos) const;
     int GetTextIndex(CDCHandle dc, int iItem, int xPos) const;
     int TextHighlightHitTest(int iItem, const POINT& pt);

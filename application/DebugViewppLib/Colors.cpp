@@ -6,6 +6,7 @@
 // #include "stdafx.h"
 #include <cstdlib>
 #include "DebugViewppLib/Colors.h"
+#include "DebugViewppLib/ThemeManager.h"
 #include "CobaltFusion/Math.h"
 
 namespace fusion {
@@ -14,12 +15,22 @@ namespace debugviewpp {
 namespace Colors {
 
 extern const COLORREF Auto = 0x80808080;
-extern const COLORREF BackGround = GetSysColor(COLOR_WINDOW);
-extern const COLORREF Text = GetSysColor(COLOR_WINDOWTEXT);
-extern const COLORREF Highlight = RGB(255, 255, 55);
-extern const COLORREF Selection = RGB(128, 255, 255);
-extern const COLORREF ItemHighlight = GetSysColor(COLOR_HIGHLIGHT);
-extern const COLORREF ItemHighlightText = GetSysColor(COLOR_HIGHLIGHTTEXT);
+COLORREF BackGround = GetSysColor(COLOR_WINDOW);
+COLORREF Text = GetSysColor(COLOR_WINDOWTEXT);
+COLORREF Highlight = RGB(255, 255, 55);
+COLORREF Selection = RGB(128, 255, 255);
+COLORREF ItemHighlight = GetSysColor(COLOR_HIGHLIGHT);
+COLORREF ItemHighlightText = GetSysColor(COLOR_HIGHLIGHTTEXT);
+
+void UpdateThemeColors() {
+    const auto& colors = ThemeManager::Instance().GetColors();
+    BackGround = colors.background;
+    Text = colors.text;
+    Highlight = colors.highlight;
+    Selection = colors.selection;
+    ItemHighlight = colors.itemHighlight;
+    ItemHighlightText = colors.itemHighlightText;
+}
 
 } // namespace Colors
 
@@ -72,6 +83,22 @@ COLORREF GetRandomTextColor()
 COLORREF GetRandomProcessColor()
 {
     return GetRandomColor(0.20, 0.95);
+}
+
+COLORREF GetContrastingTextColor(COLORREF backgroundColor)
+{
+    // Calculate relative luminance using the formula from WCAG 2.0
+    // L = 0.2126 * R + 0.7152 * G + 0.0722 * B
+    int r = GetRValue(backgroundColor);
+    int g = GetGValue(backgroundColor);
+    int b = GetBValue(backgroundColor);
+    
+    // Calculate luminance (0-255 scale)
+    double luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b);
+    
+    // If background is light (luminance > 127), use black text
+    // If background is dark (luminance <= 127), use white text
+    return luminance > 127 ? RGB(0, 0, 0) : RGB(255, 255, 255);
 }
 
 } // namespace debugviewpp

@@ -114,7 +114,11 @@ bool CFilterPageImpl::SupportsAutoColor(FilterType::type filterType) const
 
 void CFilterPageImpl::UpdateGridColors(int item) const
 {
-    auto& text = dynamic_cast<CPropertyEditItem&>(*m_grid.GetProperty(item, SubItem::Text));
+    // The text property can be either an edit item or a list item (for process dropdown)
+    auto* textProp = m_grid.GetProperty(item, SubItem::Text);
+    if (!textProp)
+        return;
+        
     auto& bg = dynamic_cast<CPropertyColorItem&>(*m_grid.GetProperty(item, SubItem::Background));
     auto& fg = dynamic_cast<CPropertyColorItem&>(*m_grid.GetProperty(item, SubItem::Foreground));
 
@@ -126,8 +130,18 @@ void CFilterPageImpl::UpdateGridColors(int item) const
         bg.SetColor(Colors::BackGround);
         autoCol = false;
     }
-    text.SetBkColor(supportsColor && !autoCol ? bgColor : Colors::BackGround);
-    text.SetTextColor(supportsColor && !autoCol ? fg.GetColor() : Colors::Text);
+    
+    // Try to set colors on both edit and list item types
+    if (auto* editItem = dynamic_cast<CPropertyEditItem*>(textProp))
+    {
+        editItem->SetBkColor(supportsColor && !autoCol ? bgColor : Colors::BackGround);
+        editItem->SetTextColor(supportsColor && !autoCol ? fg.GetColor() : Colors::Text);
+    }
+    else if (auto* listItem = dynamic_cast<CPropertyListItem*>(textProp))
+    {
+        listItem->SetBkColor(supportsColor && !autoCol ? bgColor : Colors::BackGround);
+        listItem->SetTextColor(supportsColor && !autoCol ? fg.GetColor() : Colors::Text);
+    }
 
     bg.SetEnabled(static_cast<BOOL>(supportsColor));
     bg.ShowAuto(SupportsAutoColor(GetFilterType(item)));
@@ -137,7 +151,61 @@ void CFilterPageImpl::UpdateGridColors(int item) const
 
 void CFilterPageImpl::InsertFilter(int item, const Filter& filter)
 {
-    auto pFilterProp = PropCreateSimple(L"", WStr(filter.text));
+    // For process filters with available processes, create a dropdown list
+    // Otherwise, use a simple text edit control
+    HPROPERTY pFilterProp = nullptr;
+    
+    if (!m_supportAutoBg && !m_availableProcesses.empty())  // Process filter page with available processes
+    {
+        // Clear and rebuild the process list strings for stable storage
+        m_processListStrings.clear();
+        m_processListStrings = m_availableProcesses;
+        
+        // Add the current filter text if it's not in the list
+        std::wstring currentText = WStr(filter.text).str();
+        bool found = false;
+        int selectedIndex = -1;
+        for (size_t i = 0; i < m_processListStrings.size(); ++i)
+        {
+            if (m_processListStrings[i] == currentText)
+            {
+                found = true;
+                selectedIndex = static_cast<int>(i);
+                break;
+            }
+        }
+        
+        if (!found && !currentText.empty())
+        {
+            // Add current value at the beginning if not in list
+            m_processListStrings.insert(m_processListStrings.begin(), currentText);
+            selectedIndex = 0;
+        }
+        
+        // Create a list of process names for the dropdown
+        std::vector<const wchar_t*> processItems;
+        processItems.reserve(m_processListStrings.size() + 1);  // +1 for nullptr terminator
+        
+        for (const auto& process : m_processListStrings)
+        {
+            processItems.push_back(process.c_str());
+        }
+        processItems.push_back(nullptr);  // Null terminator for the list
+        
+        // Create an editable dropdown list
+        auto pListItem = PropCreateList(L"", processItems.data());
+        if (selectedIndex >= 0)
+        {
+            pListItem->SetValue(CComVariant(selectedIndex));
+        }
+        pFilterProp = pListItem;
+    }
+    else
+    {
+        // Use regular text edit for message filters or when no processes available
+        pFilterProp = PropCreateSimple(L"", WStr(filter.text));
+    }
+    
     auto pBkColor = PropCreateColorItem(L"Background Color", filter.bgColor);
     auto pTxColor = PropCreateColorItem(L"Text Color", filter.fgColor);
     auto pFilter = CreateEnumTypeItem(L"", m_filterTypes, m_filterTypeCount, filter.filterType);
@@ -473,6 +541,11 @@ void CFilterPageImpl::UpdateGrid(int focus)
         AddFilter(filter);
     }
     m_grid.SelectItem(focus);
+}
+
+void CFilterPageImpl::SetAvailableProcesses(const std::vector<std::wstring>& processes)
+{
+    m_availableProcesses = processes;
 }
 
 } // namespace debugviewpp
