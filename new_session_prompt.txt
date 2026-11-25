@@ -1,0 +1,63 @@
+# Prompt for New Session
+
+## Task
+Fix the Preferences dialog in UltimateDebugViewPP that is currently broken with a debug assertion failure at line 965 in atlwin.h. The dialog opens but shows empty tabs with no controls.
+
+## Context
+- **Project Location**: C:\Dev\UltimateDebugViewPP
+- **Problem**: The Preferences dialog's tab pages inherit from CWindowImpl and try to create controls programmatically, which is failing
+- **Solution Plan**: Located in `fix_preferences_dialog_plan.md` in the project root
+
+## Instructions
+
+Please implement the solution described in `fix_preferences_dialog_plan.md` using the following approach:
+
+### Use Agents for Complex Tasks
+
+1. **Use a general-purpose agent** to:
+   - Search for and analyze the existing dialog resource patterns in DebugView++.rc
+   - Find appropriate resource ID ranges in resource.h
+   - Locate similar dialog implementations (like FilterDlg) to use as templates
+
+2. **For the dialog resource creation**, implement it yourself but reference the patterns found by the agent
+
+3. **Use a general-purpose agent** to:
+   - Verify all control IDs are unique after adding them
+   - Check for any missing message handlers after converting to CDialogImpl
+   - Test the build and identify any compilation errors
+
+### Implementation Order
+
+1. First read `fix_preferences_dialog_plan.md` for the complete plan
+2. Create the dialog resources in DebugView++.rc (Step 1 of the plan)
+3. Add resource IDs to resource.h (Step 2)
+4. Convert the classes from CWindowImpl to CDialogImpl (Step 3)
+5. Update the implementation in PreferencesDlg.cpp (Step 4)
+6. Update CreateTabPages() method (Step 5)
+7. Build and test
+
+### Key Points to Remember
+
+- The working FilterDlg uses CDialogImpl with IDD_FILTER_PAGE - use this as a reference
+- Each tab page needs its own dialog resource with proper control IDs
+- Remove all programmatic control creation from OnCreate() methods
+- Move initialization logic to OnInitDialog() instead
+- The tab control itself (IDC_PREFERENCES_TAB) already exists in the main dialog
+
+### Testing Requirements
+
+After implementation:
+1. Build in Debug mode
+2. Run the application
+3. Click on Preferences menu item
+4. Verify no assertion failures occur
+5. Check all three tabs show their controls
+6. Test that settings can be changed and saved
+
+### Important Files
+
+- Main dialog files: `application\DebugViewpp\PreferencesDlg.h` and `.cpp`
+- Resource files: `application\DebugViewpp\DebugView++.rc` and `resource.h`
+- Reference implementation: `application\DebugViewpp\FilterDlg.cpp` and `FilterPage.cpp`
+
+Please start by reading the plan file and then proceed with the implementation. Use agents where indicated to help with research and verification tasks.

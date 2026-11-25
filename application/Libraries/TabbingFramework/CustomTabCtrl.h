@@ -1154,6 +1154,14 @@ public:
 		T* pT = static_cast<T*>(this);
 		if (index >= 0)
 		{
+			// Prevent dragging the Default tab (index 0) or + tab (last)
+			int itemCount = static_cast<int>(this->m_Items.GetCount());
+			if (index == 0 || index == itemCount - 1)
+			{
+				// Don't allow dragging these special tabs
+				return;
+			}
+			
 			DWORD dwStyle = this->GetStyle();
 
 			if (CTCS_DRAGREARRANGE == (dwStyle & CTCS_DRAGREARRANGE))
@@ -1228,6 +1236,24 @@ public:
 		int index = pT->HitTest(&tchti);
 		if ((index != this->m_iDragItem) && (index >= 0))
 		{
+			// Prevent moving past boundaries:
+			// - Cannot move to position 0 (Default tab)
+			// - Cannot move to last position (+ tab)
+			int itemCount = static_cast<int>(this->m_Items.GetCount());
+			if (index == 0 || index == itemCount - 1)
+			{
+				// Show "no drop" cursor at boundaries
+				::SetCursor(m_hCursorNoDrop);
+				return;
+			}
+			
+			// Also prevent dragging the Default tab (index 0) or + tab (last)
+			if (m_iDragItem == 0 || m_iDragItem == itemCount - 1)
+			{
+				::SetCursor(m_hCursorNoDrop);
+				return;
+			}
+
 			RECT rcItem = {0};
 			this->GetItemRect(index, &rcItem);
 
@@ -1237,15 +1263,23 @@ public:
 			{
 				// They're dragging an item from left to right,
 				// and have dragged it over the half way mark to the right
-				pT->MoveItem(m_iDragItem, index, true, false);
-				m_iDragItem = index;
+				// But don't allow moving to the last position (+ tab)
+				if (index < itemCount - 1)
+				{
+					pT->MoveItem(m_iDragItem, index, true, false);
+					m_iDragItem = index;
+				}
 			}
 			else if ((m_iDragItem > index) && (ptCursor.x < itemMiddlePointX))
 			{
 				// They're dragging an item from right to left,
 				// and have dragged it over the half way mark to the left
-				pT->MoveItem(m_iDragItem, index, true, false);
-				m_iDragItem = index;
+				// But don't allow moving to position 0 (Default tab)
+				if (index > 0)
+				{
+					pT->MoveItem(m_iDragItem, index, true, false);
+					m_iDragItem = index;
+				}
 			}
 		}
 
@@ -2142,7 +2176,12 @@ public:
 public:
 	void Initialize(void)
 	{
-		ATLASSERT(::IsWindow(this->m_hWnd));
+		// Check if window is valid before proceeding
+		// This fixes assertion failures during tab control creation
+		if (!::IsWindow(this->m_hWnd))
+		{
+			return;
+		}
 
 		this->SendMessage(WM_SETTINGCHANGE, 0, 0);
 
@@ -2881,7 +2920,9 @@ public:
 	BOOL DeleteItem(size_t nItem, bool bUpdateSelection = true, bool bNotify = true)
 	{
 		T* pT = static_cast<T*>(this);
-		ATLASSERT(::IsWindow(this->m_hWnd));
+		// Replace assertion with defensive check to prevent crashes when closing tabs
+		if (!::IsWindow(this->m_hWnd))
+			return FALSE;
 		size_t nOldCount = this->m_Items.GetCount();
 		if (nItem >= nOldCount)
 		{

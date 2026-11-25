@@ -85,27 +85,32 @@ class CPropertyColorItem : public CPropertyItem
 public:
     CPropertyColorItem(const wchar_t* name, COLORREF color) :
         CPropertyItem(name, 0),
-        m_dlg(name, color, CC_ANYCOLOR)
+        m_dlg(name, color, CC_ANYCOLOR),
+        m_currentColor(color),
+        m_showAuto(false)
     {
     }
 
     COLORREF GetColor() const
     {
-        return m_dlg.GetColor();
+        return m_currentColor;
     }
 
     void SetColor(COLORREF color)
     {
-        m_dlg.SetCurrentColor(color);
+        m_currentColor = color;
+        // Don't call m_dlg.SetCurrentColor here - dialog doesn't exist yet
     }
 
     void ShowAuto(bool show)
     {
+        m_showAuto = show;
         m_dlg.ShowAuto(show);
     }
 
     BOOL Activate(UINT action, LPARAM /*lParam*/) override
     {
+
         if (IsEnabled() == 0)
         {
             return FALSE;
@@ -116,14 +121,53 @@ public:
         case PACT_SPACE:
         case PACT_CLICK:
         case PACT_DBLCLICK:
-            if (m_dlg.DoModal(m_hWndOwner) == IDOK)
+        case PACT_ACTIVATE:
             {
-                // Let control owner know
-                NMPROPERTYITEM nmh = {{m_hWndOwner, static_cast<UINT_PTR>(::GetDlgCtrlID(m_hWndOwner)), PIN_ITEMCHANGED}, this};
-                ::SendMessage(::GetParent(m_hWndOwner), WM_NOTIFY, nmh.hdr.idFrom, reinterpret_cast<LPARAM>(&nmh));
+
+                // Try to find a better parent window
+                HWND parentHwnd = m_hWndOwner;
+                if (!::IsWindow(parentHwnd) || !::IsWindowEnabled(parentHwnd))
+                {
+                    // Try the parent of the grid control
+                    parentHwnd = ::GetParent(m_hWndOwner);
+                    if (!::IsWindow(parentHwnd))
+                    {
+                        // Fall back to active window
+                        parentHwnd = ::GetActiveWindow();
+                        if (!::IsWindow(parentHwnd))
+                        {
+                            // Ultimate fallback to desktop
+                            parentHwnd = ::GetDesktopWindow();
+                        }
+                    }
+                }
+
+                // Re-create the dialog with the current color
+                m_dlg = ColorDialog(GetName(), m_currentColor, CC_ANYCOLOR);
+                m_dlg.ShowAuto(m_showAuto);
+
+                INT_PTR result = m_dlg.DoModal(parentHwnd);
+
+
+                if (result == IDOK)
+                {
+                    // Get the selected color from the dialog
+                    m_currentColor = m_dlg.GetColor();
+
+                    // Let control owner know
+                    NMPROPERTYITEM nmh = {{m_hWndOwner, static_cast<UINT_PTR>(::GetDlgCtrlID(m_hWndOwner)), PIN_ITEMCHANGED}, this};
+                    ::SendMessage(::GetParent(m_hWndOwner), WM_NOTIFY, nmh.hdr.idFrom, reinterpret_cast<LPARAM>(&nmh));
+                }
+                else if (result == IDCANCEL)
+                {
+                }
+                else
+                {
+                }
             }
             break;
-        default: break;
+        default: 
+            break;
         }
         return TRUE;
     }
@@ -174,6 +218,8 @@ public:
 
 private:
     ColorDialog m_dlg;
+    COLORREF m_currentColor;
+    bool m_showAuto;
 };
 
 inline CPropertyColorItem* PropCreateColorItem(const wchar_t* name, COLORREF color)

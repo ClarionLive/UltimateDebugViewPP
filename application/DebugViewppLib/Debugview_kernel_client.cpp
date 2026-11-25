@@ -33,12 +33,10 @@ bool StartDriverSvc()
     {
         if (GetLastError() == ERROR_SERVICE_ALREADY_RUNNING)
         {
-            std::cout << "Service is already running.\n";
             CloseServiceHandle(hService);
             CloseServiceHandle(hSCManager);
             return true;
         }
-        std::cout << "Failed to start service. Error: " << GetLastError() << std::endl;
         CloseServiceHandle(hService);
         CloseServiceHandle(hSCManager);
         return false;
@@ -68,7 +66,7 @@ bool StopDriverSvc()
         DWORD err = GetLastError();
         if (err != ERROR_SERVICE_NOT_ACTIVE)
         {
-            std::cout << "Failed to stop service. Error: " << err << std::endl;
+            // Silently ignore stop failure
         }
     }
 
@@ -84,13 +82,14 @@ void InstallKernelMessagesDriver(const std::string& driverLocation)
 
     if (!FileExists(driverPath))
     {
-        std::cout << "Driver file not found at: " << driverPath << std::endl;
+        // Driver file not found - will be handled later
     }
 
     SC_HANDLE hSCManager = OpenSCManager(NULL, NULL, SC_MANAGER_ALL_ACCESS);
     if (!hSCManager)
     {
-        std::cout << "Failed to open Service Control Manager. Error: " << GetLastError() << std::endl;
+        // Failed to open Service Control Manager
+        return;
     }
 
     SC_HANDLE hService = CreateServiceA(
@@ -108,10 +107,9 @@ void InstallKernelMessagesDriver(const std::string& driverLocation)
     {
         if (GetLastError() == ERROR_SERVICE_EXISTS)
         {
-            std::cout << "Service already exists.\n";
             CloseServiceHandle(hSCManager);
+            return;
         }
-        std::cout << "Failed to create service. Error: " << GetLastError() << std::endl;
         CloseServiceHandle(hSCManager);
     }
     CloseServiceHandle(hService);
@@ -127,7 +125,7 @@ void UninstallKernelMessagesDriver()
     SC_HANDLE hSCManager = OpenSCManager(NULL, NULL, SC_MANAGER_ALL_ACCESS);
     if (!hSCManager)
     {
-        std::cout << "Failed to open Service Control Manager for uninstall. Error: " << GetLastError() << std::endl;
+        // Failed to open Service Control Manager for uninstall
         return;
     }
 
@@ -142,7 +140,7 @@ void UninstallKernelMessagesDriver()
 
     if (!DeleteService(hService))
     {
-        std::cout << "Failed to delete service. Error: " << GetLastError() << std::endl;
+        // Failed to delete service - ignore silently
     }
     CloseServiceHandle(hService);
     CloseServiceHandle(hSCManager);

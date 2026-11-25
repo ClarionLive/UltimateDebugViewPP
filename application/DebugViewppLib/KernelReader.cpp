@@ -42,7 +42,6 @@ void KernelReader::StartListening()
         NULL));
     if (handle.get() == INVALID_HANDLE_VALUE)
     {
-        printf("Could not find the kernel messages driver device name");
         throw std::runtime_error("Could not find the kernel messages driver device name");
     }
 
@@ -52,7 +51,6 @@ void KernelReader::StartListening()
     BOOL bRet = DeviceIoControl(handle.get(), DBGV_CAPTURE_KERNEL, NULL, 0, &dwOut, sizeof(dwOut), &dwReturned, NULL);
     if (!bRet)
     {
-        printf("DBGV_CAPTURE_KERNEL failed, err=%d\n", ::GetLastError());
         throw std::runtime_error("Could not enable capturing kernel messages");
     }
 
@@ -65,7 +63,7 @@ void KernelReader::StopListening()
     BOOL bRet = DeviceIoControl(m_handle.get(), DBGV_UNCAPTURE_KERNEL, NULL, 0, NULL, 0, NULL, NULL);
     if (!bRet)
     {
-        printf("DBGV_UNCAPTURE_KERNEL failed, err=%d\n", ::GetLastError());
+        // Silently ignore uncapture failure
     }
     m_handle.reset();
     ::free(m_pBuf);
@@ -124,7 +122,7 @@ void KernelReader::SetKernelMessagesDriverFeature(DWORD feature)
     BOOL bRet = DeviceIoControl(m_handle.get(), feature, NULL, 0, &dwOut, sizeof(dwOut), &dwReturned, NULL);
     if (!bRet)
     {
-        printf("SetKernelMessagesDriverFeature for '%s' failed, err=%d\n", feature_to_string(feature).c_str(), ::GetLastError());
+        // Silently ignore feature setting failure
         return;
     }
 }

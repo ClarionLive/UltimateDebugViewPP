@@ -398,13 +398,22 @@ LRESULT CFilterPageImpl::OnClickItem(NMHDR* pnmh)
 
     int iItem;
     int iSubItem;
-    if ((m_grid.FindProperty(nmhdr.prop, iItem, iSubItem) != 0) && iSubItem == SubItem::Remove)
+    if (m_grid.FindProperty(nmhdr.prop, iItem, iSubItem) != 0)
     {
-        m_grid.DeleteItem(iItem);
-        m_filters.erase(m_filters.begin() + iItem);
-        return TRUE;
+        
+        if (iSubItem == SubItem::Remove)
+        {
+            m_grid.DeleteItem(iItem);
+            m_filters.erase(m_filters.begin() + iItem);
+            return TRUE;
+        }
+        
+    }
+    else
+    {
     }
 
+    // Let other columns handle their own click events (like color selectors)
     return FALSE;
 }
 

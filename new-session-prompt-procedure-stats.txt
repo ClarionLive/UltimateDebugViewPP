@@ -1,0 +1,25 @@
+I need help fixing three issues with the Procedure Stats tab in the UltimateDebugViewPP application. Please read the procedure-stats-fixes.md file first to understand the problems and proposed solution.
+
+The issues are:
+1. The vertical splitter starts all the way to the left (should be centered)
+2. Missing descriptive titles above the two grids
+3. Column header clicks don't trigger sorting
+
+Please implement the fixes described in procedure-stats-fixes.md. Key requirements:
+- Create container panels with static text labels for the grid titles
+- Fix the splitter position to use Width/2 instead of Height/2
+- Ensure WM_NOTIFY messages are properly forwarded for sorting to work
+
+IMPORTANT: Use the Task tool with the general-purpose agent to:
+1. First analyze the existing ClarionProcedureView implementation to understand the current architecture
+2. Research similar container/panel implementations in the codebase to follow existing patterns
+3. Then implement the container panels with proper message forwarding
+
+The files you'll primarily be working with are:
+- application\DebugViewpp\ClarionProcedureView.h
+- application\DebugViewpp\ClarionProcedureView.cpp
+
+After implementing, build the project using:
+"C:\Program Files\CMake\bin\cmake.exe" --build build --config Debug --target UltimateDebugviewpp
+
+Please ensure all three issues are resolved: proper splitter positioning, visible titles, and working column sorting.

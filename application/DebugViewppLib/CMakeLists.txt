@@ -3,6 +3,8 @@ project(DebugView++Lib)
 add_library(${PROJECT_NAME}
     AnyFileReader.cpp
     BinaryFileReader.cpp
+    ClarionProcedureTracker.cpp
+    ClarionQueueManager.cpp
     Colors.cpp
     Conversions.cpp
     CTimelineView.cpp
@@ -43,13 +45,20 @@ add_library(${PROJECT_NAME}
 
 add_library(dv::library ALIAS ${PROJECT_NAME})
 
+target_include_directories(${PROJECT_NAME}
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/../include
+        $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/application/include>
+)
+
 target_link_libraries(${PROJECT_NAME}
+    PUBLIC
+        nuget::wtl
+        nuget::boost
     PRIVATE
         project::definitions
         project::compile_features
         project::compile_options
-        nuget::boost
-        nuget::wtl
         dv::cobaltfusion
         dv::win32
 )

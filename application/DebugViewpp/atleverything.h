@@ -13,6 +13,7 @@
 
 #include "windows.h"
 #include "ShellApi.h"
+#include "shlwapi.h"
 
 #pragma warning(push)
 #pragma warning(disable : 4091) // 'typedef ': ignored on left of 'tagGPFIDL_FLAGS' when no variable is declared

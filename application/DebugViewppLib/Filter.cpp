@@ -165,6 +165,68 @@ bool IsIncluded(std::vector<Filter>& filters, const std::string& text, MatchColo
     return !includeFilterPresent || included;
 }
 
+bool IsIncludedPrefix(std::vector<Filter>& filters, const std::string& prefix, MatchColors& matchColors)
+{
+    // If no prefix is provided, don't apply prefix filtering
+    if (prefix.empty())
+    {
+        return true;
+    }
+
+    // First check for exclusions
+    for (auto& filter : filters)
+    {
+        if (!filter.enable)
+        {
+            continue;
+        }
+
+        if (filter.filterType == FilterType::Exclude && std::regex_search(prefix, filter.re))
+        {
+            return false;
+        }
+    }
+
+    // Then check for inclusions and handle color matching
+    bool included = false;
+    bool includeFilterPresent = false;
+    for (auto& filter : filters)
+    {
+        if (!filter.enable)
+        {
+            continue;
+        }
+
+        if (filter.bgColor == Colors::Auto)
+        {
+            std::sregex_iterator begin(prefix.begin(), prefix.end(), filter.re);
+            std::sregex_iterator end;
+            for (auto tok = begin; tok != end; ++tok)
+            {
+                auto key = MatchKey(*tok, filter.matchType);
+                if (matchColors.find(key) == matchColors.end())
+                {
+                    matchColors.emplace(std::make_pair(key, GetRandomBackColor()));
+                }
+            }
+        }
+
+        if (filter.filterType == FilterType::Include)
+        {
+            includeFilterPresent = true;
+            included |= std::regex_search(prefix, filter.re);
+        }
+
+        if (filter.filterType == FilterType::Once && std::regex_search(prefix, filter.re))
+        {
+            included |= !filter.matched;
+            filter.matched = true;
+        }
+    }
+
+    return !includeFilterPresent || included;
+}
+
 bool MatchFilterType(const std::vector<Filter>& filters, FilterType::type type, const std::string& text)
 {
     for (auto& filter : filters)

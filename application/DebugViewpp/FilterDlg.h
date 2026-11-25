@@ -25,7 +25,7 @@ class CFilterDlg : public CDialogImpl<CFilterDlg>,
                    public ExceptionHandler<CFilterDlg, std::exception>
 {
 public:
-    explicit CFilterDlg(std::wstring name, const LogFilter& filter = LogFilter(), const LogFile* logFile = nullptr);
+    explicit CFilterDlg(std::wstring name, const LogFilter& filter = LogFilter(), const LogFile* logFile = nullptr, const std::vector<Filter>& defaultPrefixFilters = {}, bool isNewView = false, const std::vector<std::wstring>& uniqueProcedures = {});
 
     std::wstring GetName() const;
     LogFilter GetFilters() const;
@@ -41,6 +41,8 @@ public:
         DLGRESIZE_CONTROL(IDC_FILTER_LOAD, DLSZ_MOVE_Y)
         DLGRESIZE_CONTROL(IDC_FILTER_REGEX, DLSZ_MOVE_Y)
         DLGRESIZE_CONTROL(IDC_FILTER_REMOVEALL, DLSZ_MOVE_Y)
+        DLGRESIZE_CONTROL(IDC_FILTER_RESET_PREFIXES, DLSZ_MOVE_Y)
+        DLGRESIZE_CONTROL(IDC_FILTER_CLEAR_PREFIXES, DLSZ_MOVE_Y)
         DLGRESIZE_CONTROL(IDOK, DLSZ_MOVE_X | DLSZ_MOVE_Y)
         DLGRESIZE_CONTROL(IDCANCEL, DLSZ_MOVE_X | DLSZ_MOVE_Y)
     END_DLGRESIZE_MAP()
@@ -57,6 +59,8 @@ public:
     void OnLoad(UINT /*uNotifyCode*/, int nID, CWindow /*wndCtl*/);
     void OnRegEx(UINT /*uNotifyCode*/, int nID, CWindow /*wndCtl*/);
     void OnClearAll(UINT /*uNotifyCode*/, int nID, CWindow /*wndCtl*/);
+    void OnResetPrefixes(UINT /*uNotifyCode*/, int nID, CWindow /*wndCtl*/);
+    void OnClearPrefixes(UINT /*uNotifyCode*/, int nID, CWindow /*wndCtl*/);
     void OnCancel(UINT uNotifyCode, int nID, CWindow wndCtl);
     void OnOk(UINT uNotifyCode, int nID, CWindow wndCtl);
     LRESULT OnTabSelChange(NMHDR* pnmh);
@@ -66,11 +70,17 @@ private:
     CTabCtrl m_tabCtrl;
     CFilterPage m_messagePage;
     CFilterPage m_processPage;
+    CFilterPage m_prefixPage;
+    CFilterPage m_procedurePage;
     CRegExDlg m_regExDlg;
     SIZE m_border;
     std::wstring m_name;
     LogFilter m_filter;
     const LogFile* m_logFile;
+    std::vector<Filter> m_defaultPrefixFilters;
+    LogFilter m_initialFilters;
+    bool m_isNewView;
+    std::vector<std::wstring> m_uniqueProcedures;
 };
 
 } // namespace debugviewpp

@@ -1,11 +1,24 @@
-.vs/
-.vscode/
-vs2022/
+# Build output
 build/
-out/
 bin/
-packages/
-bin
-obj/
-Testing/
-install/
+fsqlf_dll/build/
+out/
+*.obj
+*.pdb
+*.ilk
+*.exp
+*.lib
+*.idb
+*.tlog
+
+# IDE / local
+.vs/
+*.user
+*.suo
+.claude/settings.local.json
+
+# Debug logs and scratch output
+*.log
+build_output.txt
+sql_formatter_called.txt
+C:Dev*

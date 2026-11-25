@@ -1,9 +1,10 @@
 
-execute_process(
-  COMMAND cmd /C UpdateBuildNr.cmd version.h version.wxi
-  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/Application/DebugviewPP/" 
-  COMMAND_ERROR_IS_FATAL ANY
-)
+# Temporarily disabled for build
+# execute_process(
+#   COMMAND cmd /C UpdateBuildNr.cmd version.h version.wxi
+#   WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/application/DebugViewpp/"
+#   COMMAND_ERROR_IS_FATAL ANY
+# )
 
 file(READ "${CMAKE_SOURCE_DIR}/application/DebugViewpp/version.h" VERSION_FILE_CONTENTS)
 

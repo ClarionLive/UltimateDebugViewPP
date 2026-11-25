@@ -10,6 +10,8 @@
 #include <format>
 #include <cstdio>
 #include <functional>
+#include <iomanip>
+#include <sstream>
 
 #include <boost/optional.hpp>
 #include <boost/algorithm/string.hpp>
@@ -34,6 +36,7 @@
 #include "DebugViewppLib/Conversions.h"
 #include "DebugViewppLib/ThemeManager.h"
 #include "DebugViewppLib/Colors.h"
+#include "DebugViewppLib/ClarionQueueManager.h"
 
 #include "resource.h"
 #include "RunDlg.h"
@@ -44,6 +47,10 @@
 #include "FileOptionDlg.h"
 #include "LogView.h"
 #include "MainFrame.h"
+#include "CLogViewTabItem2.h"
+#include "HelpTabView.h"
+#include "ProcedureStatsSplitter.h"
+#include "NewTabItem.h"
 
 namespace fusion {
 namespace debugviewpp {
@@ -119,9 +126,13 @@ std::wstring FormatDuration(double seconds)
 BEGIN_MSG_MAP2(CMainFrame)
     MSG_WM_CREATE(OnCreate)
     MSG_WM_CLOSE(OnClose)
+    MSG_WM_SIZE(OnSize)
+    MSG_WM_MOVE(OnMove)
     MSG_WM_QUERYENDSESSION(OnQueryEndSession)
     MSG_WM_ENDSESSION(OnEndSession)
     MSG_WM_MOUSEWHEEL(OnMouseWheel)
+    MSG_WM_TIMER(OnTimer)
+    MSG_WM_SETCURSOR(OnSetCursor)
     MSG_WM_CONTEXTMENU(OnContextMenu)
     MSG_WM_SYSCOMMAND(OnSysCommand)
     MESSAGE_HANDLER_EX(WM_SYSTEMTRAYICON, OnSystemTrayIcon)
@@ -138,6 +149,7 @@ BEGIN_MSG_MAP2(CMainFrame)
     COMMAND_ID_HANDLER_EX(ID_FILE_SAVE_VIEW_SELECTION, OnFileSaveViewSelection)
     COMMAND_ID_HANDLER_EX(ID_FILE_LOAD_CONFIGURATION, OnFileLoadConfiguration)
     COMMAND_ID_HANDLER_EX(ID_FILE_SAVE_CONFIGURATION, OnFileSaveConfiguration)
+    COMMAND_ID_HANDLER_EX(ID_FILE_PREFERENCES, OnFilePreferences)
     COMMAND_ID_HANDLER_EX(ID_LOG_CLEAR, OnLogClear)
     COMMAND_ID_HANDLER_EX(ID_LOG_CROP, OnLogCrop)
     COMMAND_ID_HANDLER_EX(ID_LOG_PAUSE, OnLogPause)
@@ -150,6 +162,14 @@ BEGIN_MSG_MAP2(CMainFrame)
     COMMAND_ID_HANDLER_EX(ID_VIEW_FIND, OnViewFind)
     COMMAND_ID_HANDLER_EX(ID_VIEW_FILTER, OnViewFilter)
     COMMAND_ID_HANDLER_EX(ID_VIEW_DETAIL_PANE, OnViewDetailPane)
+    COMMAND_ID_HANDLER_EX(ID_VIEW_PROCEDURE_TRACKER, OnViewProcedureTracker)
+    COMMAND_ID_HANDLER_EX(ID_TAB_POPOUT, OnTabPopOut)
+    COMMAND_ID_HANDLER_EX(ID_TAB_POPIN, OnTabPopIn)
+    COMMAND_ID_HANDLER_EX(ID_MAIN_TAB_POPOUT, OnMainTabPopOut)
+    COMMAND_ID_HANDLER_EX(ID_MAIN_TAB_POPIN, OnMainTabPopIn)
+    MESSAGE_HANDLER(WM_FLOATING_MAIN_WINDOW_CLOSING, OnFloatingMainWindowClosing)
+    MESSAGE_HANDLER(WM_USER_CREATE_PROCEDURE_VIEW, OnUserCreateProcedureView)
+    MESSAGE_HANDLER(WM_USER_JUMP_TO_DEBUG_ROW, OnUserJumpToDebugRow)
     COMMAND_ID_HANDLER_EX(ID_VIEW_CLOSE, OnViewClose)
     COMMAND_ID_HANDLER_EX(ID_VIEW_DUPLICATE, OnViewDuplicate)
     COMMAND_ID_HANDLER_EX(ID_VIEW_DARKMODE, OnViewDarkMode)
@@ -183,6 +203,7 @@ BEGIN_MSG_MAP2(CMainFrame)
         }
         return TRUE;
     }
+    COMMAND_ID_HANDLER_EX(30012, OnProcedureSplitterMoved)  // ID_PROCEDURE_SPLITTER_MOVED
     CHAIN_MSG_MAP(TabbedFrame)
     CHAIN_MSG_MAP(CUpdateUI<CMainFrame>)
     REFLECT_NOTIFICATIONS()
@@ -231,6 +252,28 @@ void CMainFrame::OnException(const std::exception& ex)
 
 BOOL CMainFrame::PreTranslateMessage(MSG* pMsg)
 {
+    // Intercept left button down on the tab control to handle "+" tab clicks specially
+    if (pMsg->message == WM_LBUTTONDOWN && pMsg->hwnd == GetTabCtrl().m_hWnd)
+    {
+        POINT pt = { static_cast<LONG>(LOWORD(pMsg->lParam)), static_cast<LONG>(HIWORD(pMsg->lParam)) };
+        CTCHITTESTINFO hti = { 0 };
+        hti.pt = pt;
+        int tabIndex = GetTabCtrl().HitTest(&hti);
+        
+        // Check if clicking on the "+" tab (last tab)
+        if (tabIndex >= 0 && tabIndex >= GetActualViewCount())
+        {
+            // Handle the "+" tab click directly
+            AddFilterView();
+            
+            // Reset cursor immediately
+            ::SetCursor(::LoadCursor(nullptr, IDC_ARROW));
+            
+            // Prevent further processing of this message
+            return TRUE;
+        }
+    }
+    
     return TabbedFrame::PreTranslateMessage(pMsg);
 }
 
@@ -291,9 +334,18 @@ LRESULT CMainFrame::OnCreate(const CREATESTRUCT* /*pCreate*/)
     m_statusBar.SetPanes(paneIds, 5, false);
     UIAddStatusBar(m_hWndStatusBar);
 
+    // Create tab window (standard way)
     CreateTabWindow(*this, rcDefault, CTCS_DRAGREARRANGE | CTCS_CLOSEBUTTON);
-    AddFilterView(L"View");
-    HideTabControl();
+    // Don't add a default view here - LoadSettings will handle it
+    // Don't hide tab control - we want tabs visible even with single view for the "+" tab
+    
+    // Create procedure view as a child window that we'll dock to the side
+    m_wndProcedureView.Create(*this, CWindow::rcDefault, _T("Procedure Tracker"),
+        WS_CHILD | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_BORDER,
+        WS_EX_CLIENTEDGE);
+    
+    // Initially hide the procedure window
+    m_wndProcedureView.ShowWindow(SW_HIDE);
 
     SetLogFont();
     LoadSettings();
@@ -329,11 +381,11 @@ LRESULT CMainFrame::OnCreate(const CREATESTRUCT* /*pCreate*/)
         ApplyExpandedToolbarState();
     }
     
-    // Apply word wrap state and detail font to the detail view that was already created
-    // The first tab was created before LoadSettings, so we need to apply the setting now
-    if (GetViewCount() > 0)
+    // Apply word wrap state and detail font to the detail view if it exists
+    // Views are created in LoadSettings, so apply settings to all of them
+    for (int i = 0; i < GetActualViewCount(); ++i)
     {
-        auto pTabItem = GetTabCtrl().GetItem(0);
+        auto pTabItem = GetTabCtrl().GetItem(i);
         if (pTabItem)
         {
             pTabItem->SetMainFrame(this);  // This will re-apply the word wrap state
@@ -343,6 +395,8 @@ LRESULT CMainFrame::OnCreate(const CREATESTRUCT* /*pCreate*/)
             }
         }
     }
+
+    // Note: AddPlusTab is already called in LoadSettings, no need to call it again here
 
     // register object for message filtering and idle updates
     CMessageLoop* pLoop = _Module.GetMessageLoop();
@@ -355,6 +409,10 @@ LRESULT CMainFrame::OnCreate(const CREATESTRUCT* /*pCreate*/)
     // Resume can throw if a second debugview is running
     // so do not rely on any commands executed afterwards
     Resume();
+    
+    // Initialization is complete, allow AddFilterView to be called from "+" tab clicks
+    m_bInitializing = false;
+    
     return 0;
 }
 
@@ -367,6 +425,63 @@ void CMainFrame::OnClose()
     {
         Shell_NotifyIcon(NIM_DELETE, &m_notifyIconData);
         m_notifyIconData.cbSize = 0;
+    }
+}
+
+void CMainFrame::OnSize(UINT nType, CSize /*size*/)
+{
+    // Let the framework handle the base sizing
+    SetMsgHandled(FALSE);
+    
+    // If the procedure tracker is visible, reposition it
+    if (m_bProcedurePaneVisible && m_wndProcedureView.IsWindow() && m_wndProcedureView.IsWindowVisible())
+    {
+        // Get the window area in screen coordinates
+        CRect windowRect;
+        GetWindowRect(&windowRect);
+        
+        // Calculate position for procedure window (25% width on the right)
+        int procedureWidth = windowRect.Width() / 4;  // 25% width
+        CRect procedureRect;
+        procedureRect.left = windowRect.right - procedureWidth;
+        procedureRect.top = windowRect.top;
+        procedureRect.right = windowRect.right;
+        procedureRect.bottom = windowRect.bottom;
+        
+        // Account for window frame
+        AdjustWindowRectEx(&procedureRect, WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_SIZEBOX, FALSE, WS_EX_TOOLWINDOW);
+        
+        // Reposition the procedure window
+        m_wndProcedureView.SetWindowPos(NULL, procedureRect.left, procedureRect.top,
+                                        procedureRect.Width(), procedureRect.Height(),
+                                        SWP_NOZORDER | SWP_NOACTIVATE);
+    }
+}
+
+void CMainFrame::OnMove(CPoint /*pt*/)
+{
+    // If the procedure tracker is visible, move it with the main window
+    if (m_bProcedurePaneVisible && m_wndProcedureView.IsWindow() && m_wndProcedureView.IsWindowVisible())
+    {
+        // Get the window area in screen coordinates
+        CRect windowRect;
+        GetWindowRect(&windowRect);
+        
+        // Calculate position for procedure window (25% width on the right)
+        int procedureWidth = windowRect.Width() / 4;  // 25% width
+        CRect procedureRect;
+        procedureRect.left = windowRect.right - procedureWidth;
+        procedureRect.top = windowRect.top;
+        procedureRect.right = windowRect.right;
+        procedureRect.bottom = windowRect.bottom;
+        
+        // Account for window frame
+        AdjustWindowRectEx(&procedureRect, WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_SIZEBOX, FALSE, WS_EX_TOOLWINDOW);
+        
+        // Move the procedure window
+        m_wndProcedureView.SetWindowPos(NULL, procedureRect.left, procedureRect.top,
+                                        0, 0,
+                                        SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOSIZE);
     }
 }
 
@@ -406,6 +521,8 @@ void CMainFrame::UpdateUI()
         }
     }
     UISetCheck(ID_VIEW_DETAIL_PANE, detailPaneVisible);
+    // Procedure tracking is now integrated into detail pane tabs, so show same state as detail pane
+    UISetCheck(ID_VIEW_PROCEDURE_TRACKER, detailPaneVisible);
     
     UISetCheck(ID_VIEW_SCROLL, GetView().GetAutoScroll());
     UISetCheck(ID_VIEW_SCROLL_STOP, GetView().GetAutoScrollStop());
@@ -513,7 +630,7 @@ void CMainFrame::ProcessLines(const Lines& lines)
     // design decision: filtering is done on the UI thread, see CLogView::Add
     // changing this would introduces extra thread and thus complexity. Do that only if it solves a problem.
 
-    int views = GetViewCount();
+    int views = GetActualViewCount();
     for (int i = 0; i < views; ++i)
     {
         GetView(i).BeginUpdate();
@@ -541,6 +658,20 @@ void CMainFrame::ProcessLines(const Lines& lines)
             SetModifiedMark(i, true);
             GetTabCtrl().UpdateLayout();
             GetTabCtrl().Invalidate();
+        }
+    }
+    
+    // Update floating procedure windows in real-time
+    if (GetViewCount() > 0)
+    {
+        int currentTab = GetTabCtrl().GetCurSel();
+        if (currentTab >= 0 && currentTab < GetViewCount())
+        {
+            auto pTabItem = dynamic_cast<CLogViewTabItem2*>(GetTabCtrl().GetItem(currentTab));
+            if (pTabItem)
+            {
+                pTabItem->UpdateFloatingWindows();
+            }
         }
     }
 }
@@ -600,6 +731,57 @@ bool CMainFrame::OnMouseWheel(UINT nFlags, short zDelta, CPoint /*pt*/)
     return true;
 }
 
+void CMainFrame::OnTimer(UINT_PTR nIDEvent)
+{
+    if (nIDEvent == 1001)
+    {
+        // Reset cursor after dialog closes
+        ::SetCursor(::LoadCursor(nullptr, IDC_ARROW));
+        ::KillTimer(m_hWnd, 1001);
+    }
+}
+
+BOOL CMainFrame::OnSetCursor(CWindow wnd, UINT nHitTest, UINT /*message*/)
+{
+    // Always reset cursor to arrow if it's showing "no drop" cursor
+    // This can happen when tab drag state gets stuck
+    HCURSOR currentCursor = ::GetCursor();
+    static HCURSOR hArrowCursor = ::LoadCursor(nullptr, IDC_ARROW);
+    
+    // Get system no-drop cursor (usually from ole32.dll)
+    static HCURSOR hNoCursor = nullptr;
+    static HCURSOR hSystemNoCursor = ::LoadCursor(nullptr, IDC_NO);
+    if (!hNoCursor)
+    {
+        HMODULE hOle32 = ::GetModuleHandle(L"ole32.dll");
+        if (hOle32)
+        {
+            hNoCursor = ::LoadCursor(hOle32, MAKEINTRESOURCE(1));  // No drop cursor from ole32
+        }
+    }
+    
+    // Check if current cursor is any "no" cursor variant
+    if (currentCursor == hSystemNoCursor || 
+        (hNoCursor && currentCursor == hNoCursor))
+    {
+        // Force reset to arrow cursor
+        ::SetCursor(hArrowCursor);
+        
+        // Also force tab control to reset its state
+        if (wnd.m_hWnd == GetTabCtrl().m_hWnd || nHitTest == HTCLIENT)
+        {
+            GetTabCtrl().SendMessage(WM_LBUTTONUP, 0, 0);
+            ::ReleaseCapture();
+        }
+        
+        return TRUE;  // We handled it
+    }
+    
+    // Allow normal cursor processing
+    SetMsgHandled(win32::False);
+    return FALSE;
+}
+
 void CMainFrame::OnContextMenu(HWND hWnd, CPoint pt)
 {
     if (hWnd != m_TabCtrl)
@@ -616,6 +798,32 @@ void CMainFrame::OnContextMenu(HWND hWnd, CPoint pt)
     CMenu menuContext;
     menuContext.LoadMenu(IDR_TAB_CONTEXTMENU);
     CMenuHandle menuPopup(menuContext.GetSubMenu(0));
+
+    // Remove Pop Out Tab and Pop In Tab items - these are only for detail tabs
+    menuPopup.DeleteMenu(ID_MAIN_TAB_POPOUT, MF_BYCOMMAND);
+    menuPopup.DeleteMenu(ID_MAIN_TAB_POPIN, MF_BYCOMMAND);
+    
+    // Also remove the separator that was between them and the other items
+    // Find and remove empty separators
+    for (int i = menuPopup.GetMenuItemCount() - 1; i >= 0; i--)
+    {
+        UINT state = menuPopup.GetMenuState(i, MF_BYPOSITION);
+        if (state == 0xFFFFFFFF) continue; // Invalid item
+        
+        // Check if it's a separator
+        if (state & MF_SEPARATOR)
+        {
+            // Check if there's another separator right after it (double separator)
+            if (i > 0)
+            {
+                UINT prevState = menuPopup.GetMenuState(i - 1, MF_BYPOSITION);
+                if (prevState != 0xFFFFFFFF && (prevState & MF_SEPARATOR))
+                {
+                    menuPopup.DeleteMenu(i, MF_BYPOSITION);
+                }
+            }
+        }
+    }
 
     if (item < 0)
     {
@@ -869,6 +1077,7 @@ bool CMainFrame::LoadSettings()
 
     m_hide = Win32::RegGetDWORDValue(reg, L"Hide", 0) != 0;
     m_expandedToolbar = Win32::RegGetDWORDValue(reg, L"ExpandedToolbar", 0) != 0;
+    SetProcedureStatsSplitterPos(static_cast<int>(Win32::RegGetDWORDValue(reg, L"ProcedureStatsSplitterPos", m_procedureStatsSplitterPos)));
 
     auto fontName = Win32::RegGetStringValue(reg, L"FontName", L"").substr(0, LF_FACESIZE - 1);
     int fontSize = Win32::RegGetDWORDValue(reg, L"FontSize", 8);
@@ -899,48 +1108,102 @@ bool CMainFrame::LoadSettings()
     CRegKey regViews;
     if (regViews.Open(reg, L"Views") == ERROR_SUCCESS)
     {
-        for (size_t i = 0;; ++i)
+        // Get the saved count of views
+        DWORD viewCount = Win32::RegGetDWORDValue(regViews, L"Count", 0);
+
+        // If no count is saved (old format), count the views manually for backward compatibility
+        if (viewCount == 0)
+        {
+            for (DWORD i = 0;; ++i)
+            {
+                CRegKey testView;
+                if (testView.Open(regViews, WStr(wstringbuilder() << L"View" << i)) != ERROR_SUCCESS)
+                {
+                    viewCount = i;
+                    break;
+                }
+                testView.Close();
+            }
+        }
+
+        // Clear any existing views (none should exist since we don't create default in OnCreate)
+        // But be defensive in case there are any
+        while (GetActualViewCount() > 0)
+        {
+            // Remove views starting from the last one
+            CloseView(GetActualViewCount() - 1);
+        }
+        
+        // Load views in the exact order they were saved
+        for (DWORD i = 0; i < viewCount; ++i)
         {
             CRegKey regView;
             if (regView.Open(regViews, WStr(wstringbuilder() << L"View" << i)) != ERROR_SUCCESS)
             {
+                // If we can't find this view, stop loading
+                // This handles the case where registry is corrupted
                 break;
             }
 
             auto name = Win32::RegGetStringValue(regView);
-            if (i == 0)
+            if (name.empty())
             {
-                GetTabCtrl().GetItem(0)->SetText(name.c_str());
+                name = L"View";  // Default name if not found
             }
-            else
-            {
-                AddFilterView(name);
-            }
-            GetView().LoadSettings(regView);
-            
-            // Load the splitter position for this view
-            auto pTabItem = GetTabCtrl().GetItem(static_cast<int>(i));
+
+            // Always create new views since we cleared all existing ones
+            AddFilterView(name, LogFilter());
+            // Then load the actual filters and settings
+            GetView(static_cast<int>(i)).LoadSettings(regView);
+        }
+
+        // If no views were loaded, create a default one
+        if (GetActualViewCount() == 0)
+        {
+            AddFilterView(L"View", LogFilter());
+        }
+        
+        // Load splitter positions and detail pane settings for all views
+        for (int i = 0; i < GetActualViewCount(); ++i)
+        {
+            auto pTabItem = GetTabCtrl().GetItem(i);
             if (pTabItem)
             {
-                // Load detail pane visibility (default to false for new views)
-                bool detailPaneVisible = Win32::RegGetDWORDValue(regView, L"DetailPaneVisible", 0) != 0;
-                pTabItem->ShowDetailPane(detailPaneVisible);
+                CRegKey regView;
+                regView.Open(regViews, WStr(wstringbuilder() << L"View" << i));
                 
-                int splitterPos = Win32::RegGetDWORDValue(regView, L"DetailSplitterPos", 75);
-                pTabItem->SetSplitterPos(splitterPos);
-                
-                // Load per-view detail pane settings (all default to on for new views)
-                bool wordWrap = Win32::RegGetDWORDValue(regView, L"DetailWordWrap", 1) != 0;
-                bool syntaxHighlight = Win32::RegGetDWORDValue(regView, L"DetailSyntaxHighlight", 1) != 0;
-                bool formatContent = Win32::RegGetDWORDValue(regView, L"DetailFormatContent", 1) != 0;
-                bool lineNumbers = Win32::RegGetDWORDValue(regView, L"DetailLineNumbers", 1) != 0;
-                
-                pTabItem->SetDetailWordWrap(wordWrap);
-                pTabItem->SetDetailSyntaxHighlight(syntaxHighlight);
-                pTabItem->SetDetailFormatContent(formatContent);
-                pTabItem->SetDetailLineNumbers(lineNumbers);
+                if (regView)
+                {
+                    // Load detail pane visibility (default to false for new views)
+                    bool detailPaneVisible = Win32::RegGetDWORDValue(regView, L"DetailPaneVisible", 0) != 0;
+                    pTabItem->ShowDetailPane(detailPaneVisible);
+                    
+                    int splitterPos = Win32::RegGetDWORDValue(regView, L"DetailSplitterPos", 75);
+                    // Ensure the value is within valid range (0-100)
+                    if (splitterPos < 0) splitterPos = 0;
+                    if (splitterPos > 100) splitterPos = 100;
+                    pTabItem->SetSplitterPos(splitterPos);
+                    
+                    // Load per-view detail pane settings (all default to on for new views)
+                    bool wordWrap = Win32::RegGetDWORDValue(regView, L"DetailWordWrap", 1) != 0;
+                    bool syntaxHighlight = Win32::RegGetDWORDValue(regView, L"DetailSyntaxHighlight", 1) != 0;
+                    bool formatContent = Win32::RegGetDWORDValue(regView, L"DetailFormatContent", 1) != 0;
+                    bool lineNumbers = Win32::RegGetDWORDValue(regView, L"DetailLineNumbers", 1) != 0;
+                    
+                    pTabItem->SetDetailWordWrap(wordWrap);
+                    pTabItem->SetDetailSyntaxHighlight(syntaxHighlight);
+                    pTabItem->SetDetailFormatContent(formatContent);
+                    pTabItem->SetDetailLineNumbers(lineNumbers);
+                }
             }
         }
+        
+        // Add the "+" tab at the end if we have views
+        if (GetActualViewCount() > 0)
+        {
+            AddPlusTab();
+        }
+        
         GetTabCtrl().SetCurSel(Win32::RegGetDWORDValue(regViews, L"Current", 0));
         GetTabCtrl().UpdateLayout();
         GetTabCtrl().Invalidate();
@@ -948,12 +1211,18 @@ bool CMainFrame::LoadSettings()
     else
     {
         // First run - no registry settings exist
-        // Ensure the initial view created in OnCreate has detail pane hidden
+        // Create a default view since none were loaded
+        AddFilterView(L"View", LogFilter());
+
+        // Ensure the initial view has detail pane hidden
         auto pTabItem = GetTabCtrl().GetItem(0);
         if (pTabItem)
         {
             pTabItem->ShowDetailPane(false);  // Explicitly hide detail pane on first run
         }
+
+        // Add the "+" tab for first run
+        AddPlusTab();
     }
 
     CRegKey regColors;
@@ -965,6 +1234,21 @@ bool CMainFrame::LoadSettings()
             colors[i] = Win32::RegGetDWORDValue(regColors, WStr(wstringbuilder() << L"Color" << i));
         }
     }
+    
+    // Load procedure pane settings
+    m_bProcedurePaneVisible = Win32::RegGetDWORDValue(reg, L"ProcedurePaneVisible", 0) != 0;
+    // These are stored but not currently used since we auto-position the window
+    m_procedureWindowRect.left = 0;
+    m_procedureWindowRect.top = 0;
+    m_procedureWindowRect.right = 400;
+    m_procedureWindowRect.bottom = 600;
+    
+    // We'll apply visibility after the window is fully created
+    // NOTE: Procedure tracking is now integrated into detail pane tabs
+    // UISetCheck(ID_VIEW_PROCEDURE_TRACKER, m_bProcedurePaneVisible);
+
+    // Load new view defaults
+    LoadNewViewDefaults();
 
     return true;
 }
@@ -1008,7 +1292,11 @@ void CMainFrame::SaveSettings()
     regViews.Create(reg, L"Views");
     regViews.SetDWORDValue(L"Current", GetTabCtrl().GetCurSel());
 
-    int views = GetViewCount();
+    int views = GetActualViewCount();
+    regViews.SetDWORDValue(L"Count", views);
+    
+    // Save each view with its current tab position
+    // The key is the position, and we save all view data including name and filters
     for (int i = 0; i < views; ++i)
     {
         CRegKey regView;
@@ -1034,6 +1322,33 @@ void CMainFrame::SaveSettings()
         }
     }
 
+    int procedureStatsPos = m_procedureStatsSplitterPos;
+    bool procedureSplitFound = false;
+    for (int i = 0; i < views; ++i)
+    {
+        auto pTabItem = GetTabCtrl().GetItem(i);
+        if (auto* logTab = dynamic_cast<CLogViewTabItem2*>(pTabItem))
+        {
+            auto openProceduresTab = logTab->GetDetailTabContainer().GetOpenProceduresTab();
+            if (openProceduresTab)
+            {
+                procedureStatsPos = openProceduresTab->GetSplitterPosPct();
+                procedureSplitFound = true;
+                break;
+            }
+        }
+    }
+    if (!procedureSplitFound && m_wndProcedureView.IsWindow())
+    {
+        procedureStatsPos = m_wndProcedureView.GetProcedureStatsSplitterPos();
+    }
+    SetProcedureStatsSplitterPos(procedureStatsPos);
+    reg.SetDWORDValue(L"ProcedureStatsSplitterPos", static_cast<DWORD>(m_procedureStatsSplitterPos));
+
+    // Save procedure pane settings
+    reg.SetDWORDValue(L"ProcedurePaneVisible", static_cast<DWORD>(m_bProcedurePaneVisible));
+    // Note: We're not saving position since the procedure tracker is now docked
+    
     CRegKey regColors;
     regColors.Create(reg, L"Colors");
     auto colors = ColorDialog::GetCustomColors();
@@ -1041,6 +1356,9 @@ void CMainFrame::SaveSettings()
     {
         regColors.SetDWORDValue(WStr(wstringbuilder() << L"Color" << i), colors[i]);
     }
+    
+    // Save new view defaults
+    SaveNewViewDefaults();
 }
 
 bool CMainFrame::ImportDebugViewPPSettings()
@@ -1167,7 +1485,409 @@ bool CMainFrame::ImportDebugViewPPSettings()
         L"Import Complete",
         MB_OK | MB_ICONINFORMATION);
     
+    // Add the "+" tab as the last tab after importing settings
+    AddPlusTab();
+    
     return true;
+}
+
+void CMainFrame::LoadNewViewDefaults()
+{
+    CRegKey reg;
+    if (reg.Open(HKEY_CURRENT_USER, RegistryPath, KEY_READ) != ERROR_SUCCESS)
+        return;
+    
+    CRegKey regDefaults;
+    if (regDefaults.Open(reg, L"NewViewDefaults", KEY_READ) != ERROR_SUCCESS)
+        return;
+    
+    DWORD dwValue;
+    
+    // Load boolean settings
+    if (regDefaults.QueryDWORDValue(L"ShowDetailPane", dwValue) == ERROR_SUCCESS)
+        m_newViewDefaults.showDetailPane = (dwValue != 0);
+        
+    if (regDefaults.QueryDWORDValue(L"DetailWordWrap", dwValue) == ERROR_SUCCESS)
+        m_newViewDefaults.detailWordWrap = (dwValue != 0);
+        
+    if (regDefaults.QueryDWORDValue(L"DetailSyntaxHighlight", dwValue) == ERROR_SUCCESS)
+        m_newViewDefaults.detailSyntaxHighlight = (dwValue != 0);
+        
+    if (regDefaults.QueryDWORDValue(L"DetailFormatContent", dwValue) == ERROR_SUCCESS)
+        m_newViewDefaults.detailFormatContent = (dwValue != 0);
+        
+    if (regDefaults.QueryDWORDValue(L"DetailLineNumbers", dwValue) == ERROR_SUCCESS)
+        m_newViewDefaults.detailLineNumbers = (dwValue != 0);
+    
+    // Load splitter position
+    if (regDefaults.QueryDWORDValue(L"DetailSplitterPos", dwValue) == ERROR_SUCCESS)
+    {
+        // Ensure the value is within valid range (0-100)
+        int splitterPos = static_cast<int>(dwValue);
+        if (splitterPos < 0) splitterPos = 0;
+        if (splitterPos > 100) splitterPos = 100;
+        m_newViewDefaults.detailSplitterPos = splitterPos;
+    }
+    
+    // Load theme
+    if (regDefaults.QueryDWORDValue(L"DefaultTheme", dwValue) == ERROR_SUCCESS)
+    {
+        switch (dwValue)
+        {
+        case 0:
+            m_newViewDefaults.defaultTheme = Theme::System;
+            break;
+        case 1:
+            m_newViewDefaults.defaultTheme = Theme::Light;
+            break;
+        case 2:
+            m_newViewDefaults.defaultTheme = Theme::Dark;
+            break;
+        default:
+            m_newViewDefaults.defaultTheme = Theme::System;
+            break;
+        }
+    }
+    
+    // Load font settings
+    wchar_t fontName[LF_FACESIZE] = L"";
+    ULONG fontNameSize = LF_FACESIZE;
+    if (regDefaults.QueryStringValue(L"DetailFontName", fontName, &fontNameSize) == ERROR_SUCCESS)
+    {
+        wcscpy_s(m_newViewDefaults.detailFont.lfFaceName, fontName);
+    }
+    
+    if (regDefaults.QueryDWORDValue(L"DetailFontSize", dwValue) == ERROR_SUCCESS)
+    {
+        m_newViewDefaults.detailFont.lfHeight = LogFontSizeFromPointSize(static_cast<int>(dwValue));
+    }
+
+    // Load SQL formatting options
+    if (regDefaults.QueryDWORDValue(L"SqlKeywordCase", dwValue) == ERROR_SUCCESS)
+    {
+        switch (dwValue)
+        {
+        case 0:
+            m_newViewDefaults.sqlKeywordCase = SqlKeywordCase::Upper;
+            break;
+        case 1:
+            m_newViewDefaults.sqlKeywordCase = SqlKeywordCase::Lower;
+            break;
+        case 2:
+            m_newViewDefaults.sqlKeywordCase = SqlKeywordCase::Capitalize;
+            break;
+        default:
+            m_newViewDefaults.sqlKeywordCase = SqlKeywordCase::Upper;
+            break;
+        }
+    }
+
+    if (regDefaults.QueryDWORDValue(L"SqlIndentType", dwValue) == ERROR_SUCCESS)
+    {
+        m_newViewDefaults.sqlIndentType = (dwValue == 1) ? SqlIndentType::Tab : SqlIndentType::Spaces;
+    }
+
+    if (regDefaults.QueryDWORDValue(L"SqlIndentSpaces", dwValue) == ERROR_SUCCESS)
+    {
+        m_newViewDefaults.sqlIndentSpaces = static_cast<int>(dwValue);
+        if (m_newViewDefaults.sqlIndentSpaces < 1) m_newViewDefaults.sqlIndentSpaces = 1;
+        if (m_newViewDefaults.sqlIndentSpaces > 20) m_newViewDefaults.sqlIndentSpaces = 20;
+    }
+
+    // Load comma alignment (0=Inline, 1=Trailing, 2=Leading)
+    DWORD sqlCommaAlignment = 1; // Default to Trailing
+    if (regDefaults.QueryDWORDValue(L"SqlCommaAlignment", dwValue) == ERROR_SUCCESS)
+    {
+        switch (dwValue)
+        {
+        case 0:
+            m_newViewDefaults.sqlCommaAlignment = SqlCommaAlignment::Inline;
+            break;
+        case 1:
+            m_newViewDefaults.sqlCommaAlignment = SqlCommaAlignment::Trailing;
+            break;
+        case 2:
+            m_newViewDefaults.sqlCommaAlignment = SqlCommaAlignment::Leading;
+            break;
+        default:
+            m_newViewDefaults.sqlCommaAlignment = SqlCommaAlignment::Trailing;
+            break;
+        }
+    }
+
+    if (regDefaults.QueryDWORDValue(L"SqlNewlineKeywords", dwValue) == ERROR_SUCCESS)
+        m_newViewDefaults.sqlNewlineKeywords = (dwValue != 0);
+
+    // Load format style
+    if (regDefaults.QueryDWORDValue(L"SqlFormatStyle", dwValue) == ERROR_SUCCESS)
+    {
+        switch (dwValue)
+        {
+        case 0:
+            m_newViewDefaults.sqlFormatStyle = SqlFormatStyle::Compact;
+            break;
+        case 1:
+            m_newViewDefaults.sqlFormatStyle = SqlFormatStyle::Normal;
+            break;
+        case 2:
+            m_newViewDefaults.sqlFormatStyle = SqlFormatStyle::Expanded;
+            break;
+        default:
+            m_newViewDefaults.sqlFormatStyle = SqlFormatStyle::Normal;
+            break;
+        }
+    }
+
+    // Load parentheses style
+    if (regDefaults.QueryDWORDValue(L"SqlParenthesesStyle", dwValue) == ERROR_SUCCESS)
+    {
+        switch (dwValue)
+        {
+        case 0:
+            m_newViewDefaults.sqlParenthesesStyle = SqlParenthesesStyle::SameLine;
+            break;
+        case 1:
+            m_newViewDefaults.sqlParenthesesStyle = SqlParenthesesStyle::NewLine;
+            break;
+        case 2:
+            m_newViewDefaults.sqlParenthesesStyle = SqlParenthesesStyle::IndentContent;
+            break;
+        default:
+            m_newViewDefaults.sqlParenthesesStyle = SqlParenthesesStyle::SameLine;
+            break;
+        }
+    }
+
+    // Load prefix filters
+    CRegKey regPrefixFilters;
+    if (regPrefixFilters.Open(regDefaults, L"PrefixFilters", KEY_READ) == ERROR_SUCCESS)
+    {
+        // Load system prefix filters (only colors and enable state, text is hardcoded)
+        CRegKey regSystemPrefixes;
+        if (regSystemPrefixes.Open(regPrefixFilters, L"SystemPrefixes", KEY_READ) == ERROR_SUCCESS)
+        {
+            // Load settings for each system prefix filter
+            const wchar_t* systemPrefixes[] = { L"Events", L"Open", L"Close", L"Trace", L"Queue", L"Group", L"Error", L"SQL" };
+            const std::string systemPrefixTexts[] = { "[Events]", "[Open]", "[Close]", "[Trace]", "[Queue]", "[Group]", "[Error]", "[SQL]" };
+
+            for (size_t i = 0; i < 8 && i < m_newViewDefaults.systemPrefixFilters.size(); ++i)
+            {
+                CRegKey regPrefix;
+                if (regPrefix.Open(regSystemPrefixes, systemPrefixes[i], KEY_READ) == ERROR_SUCCESS)
+                {
+                    // Load colors and enable state from registry, keep hardcoded text
+                    if (regPrefix.QueryDWORDValue(L"BgColor", dwValue) == ERROR_SUCCESS)
+                    {
+                        m_newViewDefaults.systemPrefixFilters[i].bgColor = static_cast<COLORREF>(dwValue);
+                    }
+                    
+                    if (regPrefix.QueryDWORDValue(L"FgColor", dwValue) == ERROR_SUCCESS)
+                    {
+                        m_newViewDefaults.systemPrefixFilters[i].fgColor = static_cast<COLORREF>(dwValue);
+                    }
+                    
+                    if (regPrefix.QueryDWORDValue(L"Enable", dwValue) == ERROR_SUCCESS)
+                    {
+                        m_newViewDefaults.systemPrefixFilters[i].enable = (dwValue != 0);
+                    }
+                }
+            }
+        }
+        
+        // Load custom prefix filters
+        CRegKey regCustomPrefixes;
+        if (regCustomPrefixes.Open(regPrefixFilters, L"CustomPrefixes", KEY_READ) == ERROR_SUCCESS)
+        {
+            m_newViewDefaults.customPrefixFilters.clear();
+            
+            for (int i = 0;; ++i)
+            {
+                CRegKey regPrefix;
+                std::wstring prefixKey = std::to_wstring(i);
+                if (regPrefix.Open(regCustomPrefixes, prefixKey.c_str(), KEY_READ) != ERROR_SUCCESS)
+                {
+                    break;
+                }
+                
+                // Load all properties for custom prefix filter
+                wchar_t text[256] = L"";
+                ULONG textSize = 256;
+                if (regPrefix.QueryStringValue(L"Text", text, &textSize) != ERROR_SUCCESS)
+                {
+                    continue; // Skip if no text
+                }
+                
+                DWORD type = FilterType::Highlight;
+                regPrefix.QueryDWORDValue(L"Type", type);
+                
+                DWORD bgColor = RGB(255, 255, 255);
+                regPrefix.QueryDWORDValue(L"BgColor", bgColor);
+                
+                DWORD fgColor = RGB(0, 0, 0);
+                regPrefix.QueryDWORDValue(L"FgColor", fgColor);
+                
+                DWORD enable = 1;
+                regPrefix.QueryDWORDValue(L"Enable", enable);
+                
+                // Create and add the filter
+                std::string filterText = Str(std::wstring(text));
+                FilterType::type filterType = IntToFilterType(static_cast<int>(type));
+                m_newViewDefaults.customPrefixFilters.emplace_back(
+                    filterText, 
+                    MatchType::Simple, 
+                    filterType,
+                    static_cast<COLORREF>(bgColor), 
+                    static_cast<COLORREF>(fgColor), 
+                    enable != 0
+                );
+            }
+        }
+    }
+}
+
+void CMainFrame::SaveNewViewDefaults()
+{
+    CRegKey reg;
+    reg.Create(HKEY_CURRENT_USER, RegistryPath);
+    
+    CRegKey regDefaults;
+    regDefaults.Create(reg, L"NewViewDefaults");
+    
+    // Save boolean settings
+    regDefaults.SetDWORDValue(L"ShowDetailPane", m_newViewDefaults.showDetailPane ? 1 : 0);
+    regDefaults.SetDWORDValue(L"DetailWordWrap", m_newViewDefaults.detailWordWrap ? 1 : 0);
+    regDefaults.SetDWORDValue(L"DetailSyntaxHighlight", m_newViewDefaults.detailSyntaxHighlight ? 1 : 0);
+    regDefaults.SetDWORDValue(L"DetailFormatContent", m_newViewDefaults.detailFormatContent ? 1 : 0);
+    regDefaults.SetDWORDValue(L"DetailLineNumbers", m_newViewDefaults.detailLineNumbers ? 1 : 0);
+    
+    // Save splitter position
+    regDefaults.SetDWORDValue(L"DetailSplitterPos", static_cast<DWORD>(m_newViewDefaults.detailSplitterPos));
+    
+    // Save theme
+    DWORD themeValue = 0;
+    switch (m_newViewDefaults.defaultTheme)
+    {
+    case Theme::System:
+        themeValue = 0;
+        break;
+    case Theme::Light:
+        themeValue = 1;
+        break;
+    case Theme::Dark:
+        themeValue = 2;
+        break;
+    }
+    regDefaults.SetDWORDValue(L"DefaultTheme", themeValue);
+    
+    // Save font settings
+    regDefaults.SetStringValue(L"DetailFontName", m_newViewDefaults.detailFont.lfFaceName);
+    regDefaults.SetDWORDValue(L"DetailFontSize", LogFontSizeToPointSize(m_newViewDefaults.detailFont.lfHeight));
+    
+    // Save prefix filters
+    CRegKey regPrefixFilters;
+    regPrefixFilters.Create(regDefaults, L"PrefixFilters");
+    
+    // Save system prefix filters (only colors and enable state, text is hardcoded)
+    CRegKey regSystemPrefixes;
+    regSystemPrefixes.Create(regPrefixFilters, L"SystemPrefixes");
+    
+    const wchar_t* systemPrefixes[] = { L"Events", L"Open", L"Close", L"Trace", L"Queue", L"Group", L"Error", L"SQL" };
+    for (size_t i = 0; i < 8 && i < m_newViewDefaults.systemPrefixFilters.size(); ++i)
+    {
+        CRegKey regPrefix;
+        regPrefix.Create(regSystemPrefixes, systemPrefixes[i]);
+        
+        regPrefix.SetDWORDValue(L"BgColor", m_newViewDefaults.systemPrefixFilters[i].bgColor);
+        regPrefix.SetDWORDValue(L"FgColor", m_newViewDefaults.systemPrefixFilters[i].fgColor);
+        regPrefix.SetDWORDValue(L"Enable", m_newViewDefaults.systemPrefixFilters[i].enable ? 1 : 0);
+    }
+    
+    // Save custom prefix filters
+    CRegKey regCustomPrefixes;
+    regCustomPrefixes.Create(regPrefixFilters, L"CustomPrefixes");
+    
+    for (size_t i = 0; i < m_newViewDefaults.customPrefixFilters.size(); ++i)
+    {
+        CRegKey regPrefix;
+        std::wstring prefixKey = std::to_wstring(i);
+        regPrefix.Create(regCustomPrefixes, prefixKey.c_str());
+        
+        const auto& filter = m_newViewDefaults.customPrefixFilters[i];
+        regPrefix.SetStringValue(L"Text", WStr(filter.text));
+        regPrefix.SetDWORDValue(L"Type", FilterTypeToInt(filter.filterType));
+        regPrefix.SetDWORDValue(L"BgColor", filter.bgColor);
+        regPrefix.SetDWORDValue(L"FgColor", filter.fgColor);
+        regPrefix.SetDWORDValue(L"Enable", filter.enable ? 1 : 0);
+    }
+
+    // Save SQL formatting options
+    DWORD sqlKeywordCase = 0;
+    switch (m_newViewDefaults.sqlKeywordCase)
+    {
+    case fusion::debugviewpp::SqlKeywordCase::Upper:
+        sqlKeywordCase = 0;
+        break;
+    case fusion::debugviewpp::SqlKeywordCase::Lower:
+        sqlKeywordCase = 1;
+        break;
+    case fusion::debugviewpp::SqlKeywordCase::Capitalize:
+        sqlKeywordCase = 2;
+        break;
+    }
+    regDefaults.SetDWORDValue(L"SqlKeywordCase", sqlKeywordCase);
+
+    DWORD sqlIndentStyle = 0;
+    regDefaults.SetDWORDValue(L"SqlIndentType", m_newViewDefaults.sqlIndentType == SqlIndentType::Tab ? 1 : 0);
+    regDefaults.SetDWORDValue(L"SqlIndentSpaces", m_newViewDefaults.sqlIndentSpaces);
+
+    // Save comma alignment (0=Inline, 1=Trailing, 2=Leading)
+    DWORD sqlCommaAlignment = 1; // Default to Trailing
+    switch (m_newViewDefaults.sqlCommaAlignment)
+    {
+    case SqlCommaAlignment::Inline:
+        sqlCommaAlignment = 0;
+        break;
+    case SqlCommaAlignment::Trailing:
+        sqlCommaAlignment = 1;
+        break;
+    case SqlCommaAlignment::Leading:
+        sqlCommaAlignment = 2;
+        break;
+    }
+    regDefaults.SetDWORDValue(L"SqlCommaAlignment", sqlCommaAlignment);
+    regDefaults.SetDWORDValue(L"SqlNewlineKeywords", m_newViewDefaults.sqlNewlineKeywords ? 1 : 0);
+
+    // Save format style
+    DWORD sqlFormatStyle = 1;  // Default to Normal
+    switch (m_newViewDefaults.sqlFormatStyle)
+    {
+    case SqlFormatStyle::Compact:
+        sqlFormatStyle = 0;
+        break;
+    case SqlFormatStyle::Normal:
+        sqlFormatStyle = 1;
+        break;
+    case SqlFormatStyle::Expanded:
+        sqlFormatStyle = 2;
+        break;
+    }
+    regDefaults.SetDWORDValue(L"SqlFormatStyle", sqlFormatStyle);
+
+    // Save parentheses style
+    DWORD sqlParenthesesStyle = 0;  // Default to SameLine
+    switch (m_newViewDefaults.sqlParenthesesStyle)
+    {
+    case SqlParenthesesStyle::SameLine:
+        sqlParenthesesStyle = 0;
+        break;
+    case SqlParenthesesStyle::NewLine:
+        sqlParenthesesStyle = 1;
+        break;
+    case SqlParenthesesStyle::IndentContent:
+        sqlParenthesesStyle = 2;
+        break;
+    }
+    regDefaults.SetDWORDValue(L"SqlParenthesesStyle", sqlParenthesesStyle);
 }
 
 void CMainFrame::FindNext(const std::wstring& text)
@@ -1186,32 +1906,127 @@ void CMainFrame::FindPrevious(const std::wstring& text)
     }
 }
 
+// Helper function to format event details with aligned columns (DEPRECATED - kept for compatibility)
+std::wstring FormatEventDetailsWithColumns(const Message& message, int lineIndex)
+{
+    // Now just returns the message text
+    return WStr(message.text).str();
+}
+
+// Helper function to get just the message text for detail content
+std::wstring FormatMessageOnly(const Message& message)
+{
+    return WStr(message.text).str();
+}
+
+// Helper function to format metadata for status line
+std::wstring FormatMetadataForStatus(const Message& message, int lineIndex)
+{
+    std::wstringstream status;
+
+    // Basic metadata
+    status << L"Line: " << std::to_wstring(lineIndex + 1)
+           << L"  |  Time: " << WStr(GetTimeText(message.systemTime)).str()
+           << L"  |  Process: [" << std::to_wstring(message.processId) << L"] "
+           << WStr(message.processName).str();
+
+    // Add Clarion-specific fields if present
+    if (message.isClarionFormat)
+    {
+        if (!message.clarionThread.empty())
+        {
+            status << L"  |  Thread: " << WStr(message.clarionThread).str();
+        }
+
+        if (!message.clarionProcedure.empty())
+        {
+            status << L"  |  Procedure: " << WStr(message.clarionProcedure).str();
+
+            // Add procedure event info
+            if (message.procedureEvent == Message::ProcedureEvent::Open)
+            {
+                status << L" [OPEN]";
+            }
+            else if (message.procedureEvent == Message::ProcedureEvent::Close)
+            {
+                status << L" [CLOSE]";
+                if (message.procedureDuration > 0.0)
+                {
+                    status << L" (" << std::fixed << std::setprecision(3)
+                           << message.procedureDuration << L"s)";
+                }
+            }
+
+            // Add call depth
+            if (message.callDepth > 0)
+            {
+                status << L" (Depth: " << message.callDepth << L")";
+            }
+        }
+
+        if (!message.clarionModule.empty())
+        {
+            status << L"  |  Module: " << WStr(message.clarionModule).str();
+        }
+
+        if (!message.clarionApp.empty())
+        {
+            status << L"  |  App: " << WStr(message.clarionApp).str();
+        }
+
+        if (!message.clarionPrefix.empty())
+        {
+            status << L"  |  Prefix: " << WStr(message.clarionPrefix).str();
+        }
+    }
+
+    return status.str();
+}
+
 void CMainFrame::UpdateDetailView(CLogView* pCallingView, int lineIndex)
 {
     if (GetViewCount() == 0 || !pCallingView)
         return;
-        
+
     // Get the current tab item
     auto tabIndex = std::max(0, GetTabCtrl().GetCurSel());
     auto pTabItem = GetTabCtrl().GetItem(tabIndex);
-    
+
     // Only update if the calling view is the current tab's view
     if (pTabItem && &pTabItem->GetView() == pCallingView && lineIndex >= 0 && lineIndex < m_logFile.Count())
     {
         // Get the full message text
         const auto& message = m_logFile[lineIndex];
-        
-        // Build status text with metadata
-        std::wstring statusText = L"Line: " + std::to_wstring(lineIndex + 1) + 
-                                 L"  |  Time: " + WStr(GetTimeText(message.systemTime)).str() + 
-                                 L"  |  Process: [" + std::to_wstring(message.processId) + L"] " + 
-                                 WStr(message.processName).str();
-        
-        // Content is just the message text
-        std::wstring contentText = WStr(message.text).str();
-        
-        // Update the detail view with separated status and content
-        pTabItem->UpdateDetailView(statusText, contentText);
+
+        // Build status text with all metadata
+        std::wstring statusText = FormatMetadataForStatus(message, lineIndex);
+
+        // Get just the message text for content
+        std::wstring contentText = FormatMessageOnly(message);
+
+        // Get the unparsed message for Clarion messages
+        std::wstring unparsedText;
+        if (message.isClarionFormat)
+        {
+            unparsedText = WStr(m_logFile.GetRawMessage(lineIndex)).str();
+        }
+
+        // Update the detail view with separated status, content, and unparsed text
+        pTabItem->UpdateDetailView(statusText, contentText, unparsedText);
+
+        // Check if this is a Queue message and update Queue tab if it is
+        if (message.isQueueMessage && !message.queueId.empty())
+        {
+            auto queueManager = m_logFile.GetQueueManager();
+            if (queueManager)
+            {
+                auto queueData = queueManager->GetQueue(message.queueId);
+                if (queueData)
+                {
+                    pTabItem->UpdateQueueView(queueData);
+                }
+            }
+        }
     }
 }
 
@@ -1219,48 +2034,70 @@ void CMainFrame::UpdateDetailView(CLogView* pCallingView, const std::vector<int>
 {
     if (GetViewCount() == 0 || !pCallingView)
         return;
-        
+
     // Get the current tab item
     auto tabIndex = std::max(0, GetTabCtrl().GetCurSel());
     auto pTabItem = GetTabCtrl().GetItem(tabIndex);
-    
+
     // Only update if the calling view is the current tab's view
     if (!pTabItem || &pTabItem->GetView() != pCallingView)
         return;
-    
+
     if (lineIndices.empty())
     {
         // Clear the detail view when nothing is selected
-        pTabItem->UpdateDetailView(L"", L"");
+        pTabItem->UpdateDetailView(L"", L"", L"");
         return;
     }
-    
+
     std::wstring statusText;
     std::wstring contentText;
-    
-    // If only one line selected, show detailed metadata
+    std::wstring unparsedText;
+
+    // If only one line selected, show detailed metadata in status line
     if (lineIndices.size() == 1)
     {
         int lineIndex = lineIndices[0];
         if (lineIndex >= 0 && lineIndex < m_logFile.Count())
         {
             const auto& message = m_logFile[lineIndex];
-            
-            // Build status text with metadata
-            statusText = L"Line: " + std::to_wstring(lineIndex + 1) + 
-                        L"  |  Time: " + WStr(GetTimeText(message.systemTime)).str() + 
-                        L"  |  Process: [" + std::to_wstring(message.processId) + L"] " + 
-                        WStr(message.processName).str();
-            
-            // Content is just the message text
-            contentText = WStr(message.text).str();
+
+            // Build status text with all metadata
+            statusText = FormatMetadataForStatus(message, lineIndex);
+
+            // Get just the message text for content
+            contentText = FormatMessageOnly(message);
+
+            // Get unparsed text for Clarion messages
+            if (message.isClarionFormat)
+            {
+                unparsedText = WStr(m_logFile.GetRawMessage(lineIndex)).str();
+            }
+
+            // Update the detail view first
+            pTabItem->UpdateDetailView(statusText, contentText, unparsedText);
+
+            // Check if this is a Queue message and update Queue tab if it is
+            if (message.isQueueMessage && !message.queueId.empty())
+            {
+                auto queueManager = m_logFile.GetQueueManager();
+                if (queueManager)
+                {
+                    auto queueData = queueManager->GetQueue(message.queueId);
+                    if (queueData)
+                    {
+                        pTabItem->UpdateQueueView(queueData);
+                    }
+                }
+            }
+            return;  // Single selection handled, don't update again below
         }
     }
     else
     {
         // Multiple lines selected - status shows count
         statusText = L"Selected: " + std::to_wstring(lineIndices.size()) + L" lines";
-        
+
         // Combine all message texts with CR/LF
         for (int lineIndex : lineIndices)
         {
@@ -1273,9 +2110,10 @@ void CMainFrame::UpdateDetailView(CLogView* pCallingView, const std::vector<int>
             }
         }
     }
-    
+
     // Update the detail view with separated status and content
-    pTabItem->UpdateDetailView(statusText, contentText);
+    // unparsedText is only set for single-line selections with Clarion format
+    pTabItem->UpdateDetailView(statusText, contentText, unparsedText);
 }
 
 void CMainFrame::FindTextInView(const std::wstring& text)
@@ -1351,11 +2189,15 @@ void CMainFrame::ShowFilterDialogWithText(const std::wstring& text)
     filters.messageFilters.push_back(newFilter);
     
     // Open the filter dialog with the modified filters
-    CFilterDlg dlg(GetView().GetName(), filters, &m_logFile);
+    CFilterDlg dlg(GetView().GetName(), filters, &m_logFile, {}, false, GetView().GetUniqueProcedures());
     if (dlg.DoModal() == IDOK)
     {
         int tabIdx = GetTabCtrl().GetCurSel();
-        GetTabCtrl().GetItem(tabIdx)->SetText(dlg.GetName().c_str());
+        auto pTabItem = GetTabCtrl().GetItem(tabIdx);
+        if (pTabItem)
+        {
+            pTabItem->SetText(dlg.GetName().c_str());
+        }
         GetTabCtrl().UpdateLayout();
         GetTabCtrl().Invalidate();
         GetView().SetName(dlg.GetName());
@@ -1367,14 +2209,115 @@ void CMainFrame::ShowFilterDialogWithText(const std::wstring& text)
 void CMainFrame::AddFilterView()
 {
     ++m_filterNr;
-    CFilterDlg dlg(wstringbuilder() << L"View " << m_filterNr, LogFilter(), &m_logFile);
-    if (dlg.DoModal() != IDOK)
+    
+    // Combine system and custom default prefix filters for new views
+    std::vector<Filter> defaultPrefixFilters;
+    defaultPrefixFilters.reserve(m_newViewDefaults.systemPrefixFilters.size() + m_newViewDefaults.customPrefixFilters.size());
+    defaultPrefixFilters.insert(defaultPrefixFilters.end(), m_newViewDefaults.systemPrefixFilters.begin(), m_newViewDefaults.systemPrefixFilters.end());
+    defaultPrefixFilters.insert(defaultPrefixFilters.end(), m_newViewDefaults.customPrefixFilters.begin(), m_newViewDefaults.customPrefixFilters.end());
+    
+    // Cancel any drag operation in the tab control before showing dialog
+    // This prevents the "no drop" cursor from persisting
+    GetTabCtrl().SendMessage(WM_LBUTTONUP, 0, 0);
+    ::ReleaseCapture();
+    
+    // Ensure we have a stable state before showing dialog
+    MSG msg;
+    while (::PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE))
     {
+        ::TranslateMessage(&msg);
+        ::DispatchMessage(&msg);
+    }
+    
+    // Reset cursor before showing dialog
+    ::SetCursor(::LoadCursor(nullptr, IDC_ARROW));
+    
+    CFilterDlg dlg(wstringbuilder() << L"View " << m_filterNr, LogFilter(), &m_logFile, defaultPrefixFilters, true, GetView().GetUniqueProcedures());
+    INT_PTR result = dlg.DoModal();
+    
+    // Force tab control to stop any drag operation after dialog
+    GetTabCtrl().SendMessage(WM_LBUTTONUP, 0, 0);
+    ::ReleaseCapture();
+    
+    // Enhanced cursor reset and focus management after dialog closes
+    ::SetCursor(::LoadCursor(nullptr, IDC_ARROW));
+    
+    // Force cursor refresh by capturing and releasing mouse
+    ::SetCapture(m_hWnd);
+    ::ReleaseCapture();
+    
+    // Send WM_CAPTURECHANGED to ensure no window thinks it has capture
+    ::SendMessage(GetTabCtrl().m_hWnd, WM_CAPTURECHANGED, 0, 0);
+    
+    // Ensure any pending messages are processed
+    while (::PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE))
+    {
+        ::TranslateMessage(&msg);
+        ::DispatchMessage(&msg);
+    }
+    
+    // Force main window to foreground and active
+    ::SetForegroundWindow(m_hWnd);
+    ::SetActiveWindow(m_hWnd);
+    
+    // Post a WM_SETCURSOR message to trigger cursor update
+    POINT pt;
+    ::GetCursorPos(&pt);
+    ::ScreenToClient(m_hWnd, &pt);
+    ::PostMessage(m_hWnd, WM_SETCURSOR, (WPARAM)m_hWnd, MAKELPARAM(HTCLIENT, WM_MOUSEMOVE));
+    
+    if (result != IDOK)
+    {
+        // Multiple cursor reset attempts for cancel case
+        ::SetCursor(::LoadCursor(nullptr, IDC_ARROW));
+        
+        // Force cursor update with mouse move simulation
+        POINT mousePt;
+        ::GetCursorPos(&mousePt);
+        ::SetCursorPos(mousePt.x, mousePt.y);
+        
+        // Force the tab control to update its state
+        GetTabCtrl().Invalidate();
+        GetTabCtrl().UpdateWindow();
+        
+        // Set focus back to the current view after cancel
+        if (GetActualViewCount() > 0)
+        {
+            int curTab = GetTabCtrl().GetCurSel();
+            if (curTab >= 0 && curTab < GetActualViewCount())
+            {
+                GetView().SetFocus();
+                
+                // Send a mouse move to reset any hover states
+                POINT curPos;
+                ::GetCursorPos(&curPos);
+                ::ScreenToClient(m_hWnd, &curPos);
+                ::SendMessage(m_hWnd, WM_MOUSEMOVE, 0, MAKELPARAM(curPos.x, curPos.y));
+            }
+        }
         return;
     }
 
     AddFilterView(dlg.GetName(), dlg.GetFilters());
     SaveSettings();
+    
+    // Enhanced cursor and focus reset for success case
+    ::SetCursor(::LoadCursor(nullptr, IDC_ARROW));
+    
+    // Force cursor update with mouse move simulation  
+    POINT cursorPos;
+    ::GetCursorPos(&cursorPos);
+    ::SetCursorPos(cursorPos.x, cursorPos.y);
+    
+    // Set focus to the newly created view
+    if (GetActualViewCount() > 0)
+    {
+        GetView().SetFocus();
+    }
+    
+    // Use a timer to reset the cursor after all events are processed
+    // This ensures the cursor reset happens after Windows has finished processing
+    ::SetTimer(m_hWnd, 1001, 50, nullptr);  // 50ms delay
 }
 
 void CMainFrame::AddFilterView(const std::wstring& name, const LogFilter& filter)
@@ -1388,9 +2331,20 @@ void CMainFrame::AddFilterView(std::shared_ptr<CLogView> logview)
     pTabItem->Create(*this);
     pTabItem->SetMainFrame(this);
     
-    // Apply detail font if available
-    if (m_hDetailFont)
+    // Apply detail font from preferences if available, otherwise use current font
+    if (m_newViewDefaults.detailFont.lfHeight != 0)
     {
+        // Create font from preferences
+        HFONT hPrefsFont = ::CreateFontIndirect(&m_newViewDefaults.detailFont);
+        if (hPrefsFont)
+        {
+            pTabItem->SetDetailFont(hPrefsFont);
+            ::DeleteObject(hPrefsFont);  // SetDetailFont makes its own copy
+        }
+    }
+    else if (m_hDetailFont)
+    {
+        // Fall back to current detail font if no preferences set
         pTabItem->SetDetailFont(m_hDetailFont.get());
     }
 
@@ -1400,7 +2354,7 @@ void CMainFrame::AddFilterView(std::shared_ptr<CLogView> logview)
     pTabItem->SetText(logview->GetName().c_str());
     pTabItem->SetView(logview);
 
-    int newIndex = GetTabCtrl().GetItemCount();
+    int newIndex = GetActualViewCount(); // Insert before the "+" tab (which is always last)
     
     // The first tab (View) should not be closeable
     if (newIndex == 0)
@@ -1408,26 +2362,130 @@ void CMainFrame::AddFilterView(std::shared_ptr<CLogView> logview)
         pTabItem->SetCanClose(false);
     }
 
+    // Apply new view defaults
+    auto pRawTabItem = pTabItem.get();  // Get raw pointer before releasing ownership
+    
+    // Apply detail pane defaults
+    if (m_newViewDefaults.showDetailPane)
+    {
+        pRawTabItem->ShowDetailPane(true);
+        pRawTabItem->SetSplitterPos(m_newViewDefaults.detailSplitterPos);
+    }
+    
+    // Apply detail pane display options
+    pRawTabItem->SetDetailWordWrap(m_newViewDefaults.detailWordWrap);
+    pRawTabItem->SetDetailSyntaxHighlight(m_newViewDefaults.detailSyntaxHighlight);
+    pRawTabItem->SetDetailFormatContent(m_newViewDefaults.detailFormatContent);
+    pRawTabItem->SetDetailLineNumbers(m_newViewDefaults.detailLineNumbers);
+    
+    // Apply theme if not system default
+    if (m_newViewDefaults.defaultTheme != Theme::System)
+    {
+        ThemeManager::Instance().SetTheme(m_newViewDefaults.defaultTheme);
+        Colors::UpdateThemeColors();
+    }
+
     // notice: InsertItem takes ownership of the raw pointer, DeleteItem calls delete
     GetTabCtrl().InsertItem(newIndex, pTabItem.release());
+    
+    // Set flag to prevent dialog from showing when we programmatically change tabs
+    m_bProgrammaticTabChange = true;
     GetTabCtrl().SetCurSel(newIndex);
+    m_bProgrammaticTabChange = false;
+    
     ShowTabControl();
+    UpdateViewTabCloseStates();
+}
+
+void CMainFrame::AddPlusTab()
+{
+    // Ensure tab control is valid before proceeding
+    if (!GetTabCtrl().IsWindow())
+    {
+        return;
+    }
+
+    // Set flag to prevent any dialog from showing while manipulating the "+" tab
+    m_bProgrammaticTabChange = true;
+
+    // Remove any existing "+" tab first
+    for (int i = GetTabCtrl().GetItemCount() - 1; i >= 0; --i)
+    {
+        auto pTabItem = GetTabCtrl().GetItem(i);
+        if (pTabItem && pTabItem->GetText() == L"+")
+        {
+            GetTabCtrl().DeleteItem(i);
+            break;
+        }
+    }
+    
+    // Add the "+" tab as text-only (no actual tab item object)
+    // This avoids type compatibility issues with CLogViewTabItem2
+    // We handle clicks on this tab specially in OnChangeTab
+    GetTabCtrl().InsertItem(GetTabCtrl().GetItemCount(), L"+", -1, L"Click to create a new tab", false);
+    
+    // Clear the flag
+    m_bProgrammaticTabChange = false;
+
+    UpdateViewTabCloseStates();
 }
 
 LRESULT CMainFrame::OnBeginTabDrag(NMHDR* pnmh)
 {
     auto& nmhdr = *reinterpret_cast<NMCTCITEM*>(pnmh);
 
-    return static_cast<LRESULT>(nmhdr.iItem >= GetViewCount());
+    // Prevent dragging the "+" tab (always the last tab)
+    return static_cast<LRESULT>(nmhdr.iItem >= GetActualViewCount());
 }
 
 LRESULT CMainFrame::OnChangeTab(NMHDR* pnmh)
 {
-    SetMsgHandled(win32::False);
-
     auto& nmhdr = *reinterpret_cast<NMCTC2ITEMS*>(pnmh);
 
-    if (nmhdr.iItem2 >= 0 && nmhdr.iItem2 < GetViewCount())
+    // Check if the user is trying to select the "+" tab (always the last tab)
+    int actualViewCount = GetActualViewCount();
+    
+    // Validate that the indices are within valid bounds
+    // Invalid indices can occur during tab control internal operations
+    int totalTabs = GetTabCtrl().GetItemCount();
+    if (nmhdr.iItem2 < 0 || nmhdr.iItem2 >= totalTabs)
+    {
+        // Invalid index - ignore this event
+        SetMsgHandled(win32::False);
+        return 0;
+    }
+    
+    if (nmhdr.iItem2 >= actualViewCount)
+    {
+        // User clicked on the "+" tab - prevent the selection change
+        SetMsgHandled(win32::True);  // Mark as handled to prevent further processing
+        
+        // Keep the previous tab selected (if valid)
+        if (nmhdr.iItem1 >= 0 && nmhdr.iItem1 < actualViewCount)
+        {
+            // Force the tab control to stay on the previous selection
+            // Use PostMessage to set selection after current message processing completes
+            ::PostMessage(GetTabCtrl().m_hWnd, TCM_SETCURSEL, nmhdr.iItem1, 0);
+        }
+        
+        // Only create a new filter view if we're not initializing and not in programmatic change
+        if (!m_bInitializing && !m_bProgrammaticTabChange)
+        {
+            // User actually clicked the "+" tab - show the dialog
+            // Call directly instead of PostMessage to avoid timing issues
+            AddFilterView();
+        }
+        
+        // Reset cursor immediately
+        ::SetCursor(::LoadCursor(nullptr, IDC_ARROW));
+        
+        return 1;  // Return non-zero to indicate we handled it and cancel the selection
+    }
+    
+    // Normal tab selection - let it proceed
+    SetMsgHandled(win32::False);
+
+    if (nmhdr.iItem2 >= 0 && nmhdr.iItem2 < actualViewCount)
     {
         SetModifiedMark(nmhdr.iItem2, false);
         
@@ -1438,12 +2496,15 @@ LRESULT CMainFrame::OnChangeTab(NMHDR* pnmh)
             pTabItem->RestoreDetailContent();
         }
         
+        // Update the procedure view to use the active view's tracker
+        UpdateProcedureViewTracker();
+        
         // Update UI to reflect the detail pane state of the new tab
         UpdateUI();
     }
 
-    if (!m_linkViews || nmhdr.iItem1 == nmhdr.iItem2 || nmhdr.iItem1 < 0 || nmhdr.iItem1 >= GetViewCount() || nmhdr.iItem2 < 0 ||
-        nmhdr.iItem2 >= GetViewCount())
+    if (!m_linkViews || nmhdr.iItem1 == nmhdr.iItem2 || nmhdr.iItem1 < 0 || nmhdr.iItem1 >= actualViewCount || nmhdr.iItem2 < 0 ||
+        nmhdr.iItem2 >= actualViewCount)
     {
         return 0;
     }
@@ -1463,31 +2524,47 @@ void CMainFrame::SetModifiedMark(int tabindex, bool modified)
     }
 
     //    GetTabCtrl().GetItem(nmhdr.iItem2)->SetHighlighted(modified)
-    GetTabCtrl().GetItem(tabindex)->SetText(name.c_str());
+    auto pTabItem = GetTabCtrl().GetItem(tabindex);
+    if (pTabItem)
+    {
+        pTabItem->SetText(name.c_str());
+    }
 }
 
 LRESULT CMainFrame::OnCloseTab(NMHDR* pnmh)
 {
     auto& nmhdr = *reinterpret_cast<NMCTCITEM*>(pnmh);
+    
+    // Prevent closing the "+" tab (always the last tab)
+    if (nmhdr.iItem >= GetActualViewCount())
+    {
+        // This is the "+" tab - don't allow closing it
+        return 0;
+    }
+
+    // Keep at least one view alive
+    if (GetActualViewCount() <= 1)
+    {
+        return 0;
+    }
+
     CloseView(nmhdr.iItem);
     return 0;
 }
 
 LRESULT CMainFrame::OnDeleteTab(NMHDR* pnmh)
 {
-    auto& nmhdr = *reinterpret_cast<NMCTCITEM*>(pnmh);
-
-    if (nmhdr.iItem >= 0 && nmhdr.iItem < GetViewCount())
-    {
-        GetView(nmhdr.iItem).DestroyWindow();
-    }
-
+    // This handler is called when a tab is being deleted
+    // At this point, the tab item might already be in an invalid state
+    // Return FALSE to allow the default processing to continue
     return FALSE;
 }
 
 void CMainFrame::OnFileNewTab(UINT /*uNotifyCode*/, int /*nID*/, CWindow /*wndCtl*/)
 {
     AddFilterView();
+    
+    // Note: "+" tab is already present, no need to re-add it
 }
 
 void CMainFrame::SaveLogFile(const std::wstring& filename)
@@ -1574,6 +2651,13 @@ void CMainFrame::LoadConfiguration(const std::wstring& fileName)
             view.processColors = viewPt.get<bool>("ProcessColors");
             view.filters.messageFilters = MakeFilters(viewPt.get_child("MessageFilters"));
             view.filters.processFilters = MakeFilters(viewPt.get_child("ProcessFilters"));
+            
+            // Load prefix filters if they exist (for backward compatibility)
+            auto prefixFiltersNode = viewPt.get_child_optional("PrefixFilters");
+            if (prefixFiltersNode)
+            {
+                view.filters.prefixFilters = MakeFilters(*prefixFiltersNode);
+            }
             view.columnsPt = viewPt.get_child_optional("Columns");
             views.push_back(view);
         }
@@ -1585,7 +2669,7 @@ void CMainFrame::LoadConfiguration(const std::wstring& fileName)
 
     for (int i = 0; i < static_cast<int>(views.size()); ++i)
     {
-        if (i >= GetViewCount())
+        if (i >= GetActualViewCount())
         {
             AddFilterView(WStr(views[i].name), views[i].filters);
         }
@@ -1603,7 +2687,7 @@ void CMainFrame::LoadConfiguration(const std::wstring& fileName)
         }
     }
 
-    int i = GetViewCount();
+    int i = GetActualViewCount();
     auto size = static_cast<int>(views.size());
     while (i > size)
     {
@@ -1641,6 +2725,9 @@ void CMainFrame::LoadConfiguration(const std::wstring& fileName)
     }
     UpdateLogSources(sourceInfos);
     m_sourceInfos = sourceInfos;
+    
+    // Add the "+" tab as the last tab after loading configuration
+    AddPlusTab();
 }
 
 void CMainFrame::SaveConfiguration(const std::wstring& fileName)
@@ -1655,7 +2742,7 @@ void CMainFrame::SaveConfiguration(const std::wstring& fileName)
     mainPt.put("AutoNewline", m_logSources.GetAutoNewLine());
     mainPt.put("LinkViews", m_linkViews);
 
-    int views = GetViewCount();
+    int views = GetActualViewCount();
     for (int i = 0; i < views; ++i)
     {
         auto& logView = GetView(i);
@@ -1667,6 +2754,7 @@ void CMainFrame::SaveConfiguration(const std::wstring& fileName)
         viewPt.put("ProcessColors", logView.GetViewProcessColors());
         viewPt.put_child("MessageFilters", MakePTree(filters.messageFilters));
         viewPt.put_child("ProcessFilters", MakePTree(filters.processFilters));
+        viewPt.put_child("PrefixFilters", MakePTree(filters.prefixFilters));
         viewPt.put_child("Columns", MakePTree(logView.GetColumns()));
         mainPt.add_child("Views.View", viewPt);
     }
@@ -1736,6 +2824,46 @@ void CMainFrame::SetTitle(const std::wstring& title)
     SetWindowText(windowText.c_str());
 }
 
+void CMainFrame::UpdateProcedureViewTracker()
+{
+    // Update the procedure tabs in the detail pane instead of the separate window
+    if (GetViewCount() > 0)
+    {
+        int currentTab = GetTabCtrl().GetCurSel();
+        if (currentTab >= 0 && currentTab < GetViewCount())
+        {
+            // Get the active tab item
+            auto pTabItem = dynamic_cast<CLogViewTabItem2*>(GetTabCtrl().GetItem(currentTab));
+            if (pTabItem)
+            {
+                CLogView& activeView = GetView();
+                
+                // Update the procedure tabs in this tab item
+                pTabItem->UpdateProcedureTabs();
+                
+                // Also update any floating windows to use the new tracker
+                pTabItem->UpdateFloatingWindowTrackers();
+            }
+        }
+    }
+    
+    // Legacy: Also update the separate procedure view window if it exists (for backward compatibility)
+    // TODO: Remove this once we're confident the integration works
+    if (m_wndProcedureView.IsWindow())
+    {
+        if (GetViewCount() > 0)
+        {
+            CLogView& activeView = GetView();
+            auto& tracker = activeView.GetProcedureTracker();
+            m_wndProcedureView.SetTracker(&tracker);
+        }
+        else
+        {
+            m_wndProcedureView.SetTracker(nullptr);
+        }
+    }
+}
+
 void CMainFrame::Load(HANDLE hFile)
 {
     hstream file(hFile);
@@ -1760,7 +2888,7 @@ void CMainFrame::Load(std::istream& file, const std::string& name, FILETIME file
 
 void CMainFrame::SetSelectTabByName(const std::wstring& tabName)
 {
-    const int views = GetViewCount();
+    const int views = GetActualViewCount();
     for (int i = 0; i < views; ++i)
     {
         if (GetView(i).GetName() == tabName)
@@ -1845,18 +2973,76 @@ void CMainFrame::OnFileSaveConfiguration(UINT /*uNotifyCode*/, int /*nID*/, CWin
     }
 }
 
+void CMainFrame::OnFilePreferences(UINT /*uNotifyCode*/, int /*nID*/, CWindow /*wndCtl*/)
+{
+    FILE* log = fopen("C:\\Dev\\UltimateDebugViewPP\\prefs_debug.log", "a");
+    if (log) {
+        fprintf(log, "\n=== OnFilePreferences called ===\n");
+        fprintf(log, "Current m_newViewDefaults.sqlKeywordCase: %d\n", (int)m_newViewDefaults.sqlKeywordCase);
+        fclose(log);
+    }
+
+    CPreferencesDlg dlg(m_newViewDefaults);
+    if (dlg.DoModal(m_hWnd) == IDOK)
+    {
+        m_newViewDefaults = dlg.GetDefaults();
+        if (log = fopen("C:\\Dev\\UltimateDebugViewPP\\prefs_debug.log", "a")) {
+            fprintf(log, "After OK, m_newViewDefaults.sqlKeywordCase: %d\n", (int)m_newViewDefaults.sqlKeywordCase);
+            fclose(log);
+        }
+        SaveNewViewDefaults();
+
+        // Apply SQL formatting preferences to existing views by refreshing detail views
+        // This ensures that if a detail view is showing SQL, it will be reformatted with new preferences
+        int views = GetActualViewCount();
+        for (int i = 0; i < views; ++i)
+        {
+            auto* pTabItem = static_cast<CLogViewTabItem2*>(GetTabCtrl().GetItem(i));
+            if (pTabItem)
+            {
+                // Refresh the detail view to apply new SQL formatting options
+                pTabItem->RefreshDetailView();
+            }
+        }
+    }
+}
+
 void CMainFrame::ClearLog()
 {
     m_logFile.Clear();
     m_logSources.ResetTimer();
-    int views = GetViewCount();
+
+    // Clear all view trackers (each view has its own tracker now)
+    int views = GetActualViewCount();
     for (int i = 0; i < views; ++i)
     {
-        GetView(i).Clear();
+        GetView(i).Clear();  // This will also clear the view's procedure tracker
         SetModifiedMark(i, false);
+
+        // Clear the detail tabs (Details, Procedure Flow, Procedure Stats) for this view
+        auto* pTabItem = static_cast<CLogViewTabItem2*>(GetTabCtrl().GetItem(i));
+        if (pTabItem)
+        {
+            // Clear the Details tab
+            pTabItem->UpdateDetailView(L"", L"", L"");
+
+            // Update procedure tabs - they will show empty since tracker was cleared
+            pTabItem->UpdateProcedureTabs();
+        }
+
         GetTabCtrl().UpdateLayout();
         GetTabCtrl().Invalidate();
     }
+
+    // Update the procedure view to reflect the cleared state
+    if (m_wndProcedureView.IsWindow())
+    {
+        m_wndProcedureView.UpdateProcedureTree();
+    }
+
+    // Also update the procedure tabs in the detail pane
+    UpdateProcedureViewTracker();
+
     UpdateStatusBar();
 }
 
@@ -1878,7 +3064,7 @@ void CMainFrame::OnLogCrop(UINT /*uNotifyCode*/, int /*nID*/, CWindow /*wndCtl*/
     std::swap(temp, m_logFile);
 
     m_logSources.ResetTimer();
-    int views = GetViewCount();
+    int views = GetActualViewCount();
     for (int i = 0; i < views; ++i)
     {
         auto& view = GetView(i);
@@ -2138,6 +3324,29 @@ void CMainFrame::SetAlwaysOnTop(bool value)
     SetWindowPos(value ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
 }
 
+void CMainFrame::SetProcedureStatsSplitterPos(int pct)
+{
+    m_procedureStatsSplitterPos = ClampProcedureStatsSplitPct(pct);
+    if (m_wndProcedureView.IsWindow())
+    {
+        m_wndProcedureView.SetProcedureStatsSplitterPos(m_procedureStatsSplitterPos);
+    }
+}
+
+void CMainFrame::OnProcedureSplitterMoved(UINT /*uNotifyCode*/, int /*nID*/, CWindow wndCtl)
+{
+    // The splitter position is sent in the window handle as LPARAM
+    int newPos = (int)(LPARAM)wndCtl.m_hWnd;
+    SetProcedureStatsSplitterPos(newPos);
+
+    // Save the position to registry immediately
+    CRegKey reg;
+    if (reg.Open(HKEY_CURRENT_USER, L"Software\\DebugView++\\Settings") == ERROR_SUCCESS)
+    {
+        reg.SetDWORDValue(L"ProcedureStatsSplitterPos", static_cast<DWORD>(m_procedureStatsSplitterPos));
+    }
+}
+
 void CMainFrame::OnAlwaysOnTop(UINT /*uNotifyCode*/, int /*nID*/, CWindow /*wndCtl*/)
 {
     SetAlwaysOnTop(!GetAlwaysOnTop());
@@ -2369,14 +3578,27 @@ void CMainFrame::OnLogDebugviewAgent(UINT /*uNotifyCode*/, int /*nID*/, CWindow 
 
 void CMainFrame::OnViewFilter(UINT /*uNotifyCode*/, int /*nID*/, CWindow /*wndCtl*/)
 {
-    CFilterDlg dlg(GetView().GetName(), GetView().GetFilters(), &m_logFile);
+    // Get all default prefix filters (system + custom)
+    std::vector<Filter> defaultPrefixFilters;
+    defaultPrefixFilters.insert(defaultPrefixFilters.end(), 
+        m_newViewDefaults.systemPrefixFilters.begin(), 
+        m_newViewDefaults.systemPrefixFilters.end());
+    defaultPrefixFilters.insert(defaultPrefixFilters.end(), 
+        m_newViewDefaults.customPrefixFilters.begin(), 
+        m_newViewDefaults.customPrefixFilters.end());
+    
+    CFilterDlg dlg(GetView().GetName(), GetView().GetFilters(), &m_logFile, defaultPrefixFilters, false, GetView().GetUniqueProcedures());
     if (dlg.DoModal() != IDOK)
     {
         return;
     }
 
     int tabIdx = GetTabCtrl().GetCurSel();
-    GetTabCtrl().GetItem(tabIdx)->SetText(dlg.GetName().c_str());
+    auto pTabItem = GetTabCtrl().GetItem(tabIdx);
+    if (pTabItem)
+    {
+        pTabItem->SetText(dlg.GetName().c_str());
+    }
     GetTabCtrl().UpdateLayout();
     GetTabCtrl().Invalidate();
     GetView().SetName(dlg.GetName());
@@ -2401,6 +3623,273 @@ void CMainFrame::OnViewDetailPane(UINT /*uNotifyCode*/, int /*nID*/, CWindow /*w
             UpdateUI();
         }
     }
+}
+
+void CMainFrame::OnViewProcedureTracker(UINT /*uNotifyCode*/, int /*nID*/, CWindow /*wndCtl*/)
+{
+    // NOTE: Procedure tracking is now integrated into the detail pane tabs.
+    // This functionality has been moved to the "Procedure Flow" and "Procedure Stats" tabs
+    // in the detail pane. Users can access it by enabling the detail pane and switching to those tabs.
+    
+    // For now, we'll redirect this to show the detail pane instead
+    // Toggle detail pane visibility for the active tab
+    if (GetViewCount() > 0)
+    {
+        int currentTab = GetTabCtrl().GetCurSel();
+        if (currentTab >= 0 && currentTab < GetViewCount())
+        {
+            auto pTabItem = dynamic_cast<CLogViewTabItem2*>(GetTabCtrl().GetItem(currentTab));
+            if (pTabItem)
+            {
+                bool isDetailVisible = pTabItem->IsDetailPaneVisible();
+                pTabItem->ShowDetailPane(!isDetailVisible);
+                
+                if (!isDetailVisible) // If we're showing the detail pane
+                {
+                    // Switch to the Procedure Flow tab (tab index 1)
+                    auto& tabContainer = pTabItem->GetDetailTabContainer();
+                    tabContainer.SetActiveTab(1); // Procedure Flow tab
+                }
+                
+                UpdateUI();
+            }
+        }
+    }
+    
+    /* LEGACY CODE - Separate procedure window functionality (now disabled)
+    // Toggle procedure pane visibility
+    m_bProcedurePaneVisible = !m_bProcedurePaneVisible;
+    
+    if (m_bProcedurePaneVisible)
+    {
+        // Create the procedure window if it doesn't exist
+        if (!m_wndProcedureView.IsWindow())
+        {
+            // Create as a popup window with frame and caption
+            DWORD dwStyle = WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_SIZEBOX | WS_VISIBLE;
+            DWORD dwExStyle = WS_EX_TOOLWINDOW;
+            m_wndProcedureView.Create(m_hWnd, CWindow::rcDefault, _T("Procedure Tracker"), 
+                                      dwStyle, dwExStyle);
+            m_wndProcedureView.SetParent(m_hWnd);  // Set parent but keep as popup
+        }
+        
+        // Position and show the window
+        m_wndProcedureView.ShowWindow(SW_SHOW);
+        
+        // Update the tracker for the current active view
+        UpdateProcedureViewTracker();
+    }
+    else
+    {
+        // Hide the procedure window
+        if (m_wndProcedureView.IsWindow())
+        {
+            m_wndProcedureView.ShowWindow(SW_HIDE);
+        }
+    }
+    
+    // Update UI check state
+    UISetCheck(ID_VIEW_PROCEDURE_TRACKER, m_bProcedurePaneVisible);
+    */
+}
+
+void CMainFrame::OnTabPopOut(UINT /*uNotifyCode*/, int /*nID*/, CWindow /*wndCtl*/)
+{
+    // Pop out the active tab in the detail pane for the current view
+    if (GetViewCount() > 0)
+    {
+        int currentTab = GetTabCtrl().GetCurSel();
+        if (currentTab >= 0 && currentTab < GetViewCount())
+        {
+            auto pTabItem = dynamic_cast<CLogViewTabItem2*>(GetTabCtrl().GetItem(currentTab));
+            if (pTabItem && pTabItem->IsDetailPaneVisible())
+            {
+                auto& tabContainer = pTabItem->GetDetailTabContainer();
+                int activeDetailTab = tabContainer.GetActiveTab();
+                
+                // Don't allow popping out the Details tab (index 0)
+                if (activeDetailTab > 0)
+                {
+                    tabContainer.PopOutTab(activeDetailTab);
+                }
+            }
+        }
+    }
+}
+
+void CMainFrame::OnTabPopIn(UINT /*uNotifyCode*/, int /*nID*/, CWindow /*wndCtl*/)
+{
+    // Send pop-in command to all floating windows for the current view
+    if (GetViewCount() > 0)
+    {
+        int currentTab = GetTabCtrl().GetCurSel();
+        if (currentTab >= 0 && currentTab < GetViewCount())
+        {
+            auto pTabItem = dynamic_cast<CLogViewTabItem2*>(GetTabCtrl().GetItem(currentTab));
+            if (pTabItem)
+            {
+                auto& tabContainer = pTabItem->GetDetailTabContainer();
+                // The container will handle popping in all floating windows
+                ::SendMessage(tabContainer.m_hWnd, WM_COMMAND, ID_TAB_POPIN, 0);
+            }
+        }
+    }
+}
+
+void CMainFrame::OnMainTabPopOut(UINT /*uNotifyCode*/, int /*nID*/, CWindow /*wndCtl*/)
+{
+    // Pop out the current main tab
+    int currentTab = GetTabCtrl().GetCurSel();
+    if (currentTab >= 0 && currentTab < GetViewCount())
+    {
+        PopOutMainTab(currentTab);
+    }
+}
+
+void CMainFrame::OnMainTabPopIn(UINT /*uNotifyCode*/, int /*nID*/, CWindow /*wndCtl*/)
+{
+    // Pop in all floating main tabs
+    while (!m_floatingMainTabs.empty())
+    {
+        // Close each floating window which will trigger reattachment
+        auto& info = m_floatingMainTabs.back();
+        if (info.window)
+        {
+            info.window->PostMessage(WM_CLOSE);
+        }
+        m_floatingMainTabs.pop_back();
+    }
+}
+
+void CMainFrame::PopOutMainTab(int index)
+{
+    if (index < 0 || index >= GetActualViewCount())
+        return;
+    
+    // Don't pop out if already popped out
+    if (IsMainTabPoppedOut(index))
+        return;
+    
+    // Don't pop out if this is the last view
+    if (GetActualViewCount() <= 1)
+        return;
+    
+    // Get the tab item
+    auto pTabItem = dynamic_cast<CLogViewTabItem2*>(GetTabCtrl().GetItem(index));
+    if (!pTabItem)
+        return;
+    
+    // Create floating window
+    auto floatingWindow = std::make_unique<CFloatingMainTabWindow>(this, pTabItem, index);
+    
+    // Create and show the floating window
+    RECT rcFloat = {100, 100, 900, 700}; // Default size
+    floatingWindow->Create(nullptr, rcFloat, nullptr, 
+                          WS_OVERLAPPEDWINDOW | WS_VISIBLE,
+                          WS_EX_TOOLWINDOW);
+    
+    floatingWindow->ShowWindow(SW_SHOW);
+    floatingWindow->RefreshTheme();
+    
+    // Store floating window info
+    FloatingMainTabInfo info;
+    info.window = std::move(floatingWindow);
+    info.tabItem = pTabItem;
+    info.originalIndex = index;
+    info.tabName = pTabItem->GetTitle();
+    m_floatingMainTabs.push_back(std::move(info));
+    
+    // Remove the tab from the main window (but don't delete the object)
+    // Note: We set the second parameter to false to prevent deletion
+    GetTabCtrl().DeleteItem(index, false);
+    
+    // If we have other tabs, select one
+    if (GetViewCount() > 0)
+    {
+        // Select the previous tab if possible, otherwise the first
+        int newIndex = (index > 0) ? index - 1 : 0;
+        GetTabCtrl().SetCurSel(newIndex);
+    }
+}
+
+void CMainFrame::ReattachMainTab(CFloatingMainTabWindow* floatingWindow)
+{
+    if (!floatingWindow)
+        return;
+    
+    // Find and remove from floating tabs
+    auto it = std::find_if(m_floatingMainTabs.begin(), m_floatingMainTabs.end(),
+        [floatingWindow](const FloatingMainTabInfo& info) {
+            return info.window.get() == floatingWindow;
+        });
+    
+    if (it != m_floatingMainTabs.end())
+    {
+        int originalIndex = it->originalIndex;
+        CLogViewTabItem2* tabItem = it->tabItem;
+        
+        if (tabItem && originalIndex >= 0 && originalIndex < GetTabCtrl().GetItemCount())
+        {
+            // Reparent the tab content back to main window
+            HWND hTabContent = tabItem->GetLogViewParent();
+            if (hTabContent && ::IsWindow(hTabContent))
+            {
+                // First, reparent the content back to its original parent
+                // Note: The tab item needs to be re-created/re-added to the tab control
+                tabItem->Create(*this);
+                
+                // Re-insert the tab at its original position (or at the end if position is invalid)
+                int insertIndex = originalIndex;
+                if (insertIndex < 0 || insertIndex > GetTabCtrl().GetItemCount())
+                {
+                    insertIndex = GetTabCtrl().GetItemCount();
+                }
+                
+                // Re-insert the tab item (the tab control takes ownership again)
+                GetTabCtrl().InsertItem(insertIndex, tabItem);
+                
+                // Make it the active tab
+                GetTabCtrl().SetCurSel(insertIndex);
+                
+                // Force resize to ensure proper layout
+                RECT rcClient;
+                GetClientRect(&rcClient);
+                ::SetWindowPos(hTabContent, nullptr, 0, 0,
+                              rcClient.right - rcClient.left,
+                              rcClient.bottom - rcClient.top,
+                              SWP_NOZORDER | SWP_SHOWWINDOW);
+                
+                // Refresh the view
+                tabItem->GetView().Invalidate();
+                tabItem->GetView().UpdateWindow();
+            }
+        }
+        
+        // Destroy the floating window
+        if (it->window)
+        {
+            it->window->DestroyWindow();
+        }
+        
+        // Remove from tracking
+        m_floatingMainTabs.erase(it);
+    }
+}
+
+bool CMainFrame::IsMainTabPoppedOut(int index) const
+{
+    return std::any_of(m_floatingMainTabs.begin(), m_floatingMainTabs.end(),
+        [index](const FloatingMainTabInfo& info) {
+            return info.originalIndex == index;
+        });
+}
+
+LRESULT CMainFrame::OnFloatingMainWindowClosing(UINT /*uMsg*/, WPARAM wParam, LPARAM /*lParam*/, BOOL& /*bHandled*/)
+{
+    // Reattach the floating tab
+    CFloatingMainTabWindow* floatingWindow = reinterpret_cast<CFloatingMainTabWindow*>(wParam);
+    ReattachMainTab(floatingWindow);
+    return 0;
 }
 
 void CMainFrame::OnViewDarkMode(UINT /*uNotifyCode*/, int /*nID*/, CWindow /*wndCtl*/)
@@ -2446,8 +3935,8 @@ void CMainFrame::OnViewDarkMode(UINT /*uNotifyCode*/, int /*nID*/, CWindow /*wnd
         ::InvalidateRect(m_hWndStatusBar, nullptr, TRUE);
     }
     
-    // Refresh all views and detail panes
-    for (int i = 0; i < GetTabCtrl().GetItemCount(); ++i)
+    // Refresh all views and detail panes (only actual views, not the "+" tab)
+    for (int i = 0; i < GetActualViewCount(); ++i)
     {
         auto pItem = GetTabCtrl().GetItem(i);
         if (pItem)
@@ -2478,7 +3967,7 @@ void CMainFrame::OnViewClose(UINT /*uNotifyCode*/, int /*nID*/, CWindow /*wndCtl
 void CMainFrame::OnViewDuplicate(UINT /*uNotifyCode*/, int /*nID*/, CWindow /*wndCtl*/)
 {
     auto name = GetView().GetName() + L" (copy)";
-    CFilterDlg dlg(name, GetView().GetFilters(), &m_logFile);
+    CFilterDlg dlg(name, GetView().GetFilters(), &m_logFile, {}, false, GetView().GetUniqueProcedures());
     if (dlg.DoModal() != IDOK)
     {
         return;
@@ -2490,6 +3979,8 @@ void CMainFrame::OnViewDuplicate(UINT /*uNotifyCode*/, int /*nID*/, CWindow /*wn
     // auto newLogView = std::make_shared<CLogView>(view);        // no copy constructor available
     // newLogView->SetName(view.GetName() + L" (copy)");
     // AddFilterView(newLogView);
+    
+    // Note: "+" tab is already present, no need to re-add it
 
     SaveSettings();
 }
@@ -2546,15 +4037,51 @@ void CMainFrame::AddLogSource(const SourceInfo& info)
 
 void CMainFrame::CloseView(int i)
 {
-    int views = GetViewCount();
+    int views = GetActualViewCount();
     if (i >= 0 && i < views)
     {
-        // DeleteItem actually calls delete on the contained item
-        GetTabCtrl().DeleteItem(i, false);
-        GetTabCtrl().SetCurSel(i == views - 1 ? i - 1 : i);
-        if (GetViewCount() == 1)
+        // Set flag to prevent AddFilterView from being called during programmatic tab change
+        m_bProgrammaticTabChange = true;
+
+        // Get the tab item and call Cleanup before deletion
+        auto pTabItem = GetTabCtrl().GetItem(i);
+        if (pTabItem)
         {
-            HideTabControl();
+            // Call Cleanup to properly destroy windows before the tab is deleted
+            pTabItem->Cleanup();
+        }
+
+        // Now delete the tab item - windows have been cleaned up
+        // Using false to prevent OnDeleteTab from being called
+        // Check if the tab control is still valid before deletion
+        if (::IsWindow(GetTabCtrl().m_hWnd))
+        {
+            GetTabCtrl().DeleteItem(i, false);
+        }
+
+        // Select the appropriate tab after deletion
+        if (views > 1)  // If there are other views besides the one we're closing
+        {
+            GetTabCtrl().SetCurSel(i == views - 1 ? i - 1 : i);
+        }
+
+        // Clear the flag
+        m_bProgrammaticTabChange = false;
+
+        UpdateViewTabCloseStates();
+    }
+}
+
+void CMainFrame::UpdateViewTabCloseStates()
+{
+    int viewCount = GetActualViewCount();
+    bool canClose = viewCount > 1;
+
+    for (int i = 0; i < viewCount; ++i)
+    {
+        if (auto* pTabItem = dynamic_cast<CLogViewTabItem2*>(GetTabCtrl().GetItem(i)))
+        {
+            pTabItem->SetCanClose(canClose);
         }
     }
 }
@@ -2582,12 +4109,40 @@ void CMainFrame::SetLogFont()
         return;
     }
 
-    int views = GetViewCount();
+    int views = GetActualViewCount();
     for (int i = 0; i < views; ++i)
     {
         GetView(i).SetFont(hFont.get());
     }
     m_hFont = std::move(hFont);
+}
+
+fusion::debugviewpp::SqlFormatOptions CMainFrame::GetSqlFormatOptions() const
+{
+    FILE* log = fopen("C:\\Dev\\UltimateDebugViewPP\\prefs_debug.log", "a");
+    if (log) {
+        fprintf(log, "GetSqlFormatOptions: m_newViewDefaults.sqlKeywordCase = %d\n", (int)m_newViewDefaults.sqlKeywordCase);
+        fclose(log);
+    }
+
+    fusion::debugviewpp::SqlFormatOptions options;
+    options.keywordCase = m_newViewDefaults.sqlKeywordCase;
+    options.indentType = m_newViewDefaults.sqlIndentType;
+    options.indentSpaces = m_newViewDefaults.sqlIndentSpaces;
+    options.commaAlignment = m_newViewDefaults.sqlCommaAlignment;
+    options.formatStyle = m_newViewDefaults.sqlFormatStyle;
+    options.parenthesesStyle = m_newViewDefaults.sqlParenthesesStyle;
+    options.newlineBeforeKeywords = m_newViewDefaults.sqlNewlineKeywords;
+
+    if (log = fopen("C:\\Dev\\UltimateDebugViewPP\\prefs_debug.log", "a")) {
+        fprintf(log, "GetSqlFormatOptions: options.keywordCase = %d\n", (int)options.keywordCase);
+        fprintf(log, "GetSqlFormatOptions: options.indentType = %d, spaces = %d\n", (int)options.indentType, options.indentSpaces);
+        fprintf(log, "GetSqlFormatOptions: options.commaAlignment = %d\n", (int)options.commaAlignment);
+        fprintf(log, "GetSqlFormatOptions: options.newlineBeforeKeywords = %d\n", options.newlineBeforeKeywords ? 1 : 0);
+        fclose(log);
+    }
+
+    return options;
 }
 
 void CMainFrame::SetDetailFont(const LOGFONT& lf)
@@ -2601,8 +4156,8 @@ void CMainFrame::SetDetailFont(const LOGFONT& lf)
     
     m_hDetailFont = std::move(hFont);
     
-    // Apply to all existing detail panes
-    for (int i = 0; i < GetTabCtrl().GetItemCount(); ++i)
+    // Apply to all existing detail panes (only actual views, not the "+" tab)
+    for (int i = 0; i < GetActualViewCount(); ++i)
     {
         auto pItem = GetTabCtrl().GetItem(i);
         if (pItem)
@@ -2628,15 +4183,50 @@ int CMainFrame::GetViewCount() const
     return m_TabCtrl.GetItemCount();
 }
 
+int CMainFrame::GetActualViewCount() const
+{
+    int totalTabs = m_TabCtrl.GetItemCount();
+
+    // Check if the last tab is the "+" tab
+    // During initialization, the "+" tab might not exist yet
+    if (totalTabs > 0)
+    {
+        auto pLastTab = m_TabCtrl.GetItem(totalTabs - 1);
+        if (pLastTab && pLastTab->GetText() == L"+")
+        {
+            // The last tab is the "+" tab, so subtract it
+            return totalTabs - 1;
+        }
+    }
+
+    // No "+" tab, so all tabs are actual views
+    return totalTabs;
+}
+
 CLogView& CMainFrame::GetView(int i)
 {
-    assert(i >= 0 && i < GetViewCount());
-    return GetTabCtrl().GetItem(i)->GetView();
+    assert(i >= 0 && i < GetActualViewCount());
+    auto pTabItem = GetTabCtrl().GetItem(i);
+    if (!pTabItem)
+    {
+        // This should not happen for valid indices, but handle it gracefully
+        throw std::runtime_error("Invalid tab index or tab item is null");
+    }
+    return pTabItem->GetView();
 }
 
 CLogView& CMainFrame::GetView()
 {
-    return GetView(std::max(0, GetTabCtrl().GetCurSel()));
+    int curSel = GetTabCtrl().GetCurSel();
+    int actualViewCount = GetActualViewCount();
+    
+    // Ensure we never try to access the "+" tab as a view
+    if (curSel >= actualViewCount)
+    {
+        curSel = actualViewCount > 0 ? actualViewCount - 1 : 0;
+    }
+    
+    return GetView(std::max(0, curSel));
 }
 
 bool IsClearBufferMessage(const std::string& message)
@@ -2677,16 +4267,56 @@ void CMainFrame::AddMessage(const Message& message)
     int beginIndex = m_logFile.BeginIndex();
     int index = m_logFile.EndIndex();
     m_logFile.Add(message);
-    int views = GetViewCount();
+    
+    // After adding to logFile, retrieve it back to get the parsed version
+    Message parsedMsg = m_logFile[index];
+    
+    // Add message to all views - each view maintains its own procedure tracker
+    int views = GetActualViewCount();
     for (int i = 0; i < views; ++i)
     {
         GetView(i).Add(beginIndex, index, message);
+    }
+    
+    // If the procedure window is visible and this is a Clarion procedure event,
+    // refresh the procedure view to show the latest data from the ACTIVE view only
+    if (m_wndProcedureView.IsWindow() && m_bProcedurePaneVisible && 
+        parsedMsg.isClarionFormat && parsedMsg.procedureEvent != Message::ProcedureEvent::None)
+    {
+        // Only refresh if we have views
+        if (GetViewCount() > 0)
+        {
+            int activeTab = GetTabCtrl().GetCurSel();
+            if (activeTab >= 0 && activeTab < GetViewCount())
+            {
+                // Refresh the separate procedure view window (legacy)
+                if (m_wndProcedureView.IsWindow())
+                {
+                    m_wndProcedureView.UpdateProcedureTree();
+                }
+                
+                // Also refresh the procedure tabs in the detail pane
+                auto pTabItem = dynamic_cast<CLogViewTabItem2*>(GetTabCtrl().GetItem(activeTab));
+                if (pTabItem)
+                {
+                    // Get the procedure tabs and update their displays using convenience methods
+                    auto& tabContainer = pTabItem->GetDetailTabContainer();
+                    auto procedureFlowTab = tabContainer.GetProcedureFlowTab();
+                    auto openProceduresTab = tabContainer.GetOpenProceduresTab();
+                    
+                    if (procedureFlowTab)
+                        procedureFlowTab->UpdateDisplay();
+                    if (openProceduresTab)
+                        openProceduresTab->UpdateDisplay();
+                }
+            }
+        }
     }
 }
 
 int CMainFrame::FindViewWithProcessFilter(const std::wstring& processName)
 {
-    int viewCount = GetViewCount();
+    int viewCount = GetActualViewCount();
     for (int i = 0; i < viewCount; ++i)
     {
         auto filters = GetView(i).GetFilters();
@@ -2710,38 +4340,115 @@ void CMainFrame::CreateProcessView(const std::wstring& processName)
 {
     // Create a filter for this specific process
     LogFilter filter;
-    Filter processFilter;
-    processFilter.text = Str(processName).str();
-    processFilter.matchType = MatchType::Simple;
-    processFilter.filterType = FilterType::Include;
-    processFilter.bgColor = Colors::Auto;
-    processFilter.fgColor = Colors::Text;
-    processFilter.enable = true;
+    // Use the parameterized constructor to properly initialize the regex
+    Filter processFilter(
+        Str(processName).str(),     // text
+        MatchType::Simple,           // matchType
+        FilterType::Include,         // filterType
+        Colors::Auto,                // bgColor
+        Colors::Text,                // fgColor
+        true                         // enable
+    );
     filter.processFilters.push_back(processFilter);
+    
+    // Apply default prefix filters from preferences
+    filter.prefixFilters.reserve(m_newViewDefaults.systemPrefixFilters.size() + m_newViewDefaults.customPrefixFilters.size());
+    filter.prefixFilters.insert(filter.prefixFilters.end(), m_newViewDefaults.systemPrefixFilters.begin(), m_newViewDefaults.systemPrefixFilters.end());
+    filter.prefixFilters.insert(filter.prefixFilters.end(), m_newViewDefaults.customPrefixFilters.begin(), m_newViewDefaults.customPrefixFilters.end());
     
     // Create the view with the process name as the tab name
     AddFilterView(processName, filter);
     
-    // Switch to the newly created view
-    int newViewIndex = GetViewCount() - 1;
-    SwitchToView(newViewIndex);
+    // Note: "+" tab is already present, no need to re-add it
     
-    // Populate the new view with existing messages from this process
-    auto& newView = GetView(newViewIndex);
-    int messageCount = m_logFile.Count();
-    for (int i = 0; i < messageCount; ++i)
+    // Switch to the newly created view (last actual view)
+    int newViewIndex = GetActualViewCount() - 1;
+    SwitchToView(newViewIndex);
+}
+
+void CMainFrame::CreateProcedureView(const std::string& procedureName, const std::string& processName)
+{
+    // Create a filter for this specific procedure
+    LogFilter filter;
+
+    // Add procedure filter
+    Filter procedureFilter(
+        procedureName,               // text
+        MatchType::Simple,           // matchType
+        FilterType::Include,         // filterType
+        Colors::Auto,                // bgColor
+        Colors::Text,                // fgColor
+        true                         // enable
+    );
+    filter.procedureFilters.push_back(procedureFilter);
+
+    // Add process filter if specified
+    if (!processName.empty())
     {
-        auto msg = m_logFile[i];
-        // Add the message to the new view (it will be filtered by the process filter)
-        newView.Add(i, i, msg);
+        Filter processFilter(
+            processName,                 // text
+            MatchType::Simple,           // matchType
+            FilterType::Include,         // filterType
+            Colors::Auto,                // bgColor
+            Colors::Text,                // fgColor
+            true                         // enable
+        );
+        filter.processFilters.push_back(processFilter);
+    }
+
+    // Apply default prefix filters from preferences
+    filter.prefixFilters.reserve(m_newViewDefaults.systemPrefixFilters.size() + m_newViewDefaults.customPrefixFilters.size());
+    filter.prefixFilters.insert(filter.prefixFilters.end(), m_newViewDefaults.systemPrefixFilters.begin(), m_newViewDefaults.systemPrefixFilters.end());
+    filter.prefixFilters.insert(filter.prefixFilters.end(), m_newViewDefaults.customPrefixFilters.begin(), m_newViewDefaults.customPrefixFilters.end());
+
+    // Create view with descriptive name
+    std::wstring viewName = L"Proc: " + WStr(procedureName).str();
+    AddFilterView(viewName, filter);
+
+    // Switch to the newly created view
+    int newViewIndex = GetActualViewCount() - 1;
+    SwitchToView(newViewIndex);
+}
+
+void CMainFrame::JumpToDebugRow(int lineIndex, const std::string& viewName)
+{
+    // If no valid line index is provided, show a message
+    if (lineIndex < 0)
+    {
+        ::MessageBox(m_hWnd,
+                     _T("Jump to Debug Row requires source tracking to be implemented.\n\n")
+                     _T("This feature will be available in a future update and will allow ")
+                     _T("jumping directly to the source log line where the procedure event originated."),
+                     _T("Feature Not Yet Available"),
+                     MB_OK | MB_ICONINFORMATION);
+        return;
+    }
+
+    // Find the correct view by name if provided
+    if (GetActualViewCount() > 0)
+    {
+        SwitchToView(0);  // Switch to first view for now
+
+        // Get the current view and jump to the line
+        CLogView& view = GetView();
+        if (lineIndex >= 0 && lineIndex < view.GetItemCount())
+        {
+            view.SetFocusLine(lineIndex);
+            view.SetItemState(lineIndex, LVIS_SELECTED | LVIS_FOCUSED, LVIS_SELECTED | LVIS_FOCUSED);
+            view.EnsureVisible(lineIndex, FALSE);
+        }
     }
 }
 
 void CMainFrame::SwitchToView(int index)
 {
-    if (index >= 0 && index < GetViewCount())
+    if (index >= 0 && index < GetActualViewCount())
     {
+        // Set flag to prevent dialog from showing during programmatic view switch
+        m_bProgrammaticTabChange = true;
         GetTabCtrl().SetCurSel(index);
+        m_bProgrammaticTabChange = false;
+
         // Send a selection change notification to update the UI
         NMHDR nmhdr = {0};
         nmhdr.hwndFrom = GetTabCtrl().m_hWnd;
@@ -2749,6 +4456,36 @@ void CMainFrame::SwitchToView(int index)
         nmhdr.code = TCN_SELCHANGE;
         SendMessage(WM_NOTIFY, nmhdr.idFrom, reinterpret_cast<LPARAM>(&nmhdr));
     }
+}
+
+LRESULT CMainFrame::OnUserCreateProcedureView(UINT /*uMsg*/, WPARAM wParam, LPARAM lParam, BOOL& /*bHandled*/)
+{
+    // wParam contains a pointer to the procedure name string
+    // lParam contains a pointer to the process name string (optional, can be null)
+    const char* procedureName = reinterpret_cast<const char*>(wParam);
+    const char* processName = reinterpret_cast<const char*>(lParam);
+
+    if (procedureName)
+    {
+        std::string procName(procedureName);
+        std::string procProcess(processName ? processName : "");
+        CreateProcedureView(procName, procProcess);
+    }
+
+    return 0;
+}
+
+LRESULT CMainFrame::OnUserJumpToDebugRow(UINT /*uMsg*/, WPARAM wParam, LPARAM lParam, BOOL& /*bHandled*/)
+{
+    // wParam contains the line index
+    // lParam contains a pointer to the view name string (optional)
+    int lineIndex = static_cast<int>(wParam);
+    const char* viewName = reinterpret_cast<const char*>(lParam);
+
+    std::string viewNameStr(viewName ? viewName : "");
+    JumpToDebugRow(lineIndex, viewNameStr);
+
+    return 0;
 }
 
 LRESULT CMainFrame::OnEraseBkgnd(UINT /*uMsg*/, WPARAM wParam, LPARAM /*lParam*/, BOOL& bHandled)
@@ -2780,3 +4517,6 @@ LRESULT CMainFrame::OnCustomDraw(int /*idCtrl*/, LPNMHDR pnmh, BOOL& bHandled)
 
 } // namespace debugviewpp
 } // namespace fusion
+
+
+

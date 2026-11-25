@@ -61,6 +61,8 @@ BEGIN_MSG_MAP2(CFilterDlg)
     COMMAND_ID_HANDLER_EX(IDC_FILTER_LOAD, OnLoad)
     COMMAND_ID_HANDLER_EX(IDC_FILTER_REGEX, OnRegEx)
     COMMAND_ID_HANDLER_EX(IDC_FILTER_REMOVEALL, OnClearAll)
+    COMMAND_ID_HANDLER_EX(IDC_FILTER_RESET_PREFIXES, OnResetPrefixes)
+    COMMAND_ID_HANDLER_EX(IDC_FILTER_CLEAR_PREFIXES, OnClearPrefixes)
     COMMAND_ID_HANDLER_EX(IDCANCEL, OnCancel)
     COMMAND_ID_HANDLER_EX(IDOK, OnOk)
     NOTIFY_CODE_HANDLER_EX(TCN_SELCHANGE, OnTabSelChange)
@@ -91,6 +93,22 @@ static const FilterType::type ProcessFilterTypes[] =
         FilterType::Once,
         FilterType::Beep};
 
+static const FilterType::type PrefixFilterTypes[] =
+    {
+        FilterType::Include,
+        FilterType::Exclude,
+        FilterType::Highlight};
+
+static const FilterType::type ProcedureFilterTypes[] =
+    {
+        FilterType::Include,
+        FilterType::Exclude,
+        FilterType::Highlight,
+        FilterType::Stop,
+        FilterType::Track,
+        FilterType::Once,
+        FilterType::Beep};
+
 static const MatchType::type MessageMatchTypes[] = {MatchType::Simple, MatchType::Wildcard, MatchType::Regex, MatchType::RegexCase, MatchType::RegexGroups};
 
 static const MatchType::type ProcessMatchTypes[] =
@@ -99,21 +117,32 @@ static const MatchType::type ProcessMatchTypes[] =
         MatchType::Wildcard,
         MatchType::Regex};
 
-CFilterDlg::CFilterDlg(std::wstring name, const LogFilter& filters, const LogFile* logFile) :
+static const MatchType::type PrefixMatchTypes[] =
+    {
+        MatchType::Simple,
+        MatchType::Wildcard,
+        MatchType::Regex};
+
+static const MatchType::type ProcedureMatchTypes[] =
+    {
+        MatchType::Simple,
+        MatchType::Wildcard,
+        MatchType::Regex};
+
+CFilterDlg::CFilterDlg(std::wstring name, const LogFilter& filters, const LogFile* logFile, const std::vector<Filter>& defaultPrefixFilters, bool isNewView, const std::vector<std::wstring>& uniqueProcedures) :
     m_messagePage(MessageFilterTypes, MessageMatchTypes, true),
     m_processPage(ProcessFilterTypes, ProcessMatchTypes, false),
+    m_prefixPage(PrefixFilterTypes, PrefixMatchTypes, false),
+    m_procedurePage(ProcedureFilterTypes, ProcedureMatchTypes, false),
     m_name(std::move(name)),
     m_filter(filters),
-    m_logFile(logFile)
+    m_logFile(logFile),
+    m_defaultPrefixFilters(defaultPrefixFilters),
+    m_initialFilters(filters),
+    m_isNewView(isNewView),
+    m_uniqueProcedures(uniqueProcedures)
 {
-    m_messagePage.SetFilters(filters.messageFilters);
-    m_processPage.SetFilters(filters.processFilters);
-    
-    // If we have a LogFile, pass the list of processes to the process page
-    if (m_logFile)
-    {
-        m_processPage.SetAvailableProcesses(m_logFile->GetUniqueProcesses());
-    }
+    // Initialization will be done in OnInitDialog to ensure windows are created first
 }
 
 std::wstring CFilterDlg::GetName() const
@@ -143,6 +172,8 @@ BOOL CFilterDlg::OnInitDialog(CWindow /*wndFocus*/, LPARAM /*lInitParam*/)
     m_tabCtrl.Attach(GetDlgItem(IDC_TAB));
     m_tabCtrl.AddItem(L"Messages");
     m_tabCtrl.AddItem(L"Processes");
+    m_tabCtrl.AddItem(L"Prefixes");
+    m_tabCtrl.AddItem(L"Procedures");
     CRect tabRect;
     m_tabCtrl.GetWindowRect(&tabRect);
     m_tabCtrl.AdjustRect(0, &tabRect);
@@ -161,8 +192,48 @@ BOOL CFilterDlg::OnInitDialog(CWindow /*wndFocus*/, LPARAM /*lInitParam*/)
     m_processPage.MoveWindow(&tabRect);
     m_processPage.ShowWindow(SW_HIDE);
 
+    m_prefixPage.Create(m_tabCtrl, tabRect);
+    m_prefixPage.MoveWindow(&tabRect);
+    m_prefixPage.ShowWindow(SW_HIDE);
+
+    m_procedurePage.Create(m_tabCtrl, tabRect);
+    m_procedurePage.MoveWindow(&tabRect);
+    m_procedurePage.ShowWindow(SW_HIDE);
+
     m_regExDlg.Create(*this, 0);
     m_regExDlg.ShowWindow(SW_HIDE);
+
+    // Now that all windows are created, set the filters
+    m_messagePage.SetFilters(m_initialFilters.messageFilters);
+    m_processPage.SetFilters(m_initialFilters.processFilters);
+    m_procedurePage.SetFilters(m_initialFilters.procedureFilters);
+
+    // For new views, automatically apply default prefix filters
+    // For existing views, just use what they already have
+    if (m_isNewView && m_initialFilters.prefixFilters.empty() && !m_defaultPrefixFilters.empty())
+    {
+        m_prefixPage.SetFilters(m_defaultPrefixFilters);
+    }
+    else
+    {
+        m_prefixPage.SetFilters(m_initialFilters.prefixFilters);
+    }
+
+    // If we have a LogFile, pass the list of processes to the process page
+    if (m_logFile)
+    {
+        m_processPage.SetAvailableProcesses(m_logFile->GetUniqueProcesses());
+    }
+
+    // Pass the list of unique procedures to the procedure page
+    if (!m_uniqueProcedures.empty())
+    {
+        m_procedurePage.SetAvailableProcesses(m_uniqueProcedures);  // Reusing SetAvailableProcesses for procedures
+    }
+
+    // Hide prefix-specific buttons initially (they'll be shown when Prefixes tab is selected)
+    GetDlgItem(IDC_FILTER_RESET_PREFIXES).ShowWindow(SW_HIDE);
+    GetDlgItem(IDC_FILTER_CLEAR_PREFIXES).ShowWindow(SW_HIDE);
 
     CenterWindow(GetParent());
     DlgResize_Init();
@@ -186,6 +257,8 @@ void CFilterDlg::OnSize(UINT /*nType*/, CSize size)
 
     m_messagePage.MoveWindow(&rect);
     m_processPage.MoveWindow(&rect);
+    m_prefixPage.MoveWindow(&rect);
+    m_procedurePage.MoveWindow(&rect);
     SetMsgHandled(win32::False);
 }
 
@@ -200,6 +273,13 @@ void CFilterDlg::SelectTab(int tab)
     m_tabCtrl.SetCurSel(tab);
     m_messagePage.ShowWindow(tab == 0 ? SW_SHOW : SW_HIDE);
     m_processPage.ShowWindow(tab == 1 ? SW_SHOW : SW_HIDE);
+    m_prefixPage.ShowWindow(tab == 2 ? SW_SHOW : SW_HIDE);
+    m_procedurePage.ShowWindow(tab == 3 ? SW_SHOW : SW_HIDE);
+
+    // Show/hide prefix-specific buttons based on selected tab
+    int showPrefixButtons = (tab == 2) ? SW_SHOW : SW_HIDE;
+    GetDlgItem(IDC_FILTER_RESET_PREFIXES).ShowWindow(showPrefixButtons);
+    GetDlgItem(IDC_FILTER_CLEAR_PREFIXES).ShowWindow(showPrefixButtons);
 }
 
 std::wstring GetFileNameExt(const std::wstring& fileName)
@@ -231,6 +311,8 @@ void CFilterDlg::OnSave(UINT /*uNotifyCode*/, int /*nID*/, CWindow /*wndCtl*/)
     auto name = Win32::GetDlgItemText(*this, IDC_NAME);
     filter.messageFilters = m_messagePage.GetFilters();
     filter.processFilters = m_processPage.GetFilters();
+    filter.prefixFilters = m_prefixPage.GetFilters();
+    filter.procedureFilters = m_procedurePage.GetFilters();
 
     auto ext = GetFileNameExt(dlg.m_szFileName);
     auto fileName = Str(dlg.m_szFileName).str();
@@ -290,6 +372,14 @@ void CFilterDlg::OnLoad(UINT /*uNotifyCode*/, int /*nID*/, CWindow /*wndCtl*/)
     auto procFilters = m_processPage.GetFilters();
     procFilters.insert(procFilters.end(), data.filter.processFilters.begin(), data.filter.processFilters.end());
     m_processPage.SetFilters(procFilters);
+
+    auto prefixFilters = m_prefixPage.GetFilters();
+    prefixFilters.insert(prefixFilters.end(), data.filter.prefixFilters.begin(), data.filter.prefixFilters.end());
+    m_prefixPage.SetFilters(prefixFilters);
+
+    auto procedureFilters = m_procedurePage.GetFilters();
+    procedureFilters.insert(procedureFilters.end(), data.filter.procedureFilters.begin(), data.filter.procedureFilters.end());
+    m_procedurePage.SetFilters(procedureFilters);
 }
 
 void CFilterDlg::OnRegEx(UINT /*uNotifyCode*/, int /*nID*/, CWindow /*wndCtl*/)
@@ -301,11 +391,28 @@ void CFilterDlg::OnClearAll(UINT /*uNotifyCode*/, int /*nID*/, CWindow /*wndCtl*
 {
     m_messagePage.SetFilters(std::vector<Filter>());
     m_processPage.SetFilters(std::vector<Filter>());
+    m_prefixPage.SetFilters(std::vector<Filter>());
+    m_procedurePage.SetFilters(std::vector<Filter>());
+}
+
+void CFilterDlg::OnResetPrefixes(UINT /*uNotifyCode*/, int /*nID*/, CWindow /*wndCtl*/)
+{
+    // Reset prefix filters to defaults from preferences
+    m_prefixPage.SetFilters(m_defaultPrefixFilters);
+}
+
+void CFilterDlg::OnClearPrefixes(UINT /*uNotifyCode*/, int /*nID*/, CWindow /*wndCtl*/)
+{
+    // Clear all prefix filters
+    m_prefixPage.SetFilters(std::vector<Filter>());
 }
 
 void CFilterDlg::OnCancel(UINT /*uNotifyCode*/, int nID, CWindow /*wndCtl*/)
 {
     EndDialog(nID);
+    
+    // Reset cursor immediately after dialog closes
+    ::SetCursor(::LoadCursor(nullptr, IDC_ARROW));
 }
 
 std::wstring GetRegexErrorDescription(std::regex_constants::error_type err)
@@ -339,15 +446,29 @@ void CFilterDlg::OnOk(UINT /*uNotifyCode*/, int nID, CWindow /*wndCtl*/)
         m_filter.messageFilters = m_messagePage.GetFilters();
         pPage = &m_processPage;
         m_filter.processFilters = m_processPage.GetFilters();
+        pPage = &m_prefixPage;
+        m_filter.prefixFilters = m_prefixPage.GetFilters();
+        pPage = &m_procedurePage;
+        m_filter.procedureFilters = m_procedurePage.GetFilters();
     }
     catch (std::regex_error& ex)
     {
-        SelectTab(static_cast<int>(pPage == &m_processPage));
+        int tabIndex = 0;
+        if (pPage == &m_processPage)
+            tabIndex = 1;
+        else if (pPage == &m_prefixPage)
+            tabIndex = 2;
+        else if (pPage == &m_procedurePage)
+            tabIndex = 3;
+        SelectTab(tabIndex);
         MessageBox(WStr(L"Regular expression syntax error: " + GetRegexErrorDescription(ex.code())), win32::LoadWString(IDR_APPNAME).c_str(), MB_ICONERROR | MB_OK);
         pPage->ShowError();
         return;
     }
     EndDialog(nID);
+    
+    // Reset cursor immediately after dialog closes
+    ::SetCursor(::LoadCursor(nullptr, IDC_ARROW));
 }
 
 } // namespace debugviewpp

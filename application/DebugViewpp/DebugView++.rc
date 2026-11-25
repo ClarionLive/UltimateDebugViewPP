@@ -103,6 +103,8 @@ BEGIN
         MENUITEM "Load Configuration...",       ID_FILE_LOAD_CONFIGURATION
         MENUITEM "Save Configuration...",       ID_FILE_SAVE_CONFIGURATION
         MENUITEM SEPARATOR
+        MENUITEM "&Preferences...",             ID_FILE_PREFERENCES
+        MENUITEM SEPARATOR
         MENUITEM "E&xit",                       ID_APP_EXIT
     END
     POPUP "&Log"
@@ -131,6 +133,7 @@ BEGIN
         MENUITEM "Process Colors",              ID_VIEW_PROCESSCOLORS
         MENUITEM "Dark Mode",                   ID_VIEW_DARKMODE
         MENUITEM "Show Detail Pane\tCtrl+D",    ID_VIEW_DETAIL_PANE
+        MENUITEM "Show Procedure Tracker\tCtrl+P", ID_VIEW_PROCEDURE_TRACKER
         MENUITEM SEPARATOR
         POPUP "&Bookmarks"
         BEGIN
@@ -140,6 +143,9 @@ BEGIN
             MENUITEM "Clear Bookmarks\tCtrl+Shift+F2", ID_VIEW_CLEAR_BOOKMARKS
         END
         MENUITEM "Filters...\tF5",              ID_VIEW_FILTER
+        MENUITEM SEPARATOR
+        MENUITEM "Pop Out Tab\tCtrl+Shift+O",   ID_MAIN_TAB_POPOUT
+        MENUITEM "Pop In All Tabs\tCtrl+Shift+I", ID_MAIN_TAB_POPIN
     END
     POPUP "Options"
     BEGIN
@@ -167,6 +173,9 @@ BEGIN
         MENUITEM "New &View\tCtrl+N",           ID_FILE_NEWVIEW
         MENUITEM "&Copy View",                  ID_VIEW_DUPLICATE
         MENUITEM SEPARATOR
+        MENUITEM "Pop Out Tab",                 ID_MAIN_TAB_POPOUT
+        MENUITEM "Pop In Tab",                  ID_MAIN_TAB_POPIN
+        MENUITEM SEPARATOR
         MENUITEM "Filters...\tF5",              ID_VIEW_FILTER
         MENUITEM "Clear View",                  ID_VIEW_CLEAR
         MENUITEM "Close",                       ID_VIEW_CLOSE
@@ -177,6 +186,8 @@ IDR_VIEW_CONTEXTMENU MENU
 BEGIN
     POPUP "View Context Menu"
     BEGIN
+        MENUITEM "&Filter...\tF5",              ID_VIEW_FILTER
+        MENUITEM SEPARATOR
         MENUITEM "Reset View",                  ID_VIEW_RESET
         MENUITEM "Reset View to this line",     ID_VIEW_RESET_TO_LINE
         MENUITEM "Clear View",                  ID_VIEW_CLEAR
@@ -227,6 +238,15 @@ BEGIN
         MENUITEM "Clear View\tCtrl+X",          ID_VIEW_CLEAR
         MENUITEM "Select &All\tCtrl+A",         ID_VIEW_SELECTALL
         MENUITEM "&Copy\tCtrl+C",               ID_VIEW_COPY
+    END
+END
+
+IDR_TAB_POPOUT_CONTEXTMENU MENU
+BEGIN
+    POPUP "Tab Context Menu"
+    BEGIN
+        MENUITEM "&Pop Out\tCtrl+Shift+O",      ID_TAB_POPOUT
+        MENUITEM "Pop &In\tCtrl+Shift+I",       ID_TAB_POPIN
     END
 END
 
@@ -318,6 +338,8 @@ BEGIN
     PUSHBUTTON      "&Load...",IDC_FILTER_LOAD,7,220,50,14
     PUSHBUTTON      "&Remove All",IDC_FILTER_REMOVEALL,61,220,50,14
     PUSHBUTTON      "RegEx...",IDC_FILTER_REGEX,62,202,50,14
+    PUSHBUTTON      "Reset Prefixes",IDC_FILTER_RESET_PREFIXES,116,202,55,14
+    PUSHBUTTON      "Clear Prefixes",IDC_FILTER_CLEAR_PREFIXES,116,220,55,14
 END
 
 IDD_FILTER_PAGE DIALOGEX 0, 0, 276, 109
@@ -496,6 +518,85 @@ BEGIN
     LTEXT           "Select a layout to load, rename, or delete.",IDC_STATIC,7,180,236,8
 END
 
+IDD_PREFERENCES DIALOGEX 0, 0, 500, 400
+STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_THICKFRAME
+CAPTION "Preferences"
+FONT 8, "MS Shell Dlg", 400, 0, 0x0
+BEGIN
+    CONTROL         "",IDC_PREFERENCES_TAB,"SysTabControl32",0x0,7,7,486,342
+    DEFPUSHBUTTON   "OK",IDOK,333,359,50,14
+    PUSHBUTTON      "Cancel",IDCANCEL,389,359,50,14
+    PUSHBUTTON      "Apply",IDAPPLY,443,359,50,14
+END
+
+IDD_PREFERENCES_NEWVIEW DIALOGEX 0, 0, 480, 320
+STYLE DS_SETFONT | DS_FIXEDSYS | WS_CHILD | WS_SYSMENU
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    GROUPBOX        "View Options",IDC_STATIC,7,7,466,120
+    CONTROL         "Show detail pane by default",IDC_SHOW_DETAIL_PANE_NEW,
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,20,25,150,10
+    LTEXT           "Default splitter position (%):",IDC_STATIC,20,45,100,8
+    EDITTEXT        IDC_SPLITTER_POS,125,43,40,14,ES_NUMBER
+    CONTROL         "Word wrap",IDC_DETAIL_WORDWRAP_NEW,
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,20,65,100,10
+    CONTROL         "Syntax highlighting",IDC_DETAIL_SYNTAX_HIGHLIGHT,
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,20,80,100,10
+    CONTROL         "Format content",IDC_DETAIL_FORMAT_CONTENT,
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,130,65,100,10
+    CONTROL         "Show line numbers",IDC_DETAIL_LINE_NUMBERS,
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,130,80,100,10
+    GROUPBOX        "Font",IDC_STATIC,7,135,466,60
+    PUSHBUTTON      "Select Font...",IDC_DETAIL_FONT_BTN_NEW,20,155,75,14
+    LTEXT           "Font Preview",IDC_DETAIL_FONT_PREVIEW_NEW,110,155,350,30,SS_SUNKEN
+    GROUPBOX        "Theme",IDC_STATIC,7,205,466,80
+    CONTROL         "System Default",IDC_THEME_SYSTEM_NEW,"Button",BS_AUTORADIOBUTTON | WS_GROUP,20,225,100,10
+    CONTROL         "Light",IDC_THEME_LIGHT_NEW,"Button",BS_AUTORADIOBUTTON,20,245,100,10
+    CONTROL         "Dark",IDC_THEME_DARK_NEW,"Button",BS_AUTORADIOBUTTON,20,265,100,10
+END
+
+IDD_PREFERENCES_PREFIX DIALOGEX 0, 0, 480, 320
+STYLE DS_SETFONT | DS_FIXEDSYS | WS_CHILD | WS_SYSMENU
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    LTEXT           "System Prefix Filters:",IDC_STATIC,7,7,100,8
+    CONTROL         "",IDC_SYSTEM_PREFIX_GRID_NEW,"SysListView32",LVS_REPORT | LVS_SINGLESEL | WS_BORDER | WS_TABSTOP,7,20,466,120
+    LTEXT           "Custom Prefix Filters:",IDC_STATIC,7,150,100,8
+    CONTROL         "",IDC_CUSTOM_PREFIX_GRID_NEW,"SysListView32",LVS_REPORT | LVS_SINGLESEL | WS_BORDER | WS_TABSTOP,7,165,466,120
+    PUSHBUTTON      "Reset to Defaults",IDC_RESET_PREFIX_DEFAULTS_NEW,7,295,100,14
+END
+
+IDD_PREFERENCES_SQL DIALOGEX 0, 0, 480, 320
+STYLE DS_SETFONT | DS_FIXEDSYS | WS_CHILD | WS_SYSMENU
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    GROUPBOX        "Keyword Case",IDC_STATIC,7,7,150,80
+    CONTROL         "UPPERCASE",IDC_SQL_CASE_UPPER_NEW,"Button",BS_AUTORADIOBUTTON | WS_GROUP,20,25,80,10
+    CONTROL         "lowercase",IDC_SQL_CASE_LOWER_NEW,"Button",BS_AUTORADIOBUTTON,20,45,80,10
+    CONTROL         "Capitalize",IDC_SQL_CASE_CAPITALIZE_NEW,"Button",BS_AUTORADIOBUTTON,20,65,80,10
+    GROUPBOX        "Indentation",IDC_STATIC,170,7,150,80
+    LTEXT           "Number of spaces:",IDC_STATIC,183,40,70,8
+    EDITTEXT        IDC_SQL_INDENT_SPACES_EDIT_NEW,255,38,30,14,ES_NUMBER
+    CONTROL         "",IDC_SQL_INDENT_SPACES_SPIN,"msctls_updown32",UDS_SETBUDDYINT | UDS_ALIGNRIGHT | UDS_ARROWKEYS | UDS_NOTHOUSANDS,285,38,11,14
+    GROUPBOX        "Comma Alignment",IDC_STATIC,330,7,150,80
+    CONTROL         "Inline",IDC_SQL_COMMA_INLINE_NEW,"Button",BS_AUTORADIOBUTTON | WS_GROUP,343,25,80,10
+    CONTROL         "Trailing (end of line)",IDC_SQL_COMMA_TRAILING_NEW,"Button",BS_AUTORADIOBUTTON,343,45,120,10
+    CONTROL         "Leading (start of line)",IDC_SQL_COMMA_LEADING_NEW,"Button",BS_AUTORADIOBUTTON,343,65,120,10
+    GROUPBOX        "Format Style",IDC_STATIC,7,95,150,80
+    CONTROL         "Compact",IDC_SQL_FORMAT_COMPACT_NEW,"Button",BS_AUTORADIOBUTTON | WS_GROUP,20,115,60,10
+    CONTROL         "Normal",IDC_SQL_FORMAT_NORMAL_NEW,"Button",BS_AUTORADIOBUTTON,20,135,60,10
+    CONTROL         "Expanded",IDC_SQL_FORMAT_EXPANDED_NEW,"Button",BS_AUTORADIOBUTTON,20,155,60,10
+    GROUPBOX        "Subquery Parentheses",IDC_STATIC,170,95,150,80
+    CONTROL         "Same line",IDC_SQL_PAREN_SAMELINE_NEW,"Button",BS_AUTORADIOBUTTON | WS_GROUP,183,115,60,10
+    CONTROL         "New line",IDC_SQL_PAREN_NEWLINE_NEW,"Button",BS_AUTORADIOBUTTON,183,135,60,10
+    CONTROL         "Indent content",IDC_SQL_PAREN_INDENT_NEW,"Button",BS_AUTORADIOBUTTON,183,155,80,10
+    GROUPBOX        "Additional Options",IDC_STATIC,330,95,150,80
+    CONTROL         "New line before keywords",IDC_SQL_NEWLINE_KEYWORDS_NEW,
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,343,115,130,10
+    GROUPBOX        "Preview",IDC_STATIC,7,183,466,130
+    EDITTEXT        IDC_SQL_PREVIEW_NEW,17,201,446,105,ES_MULTILINE | ES_READONLY | ES_WANTRETURN | WS_VSCROLL
+END
+
 /////////////////////////////////////////////////////////////////////////////
 //
 // DESIGNINFO
@@ -570,6 +671,14 @@ BEGIN
         TOPMARGIN, 7
         BOTTOMMARGIN, 84
     END
+
+    IDD_PREFERENCES, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 493
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 393
+    END
 END
 #endif    // APSTUDIO_INVOKED
 
@@ -588,6 +697,9 @@ BEGIN
     "S",            ID_FILE_SAVE_VIEW_SELECTION, VIRTKEY, ALT, NOINVERT
     "X",            ID_LOG_CLEAR,           VIRTKEY, SHIFT, CONTROL, NOINVERT
     "D",            ID_VIEW_DETAIL_PANE,    VIRTKEY, CONTROL, NOINVERT
+    "P",            ID_VIEW_PROCEDURE_TRACKER, VIRTKEY, CONTROL, NOINVERT
+    "O",            ID_TAB_POPOUT,          VIRTKEY, SHIFT, CONTROL, NOINVERT
+    "I",            ID_TAB_POPIN,           VIRTKEY, SHIFT, CONTROL, NOINVERT
     VK_F2,          ID_VIEW_BOOKMARK,       VIRTKEY, CONTROL, NOINVERT
     VK_F2,          ID_VIEW_CLEAR_BOOKMARKS, VIRTKEY, SHIFT, CONTROL, NOINVERT
     VK_INSERT,      ID_VIEW_COPY,           VIRTKEY, CONTROL, NOINVERT
@@ -656,6 +768,7 @@ STRINGTABLE
 BEGIN
     ID_VIEW_PROCESSCOLORS   "Highlight processes\nProcess Colors"
     ID_VIEW_DETAIL_PANE     "Toggle detail pane visibility\nShow Detail Pane"
+    ID_VIEW_PROCEDURE_TRACKER "Toggle procedure tracker pane\nShow Procedure Tracker"
     ID_LOG_SOURCES          "Configure log sources\nSources"
     ID_FILE_SAVE_VIEW_SELECTION "Save view selection\nSave Selection"
 END

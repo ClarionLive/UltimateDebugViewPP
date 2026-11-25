@@ -39,12 +39,15 @@ struct LogFilter
 {
     std::vector<Filter> messageFilters;
     std::vector<Filter> processFilters;
+    std::vector<Filter> prefixFilters;
+    std::vector<Filter> procedureFilters;
 };
 
 void SaveFilterSettings(const std::vector<Filter>& filters, CRegKey& reg);
 void LoadFilterSettings(std::vector<Filter>& filters, CRegKey& reg);
 
 bool IsIncluded(std::vector<Filter>& filters, const std::string& text, MatchColors& matchColors);
+bool IsIncludedPrefix(std::vector<Filter>& filters, const std::string& prefix, MatchColors& matchColors);
 bool MatchFilterType(const std::vector<Filter>& filters, FilterType::type type, const std::string& text);
 
 std::string MatchKey(const std::smatch& match, MatchType::type matchType);

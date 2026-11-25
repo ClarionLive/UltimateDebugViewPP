@@ -2,7 +2,12 @@ project(UltimateDebugviewpp)
 
 add_executable(UltimateDebugviewpp
     AboutDlg.cpp
+    ClarionProcedureView.cpp
+    ClarionProcedureTimelineView.cpp
     CLogViewTabItem2.cpp
+    CQueueGridView.cpp
+    FloatingTabWindow.cpp
+    FloatingMainTabWindow.cpp
     DebugView++.cpp
     DropTargetSupport.cpp
     FileOptionDlg.cpp
@@ -10,10 +15,12 @@ add_executable(UltimateDebugviewpp
     FilterPage.cpp
     FindDlg.cpp
     Grid.cpp
+    HelpTabView.cpp
     HistoryDlg.cpp
     LogView.cpp
     MainFrame.cpp
     ModernToolbar.cpp
+    PreferencesDlg.cpp
     RegExDlg.cpp
     RenameProcessDlg.cpp
     ManageLayoutsDlg.cpp
@@ -22,7 +29,7 @@ add_executable(UltimateDebugviewpp
     SourceDlg.cpp
     SourcesDlg.cpp
     DebugView++.rc
- )
+)
 
 target_link_libraries(UltimateDebugviewpp
     PRIVATE
@@ -32,6 +39,7 @@ target_link_libraries(UltimateDebugviewpp
         project::gui_link_options
         nuget::boost
         nuget::wtl
+        nuget::webview2
         dv::cobaltfusion
         dv::tabbingframework
         dv::propertygrid
@@ -41,18 +49,12 @@ target_link_libraries(UltimateDebugviewpp
         Scintilla
         Lexilla
         imm32.lib
+        shlwapi.lib
+        ole32.lib
+        oleaut32.lib
 )
-
-install(TARGETS UltimateDebugviewpp DESTINATION bin)
 
 target_include_directories(UltimateDebugviewpp PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include>
   $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/scintilla/include>
 )
-
-install(CODE "
-  execute_process(COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/UltimateDebugviewpp.exe ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/UltimateDebugviewpp-small.exe)
-  execute_process(COMMAND ${PROJECT_UTILS_DIRECTORY}/upx.exe ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/UltimateDebugviewpp-small.exe)
-")
-
-INSTALL(FILES ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/UltimateDebugviewpp-small.exe DESTINATION bin)

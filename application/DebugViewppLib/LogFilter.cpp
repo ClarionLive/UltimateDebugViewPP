@@ -94,6 +94,8 @@ ptree MakePTree(const FilterData& view)
     pt.put("Filter.Name", view.name);
     pt.put_child("Filter.MessageFilters", MakePTree(view.filter.messageFilters));
     pt.put_child("Filter.ProcessFilters", MakePTree(view.filter.processFilters));
+    pt.put_child("Filter.PrefixFilters", MakePTree(view.filter.prefixFilters));
+    pt.put_child("Filter.ProcedureFilters", MakePTree(view.filter.procedureFilters));
     return pt;
 }
 
@@ -103,6 +105,19 @@ FilterData MakeFilterData(const ptree& pt)
     data.name = pt.get<std::string>("Filter.Name");
     data.filter.messageFilters = MakeFilters(pt.get_child("Filter.MessageFilters"));
     data.filter.processFilters = MakeFilters(pt.get_child("Filter.ProcessFilters"));
+
+    // Load prefix and procedure filters if they exist (for backward compatibility)
+    auto prefixFiltersNode = pt.get_child_optional("Filter.PrefixFilters");
+    if (prefixFiltersNode)
+    {
+        data.filter.prefixFilters = MakeFilters(*prefixFiltersNode);
+    }
+
+    auto procedureFiltersNode = pt.get_child_optional("Filter.ProcedureFilters");
+    if (procedureFiltersNode)
+    {
+        data.filter.procedureFilters = MakeFilters(*procedureFiltersNode);
+    }
 
     return data;
 }

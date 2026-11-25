@@ -1,0 +1,48 @@
+# Task: Fix the "Jump to Debug Row" Feature in Timeline
+
+## Context
+I need you to fix a bug in the UltimateDebugViewPP application where the "Jump to Debug Row" context menu option in the timeline view doesn't work correctly. When users right-click on a procedure event in the timeline and select this option, it should jump to the original log line where that procedure event occurred, but currently it either shows an error message or jumps to the wrong row.
+
+## Problem
+The root cause is that line index information from the original debug log is not being tracked when procedure events are processed. The system needs to maintain a connection between procedure events and their original line numbers throughout the processing chain.
+
+## Instructions
+
+Please fix this issue by implementing line index tracking as described in the `jump-to-debug-row-fix.md` file in the project root. The fix involves:
+
+1. **First, use a subagent to analyze the current implementation**:
+   - Use the general-purpose agent to thoroughly analyze how the current procedure tracking works
+   - Have it trace the complete flow from log parsing to timeline display
+   - Ask it to identify all the exact locations where line index needs to be added
+
+2. **Then implement the fix following these steps**:
+   - Add `int lineIndex` field to the `ClarionProcedureTracker::Event` structure
+   - Update `HandleProcedureOpen` and `HandleProcedureClose` to accept and store line indices
+   - Modify `ParseClarionFormat` to accept and pass line index information
+   - Update `LogView.cpp` to provide line indices during message processing
+   - Fix `OnTimelineJumpToRow` to use the actual line index instead of -1
+
+3. **Use another subagent to verify the implementation**:
+   - Have a general-purpose agent review all the changes
+   - Ask it to verify the line index is properly threaded through all layers
+   - Have it check for any potential null pointer or uninitialized value issues
+
+4. **Test the implementation**:
+   - Build the project using: `cmake --build build --config Debug --target UltimateDebugviewpp`
+   - Verify there are no compilation errors
+   - Check that existing functionality isn't broken
+
+## Important Notes
+- Ensure backward compatibility by defaulting line indices to -1 when not available
+- The implementation should gracefully handle cases where line index information is missing
+- Pay special attention to the call chain from LogView parsing through to timeline event handling
+- Make sure the line index is properly propagated at each step
+
+## Files You'll Need to Modify
+1. `application\include\DebugViewppLib\ClarionProcedureTracker.h`
+2. `application\DebugViewppLib\ClarionProcedureTracker.cpp`
+3. `application\DebugViewppLib\LogFile.cpp`
+4. `application\DebugViewpp\LogView.cpp`
+5. `application\DebugViewpp\ClarionProcedureTimelineView.cpp`
+
+Please start by reading the `jump-to-debug-row-fix.md` file for detailed implementation guidance, then proceed with the analysis and implementation using subagents as appropriate.

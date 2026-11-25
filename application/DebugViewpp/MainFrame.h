@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "atleverything.h"
+#include <atlsplit.h>
 
 namespace WTL {
 using ATL::CString;
@@ -34,9 +35,12 @@ using ATL::CString;
 #include "DebugViewppLib/LogSources.h"
 #include "DebugViewppLib/FileWriter.h"
 #include "CLogViewTabItem2.h"
+#include "ClarionProcedureView.h"
+#include "FloatingMainTabWindow.h"
 #include "FindDlg.h"
 #include "RunDlg.h"
 #include "LogView.h"
+#include "PreferencesDlg.h"
 
 namespace fusion {
 namespace debugviewpp {
@@ -116,6 +120,15 @@ public:
     int GetShowCommand() const { return m_showCmd; }
     void SaveSettings();
     bool ImportDebugViewPPSettings();
+    void LoadNewViewDefaults();
+    void SaveNewViewDefaults();
+
+    // Procedure and process view creation (public for Timeline access)
+    void CreateProcedureView(const std::string& procedureName, const std::string& processName = "");
+    void JumpToDebugRow(int lineIndex, const std::string& viewName = "");
+
+    // Public getter for splitter position
+    int GetProcedureStatsSplitterPos() const { return m_procedureStatsSplitterPos; }
 
 private:
     enum
@@ -137,6 +150,8 @@ private:
     LRESULT OnEndSession(WPARAM wParam, LPARAM lParam);
     bool OnUpdate();
     bool OnMouseWheel(UINT nFlags, short zDelta, CPoint pt);
+    void OnTimer(UINT_PTR nIDEvent);
+    BOOL OnSetCursor(CWindow wnd, UINT nHitTest, UINT message);
     void ProcessLines(const Lines& lines);
 
     int LogFontSizeFromPointSize(int fontSize);
@@ -154,11 +169,15 @@ private:
     void UpdateTitle();
     bool GetAlwaysOnTop() const;
     void SetAlwaysOnTop(bool value);
+    void SetProcedureStatsSplitterPos(int pct);
 
     void AddFilterView();
     void AddFilterView(const std::wstring& name, const LogFilter& filter = LogFilter());
     void AddFilterView(std::shared_ptr<CLogView> logview);
     void AddMessage(const Message& message);
+    
+    // Helper method to add the "+" tab as the last tab
+    void AddPlusTab();
 
     // Auto-view creation for processes
     int FindViewWithProcessFilter(const std::wstring& processName);
@@ -172,6 +191,8 @@ private:
     void SaveViewSelection(const std::wstring& fileName);
 
     void OnContextMenu(HWND /*hWnd*/, CPoint pt);
+    void OnSize(UINT nType, CSize size);
+    void OnMove(CPoint pt);
     LRESULT OnSysCommand(UINT nCommand, CPoint /*unused*/);
     LRESULT OnSystemTrayIcon(UINT /*unused*/, WPARAM wParam, LPARAM lParam);
     LRESULT OnScRestore(UINT /*unused*/, INT /*unused*/, HWND /*unused*/);
@@ -191,6 +212,8 @@ private:
     void OnFileSaveViewSelection(UINT uNotifyCode, int nID, CWindow wndCtl);
     void OnFileLoadConfiguration(UINT uNotifyCode, int nID, CWindow wndCtl);
     void OnFileSaveConfiguration(UINT uNotifyCode, int nID, CWindow wndCtl);
+    void OnFilePreferences(UINT uNotifyCode, int nID, CWindow wndCtl);
+    void OnProcedureSplitterMoved(UINT uNotifyCode, int nID, CWindow wndCtl);
     void OnLinkViews(UINT uNotifyCode, int nID, CWindow wndCtl);
     void OnAutoNewline(UINT uNotifyCode, int nID, CWindow wndCtl);
     void OnProcessPrefix(UINT uNotifyCode, int nID, CWindow wndCtl);
@@ -213,17 +236,28 @@ private:
     void OnViewFilter(UINT uNotifyCode, int nID, CWindow wndCtl);
     void OnViewDarkMode(UINT uNotifyCode, int nID, CWindow wndCtl);
     void OnViewDetailPane(UINT uNotifyCode, int nID, CWindow wndCtl);
+    void OnViewProcedureTracker(UINT uNotifyCode, int nID, CWindow wndCtl);
+    void OnTabPopOut(UINT uNotifyCode, int nID, CWindow wndCtl);
+    void OnTabPopIn(UINT uNotifyCode, int nID, CWindow wndCtl);
+    void OnMainTabPopOut(UINT uNotifyCode, int nID, CWindow wndCtl);
+    void OnMainTabPopIn(UINT uNotifyCode, int nID, CWindow wndCtl);
     void OnViewClose(UINT uNotifyCode, int nID, CWindow wndCtl);
     void OnViewDuplicate(UINT uNotifyCode, int nID, CWindow wndCtl);
     void OnSources(UINT uNotifyCode, int nID, CWindow wndCtl);
     void OnAppAbout(UINT uNotifyCode, int nID, CWindow wndCtl);
+    LRESULT OnUserCreateProcedureView(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled);
+    LRESULT OnUserJumpToDebugRow(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled);
 
     int GetViewCount() const;
+    int GetActualViewCount() const; // Returns view count excluding the "+" tab
     CLogView& GetView(int i);
     CLogView& GetView();
     void SetLogFont();
-    
+    void UpdateProcedureViewTracker();
+
 public:
+    // Get SQL formatting options from preferences
+    fusion::debugviewpp::SqlFormatOptions GetSqlFormatOptions() const;
     void SetDetailFont(const LOGFONT& lf);
     HFONT GetDetailFont() const;
     
@@ -234,6 +268,7 @@ private:
     void UpdateLogSources(const std::vector<SourceInfo>& sources);
     void AddLogSource(const SourceInfo& info);
     void CloseView(int i);
+    void UpdateViewTabCloseStates();
 
     void WriteDriverFromResource();
     void RemoveDriver();
@@ -274,7 +309,34 @@ private:
     std::deque<Lines> m_incomingMessages;
     int m_showCmd = SW_SHOWDEFAULT;
     bool m_expandedToolbar = false;
+    int m_procedureStatsSplitterPos = 60;
     std::string m_driverLocation = GetDebugviewDriverLocation();
+    
+    // New view defaults
+    NewViewDefaults m_newViewDefaults;
+    
+    // Procedure tracking window
+    CClarionProcedureView m_wndProcedureView;
+    bool m_bProcedurePaneVisible = false;
+    CRect m_procedureWindowRect;
+    bool m_bInitializing = true;  // Flag to prevent AddFilterView during startup
+    bool m_bProgrammaticTabChange = false;  // Flag to prevent dialog during programmatic tab changes
+    
+    // Floating main tab tracking
+    struct FloatingMainTabInfo
+    {
+        std::unique_ptr<CFloatingMainTabWindow> window;
+        CLogViewTabItem2* tabItem;
+        int originalIndex;
+        std::wstring tabName;
+    };
+    std::vector<FloatingMainTabInfo> m_floatingMainTabs;
+    
+    // Helper methods for floating main tabs
+    void PopOutMainTab(int index);
+    void ReattachMainTab(CFloatingMainTabWindow* floatingWindow);
+    bool IsMainTabPoppedOut(int index) const;
+    LRESULT OnFloatingMainWindowClosing(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled);
 };
 
 } // namespace debugviewpp

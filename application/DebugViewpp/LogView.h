@@ -11,6 +11,7 @@
 #include "CobaltFusion/AtlWinExt.h"
 #include "CobaltFusion/stringbuilder.h"
 #include "DebugViewppLib/LogFile.h"
+#include "DebugViewppLib/ClarionProcedureTracker.h"
 #include "FilterDlg.h"
 #include "DropTargetSupport.h"
 #include "Win32/Com.h"
@@ -231,6 +232,11 @@ public:
     void DeleteColumnLayout(const std::wstring& layoutName);
     std::vector<std::wstring> GetSavedLayouts() const;
     bool LayoutExists(const std::wstring& layoutName) const;
+    
+    // Get the procedure tracker for this view
+    ClarionProcedureTracker& GetProcedureTracker();
+    const ClarionProcedureTracker& GetProcedureTracker() const;
+    std::vector<std::wstring> GetUniqueProcedures() const;
 
 private:
     DECLARE_MSG_MAP()
@@ -338,6 +344,7 @@ private:
     LogFile& m_logFile;
     LogFilter m_filter;
     MatchColors m_matchColors;
+    ClarionProcedureTracker m_procedureTracker;
     CMyHeaderCtrl m_hdr;
     std::vector<ColumnInfo> m_columns;
     int m_firstLine;

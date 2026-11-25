@@ -28,29 +28,45 @@ SyntaxHighlighter::~SyntaxHighlighter()
 
 ContentFormat SyntaxHighlighter::DetectFormat(const std::wstring& text)
 {
+    // Check Error messages first - they have specific format
+    if (IsErrorMessage(text))
+        return ContentFormat::ErrorMessage;
+
+    // Check Clarion Event messages first - they have a very specific prefix
+    if (IsClarionEvent(text))
+        return ContentFormat::ClarionEvent;
+
+    // Check Clarion Group messages - they have pipe-separated field format
+    if (IsClarionGroup(text))
+        return ContentFormat::ClarionGroup;
+
+    // Check for [SQL] prefix first for explicit SQL content
+    if (text.find(L"[SQL]") == 0 || text.find(L"[sql]") == 0)
+        return ContentFormat::SQL;
+
     // Check SQL FIRST - it's more specific than JSON detection which just looks for brackets
     // SQL might have log prefixes like DEBUG:
     if (IsSQL(text))
         return ContentFormat::SQL;
-    
+
     // Check XML before JSON since XML has more specific patterns
     // and JSON detection can be triggered by angle brackets in XML
     if (IsXML(text))
         return ContentFormat::XML;
-    
+
     // Check JSON after XML
     if (IsJSON(text))
         return ContentFormat::JSON;
-    
+
     // Check for stack traces before log levels
     // (stack traces may start with ERROR: but have specific patterns)
     if (IsStackTrace(text))
         return ContentFormat::StackTrace;
-    
+
     // Check log levels last (most generic)
     if (HasLogLevel(text))
         return ContentFormat::LogLevel;
-    
+
     return ContentFormat::PlainText;
 }
 
@@ -204,6 +220,38 @@ bool SyntaxHighlighter::IsXML(const std::wstring& text)
     return false;
 }
 
+bool SyntaxHighlighter::IsClarionGroup(const std::wstring& text)
+{
+    // Check if the text has the Clarion Group format:
+    // "Group Name",""|"FIELD1","Value1"|"FIELD2","Value2"|...
+    // Must have at least one pipe character and quoted values
+
+    size_t startPos = text.find_first_not_of(L" \t\r\n");
+    if (startPos == std::wstring::npos)
+        return false;
+
+    // Must contain pipes for field separation
+    if (text.find(L'|') == std::wstring::npos)
+        return false;
+
+    // Must have quotes (Group messages have quoted field names and values)
+    if (text.find(L'"') == std::wstring::npos)
+        return false;
+
+    // Check for pattern: "...",".." or "..",""|"
+    // Look for quote-comma-quote pattern which is typical in Group messages
+    size_t quoteCommaQuote = text.find(L"\",\"");
+    if (quoteCommaQuote != std::wstring::npos)
+    {
+        // Also check for pipe separator
+        size_t pipePos = text.find(L"|\"");
+        if (pipePos != std::wstring::npos)
+            return true;
+    }
+
+    return false;
+}
+
 bool SyntaxHighlighter::IsSQL(const std::wstring& text)
 {
     // Convert to uppercase for case-insensitive comparison
@@ -285,6 +333,34 @@ bool SyntaxHighlighter::HasLogLevel(const std::wstring& text)
                                  std::regex_constants::icase);
     
     return std::regex_search(text, logLevelPattern1) || std::regex_search(text, logLevelPattern2);
+}
+
+bool SyntaxHighlighter::IsErrorMessage(const std::wstring& text)
+{
+    // Check if the text has the Error message format:
+    // Message: <msg>,Errorcode: <code>,Error: <desc>,ErrorFile: <file>,FileError: <err>,FileErrorCode: <code>
+    return text.find(L"Message:") != std::wstring::npos &&
+           text.find(L"Errorcode:") != std::wstring::npos &&
+           text.find(L"Error:") != std::wstring::npos;
+}
+
+bool SyntaxHighlighter::IsClarionEvent(const std::wstring& text)
+{
+    // Check if the text starts with Event* pattern (Clarion event message)
+    // These messages come from lines with [Events] prefix but the prefix isn't in the message
+    size_t startPos = text.find_first_not_of(L" \t\r\n");
+    if (startPos == std::wstring::npos)
+        return false;
+    
+    // Check if it starts with "Event*" followed by a number
+    if (text.compare(startPos, 6, L"Event*") == 0)
+    {
+        // Make sure there's a number after Event*
+        if (startPos + 6 < text.length() && std::iswdigit(text[startPos + 6]))
+            return true;
+    }
+    
+    return false;
 }
 
 std::string SyntaxHighlighter::GenerateRTFForJSON(const std::wstring& text, bool isDarkTheme, bool showLineNumbers)
@@ -2174,19 +2250,363 @@ std::wstring SyntaxHighlighter::FormatXML(const std::wstring& text)
 std::wstring SyntaxHighlighter::FormatSQL(const std::wstring& text)
 {
     // Use the professional SQL formatter with fsqlf.dll
-    OutputDebugString(L"[SyntaxHighlighter::FormatSQL] Called with text starting: ");
-    std::wstring preview = text.substr(0, std::min(size_t(100), text.length()));
-    OutputDebugString(preview.c_str());
-    OutputDebugString(L"\n");
-    
+
     // Call the global FormatSQL function from SqlFormatter.cpp which uses fsqlf.dll
     std::wstring formatted = fusion::debugviewpp::FormatSQL(text);
-    
-    OutputDebugString(L"[SyntaxHighlighter::FormatSQL] Formatted SQL length: ");
-    OutputDebugString(std::to_wstring(formatted.length()).c_str());
-    OutputDebugString(L"\n");
-    
+
+
     return formatted;
+}
+
+std::wstring SyntaxHighlighter::FormatSQL(const std::wstring& text, const SqlFormatOptions& options)
+{
+    // Use the professional SQL formatter with fsqlf.dll and custom options
+
+    // Call the global FormatSQL function from SqlFormatter.cpp which uses fsqlf.dll
+    std::wstring formatted = fusion::debugviewpp::FormatSQL(text, options);
+
+
+    return formatted;
+}
+
+std::wstring SyntaxHighlighter::FormatClarionEvent(const std::wstring& text)
+{
+    // The text should start with Event* (no [Events] prefix in the message itself)
+    size_t startPos = text.find_first_not_of(L" \t\r\n");
+    if (startPos == std::wstring::npos)
+        return text;
+    
+    // Check if it starts with Event*
+    if (text.compare(startPos, 6, L"Event*") != 0)
+        return text;
+    
+    // Use the text from the start position
+    std::wstring eventData = text.substr(startPos);
+    
+    // Build the formatted output
+    std::wstring result;
+    
+    // Parse the Event field specially (it contains decimal, hex, and description)
+    size_t eventFieldEnd = eventData.find(L',');
+    if (eventFieldEnd != std::wstring::npos)
+    {
+        std::wstring eventField = eventData.substr(0, eventFieldEnd);
+        
+        // Parse Event*258  102h Selecting format
+        size_t starPos = eventField.find(L'*');
+        if (starPos != std::wstring::npos && starPos + 1 < eventField.length())
+        {
+            // Extract the value part after the asterisk
+            std::wstring eventValue = eventField.substr(starPos + 1);
+            
+            // Find the decimal value (first number)
+            size_t decimalEnd = 0;
+            while (decimalEnd < eventValue.length() && std::iswdigit(eventValue[decimalEnd]))
+                decimalEnd++;
+            
+            std::wstring decimal = eventValue.substr(0, decimalEnd);
+            
+            // Skip whitespace
+            size_t hexStart = decimalEnd;
+            while (hexStart < eventValue.length() && std::iswspace(eventValue[hexStart]))
+                hexStart++;
+            
+            // Find the hex value and description
+            std::wstring hexAndDesc = eventValue.substr(hexStart);
+            size_t hexEnd = 0;
+            while (hexEnd < hexAndDesc.length() && 
+                   (std::iswalnum(hexAndDesc[hexEnd]) || hexAndDesc[hexEnd] == L'h'))
+                hexEnd++;
+            
+            std::wstring hex = hexAndDesc.substr(0, hexEnd);
+            
+            // Skip whitespace to get description
+            size_t descStart = hexEnd;
+            while (descStart < hexAndDesc.length() && std::iswspace(hexAndDesc[descStart]))
+                descStart++;
+            
+            std::wstring description = hexAndDesc.substr(descStart);
+            
+            // Format the Event line with padding
+            std::wstring eventLabel = L"Event:";
+            while (eventLabel.length() < 15)
+                eventLabel += L" ";
+
+            result = eventLabel + decimal + L" (Decimal) / " + hex + L" (Hex)";
+            if (!description.empty())
+                result += L" - " + description;
+            result += L"\r\n";
+        }
+        
+        // Parse remaining fields
+        size_t fieldStart = eventFieldEnd + 1;
+        while (fieldStart < eventData.length())
+        {
+            // Skip leading whitespace
+            while (fieldStart < eventData.length() && std::iswspace(eventData[fieldStart]))
+                fieldStart++;
+            
+            // Find the next comma or end of string
+            size_t fieldEnd = eventData.find(L',', fieldStart);
+            if (fieldEnd == std::wstring::npos)
+                fieldEnd = eventData.length();
+            
+            // Extract the field
+            std::wstring field = eventData.substr(fieldStart, fieldEnd - fieldStart);
+            
+            // Remove trailing whitespace
+            while (!field.empty() && std::iswspace(field.back()))
+                field.pop_back();
+            
+            if (!field.empty())
+            {
+                // Parse Field*Value format
+                size_t starPos = field.find(L'*');
+                if (starPos != std::wstring::npos)
+                {
+                    std::wstring fieldName = field.substr(0, starPos);
+                    std::wstring fieldValue = (starPos + 1 < field.length()) ? 
+                                            field.substr(starPos + 1) : L"";
+                    
+                    // Handle empty values
+                    if (fieldValue.empty() || fieldValue == L" ")
+                        fieldValue = L"n/a";
+
+                    // Format with padding for alignment (use 15 chars for label column)
+                    std::wstring paddedName = fieldName + L":";
+                    while (paddedName.length() < 15)
+                        paddedName += L" ";
+
+                    result += paddedName + fieldValue + L"\r\n";
+                }
+                else if (field.find(L'=') != std::wstring::npos || field.find(L' ') != std::wstring::npos)
+                {
+                    // Handle fields with = or space (like "Field*?RELTREE = 1")
+                    result += field + L"\r\n";
+                }
+            }
+            
+            fieldStart = fieldEnd + 1;
+        }
+    }
+    else
+    {
+        // No comma found, return original text
+        return text;
+    }
+    
+    // Remove trailing newline if present
+    while (!result.empty() && (result.back() == L'\r' || result.back() == L'\n'))
+        result.pop_back();
+    
+    return result;
+}
+
+std::wstring SyntaxHighlighter::FormatErrorMessage(const std::wstring& text)
+{
+    // Parse and format Error messages
+    // Format: Message: <msg>,Errorcode: <code>,Error: <desc>,ErrorFile: <file>,FileError: <err>,FileErrorCode: <code>
+
+    std::wstring result;
+    size_t pos = 0;
+
+    // Parse each key-value pair
+    while (pos < text.length())
+    {
+        // Find the next key-value pair
+        size_t colonPos = text.find(L':', pos);
+        if (colonPos == std::wstring::npos) break;
+
+        // Find the start of the key (skip any spaces/commas)
+        size_t keyStart = pos;
+        while (keyStart < colonPos && (text[keyStart] == L' ' || text[keyStart] == L','))
+        {
+            keyStart++;
+        }
+
+        std::wstring key = text.substr(keyStart, colonPos - keyStart);
+
+        // Find the value (up to the next comma that precedes a key)
+        size_t valueStart = colonPos + 1;
+        while (valueStart < text.length() && text[valueStart] == L' ')
+        {
+            valueStart++;
+        }
+
+        // Find the end of the value
+        size_t valueEnd = text.length();
+        size_t nextKeyPos = valueStart;
+        while (nextKeyPos < text.length())
+        {
+            size_t nextComma = text.find(L',', nextKeyPos);
+            if (nextComma == std::wstring::npos) break;
+
+            // Check if this comma is followed by a known key
+            size_t afterComma = nextComma + 1;
+            while (afterComma < text.length() && text[afterComma] == L' ')
+            {
+                afterComma++;
+            }
+
+            // Check for known keys
+            if (afterComma < text.length())
+            {
+                if (text.substr(afterComma, 9) == L"Errorcode" ||
+                    text.substr(afterComma, 5) == L"Error" ||
+                    text.substr(afterComma, 9) == L"ErrorFile" ||
+                    text.substr(afterComma, 9) == L"FileError" ||
+                    text.substr(afterComma, 13) == L"FileErrorCode" ||
+                    text.substr(afterComma, 7) == L"Message")
+                {
+                    valueEnd = nextComma;
+                    break;
+                }
+            }
+            nextKeyPos = nextComma + 1;
+        }
+
+        std::wstring value = text.substr(valueStart, valueEnd - valueStart);
+
+        // Trim trailing spaces from value
+        size_t lastNonSpace = value.find_last_not_of(L" ");
+        if (lastNonSpace != std::wstring::npos)
+        {
+            value = value.substr(0, lastNonSpace + 1);
+        }
+
+        // Format as two-column layout with padding for alignment
+        // Calculate padding for alignment (assume 20 chars for label column)
+        size_t padLength = 20;
+        if (key.length() < padLength)
+        {
+            key += std::wstring(padLength - key.length(), L' ');
+        }
+
+        result += key + L": " + value + L"\n";
+
+        pos = valueEnd;
+    }
+
+    // Remove trailing newline if present
+    if (!result.empty() && result.back() == L'\n')
+    {
+        result.pop_back();
+    }
+
+    return result;
+}
+
+std::wstring SyntaxHighlighter::FormatClarionGroup(const std::wstring& text)
+{
+    // Parse and format Clarion Group messages
+    // Format: "Group Name",""|"FIELD1","Value1"|"FIELD2","Value2"|...
+
+    std::wstring result;
+    size_t pos = 0;
+
+    // Skip leading whitespace
+    while (pos < text.length() && std::iswspace(text[pos]))
+        pos++;
+
+    // Parse the group name (first quoted value)
+    if (pos < text.length() && text[pos] == L'"')
+    {
+        pos++; // Skip opening quote
+        size_t endQuote = text.find(L'"', pos);
+        if (endQuote != std::wstring::npos)
+        {
+            std::wstring groupName = text.substr(pos, endQuote - pos);
+
+            // Format group name with padding
+            std::wstring label = L"Group:";
+            while (label.length() < 15)
+                label += L" ";
+            result = label + groupName + L"\r\n";
+
+            pos = endQuote + 1;
+
+            // Skip comma and empty value after group name
+            if (pos < text.length() && text[pos] == L',')
+            {
+                pos++;
+                // Skip the empty value part ,""|
+                size_t pipePos = text.find(L'|', pos);
+                if (pipePos != std::wstring::npos)
+                {
+                    pos = pipePos + 1;
+
+                    // Now parse field-value pairs
+                    while (pos < text.length())
+                    {
+                        // Skip whitespace
+                        while (pos < text.length() && std::iswspace(text[pos]))
+                            pos++;
+
+                        // Check for field name (starts with quote)
+                        if (pos < text.length() && text[pos] == L'"')
+                        {
+                            pos++; // Skip opening quote
+                            size_t fieldEndQuote = text.find(L'"', pos);
+                            if (fieldEndQuote != std::wstring::npos)
+                            {
+                                std::wstring fieldName = text.substr(pos, fieldEndQuote - pos);
+                                pos = fieldEndQuote + 1;
+
+                                // Skip comma and get value
+                                if (pos < text.length() && text[pos] == L',')
+                                {
+                                    pos++;
+
+                                    // Get the value (also quoted)
+                                    if (pos < text.length() && text[pos] == L'"')
+                                    {
+                                        pos++; // Skip opening quote
+                                        size_t valueEndQuote = text.find(L'"', pos);
+                                        if (valueEndQuote != std::wstring::npos)
+                                        {
+                                            std::wstring fieldValue = text.substr(pos, valueEndQuote - pos);
+                                            pos = valueEndQuote + 1;
+
+                                            // Format field-value pair with padding
+                                            std::wstring paddedName = fieldName + L":";
+                                            while (paddedName.length() < 15)
+                                                paddedName += L" ";
+
+                                            result += paddedName + fieldValue + L"\r\n";
+
+                                            // Skip pipe separator if present
+                                            if (pos < text.length() && text[pos] == L'|')
+                                                pos++;
+                                        }
+                                        else
+                                            break;
+                                    }
+                                    else
+                                        break;
+                                }
+                                else
+                                    break;
+                            }
+                            else
+                                break;
+                        }
+                        else
+                            break;
+                    }
+                }
+            }
+        }
+    }
+
+    // If parsing failed, return original text
+    if (result.empty())
+        return text;
+
+    // Remove trailing newline
+    while (!result.empty() && (result.back() == L'\r' || result.back() == L'\n'))
+        result.pop_back();
+
+    return result;
 }
 
 int SyntaxHighlighter::CountLines(const std::wstring& text)

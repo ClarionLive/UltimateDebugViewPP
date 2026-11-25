@@ -10,6 +10,7 @@
 #include <memory>
 #include <windows.h>
 #include <richedit.h>
+#include "DebugViewppLib/SqlFormatter.h"
 
 namespace fusion {
 namespace debugviewpp {
@@ -22,7 +23,10 @@ enum class ContentFormat
     XML,
     SQL,
     StackTrace,
-    LogLevel
+    LogLevel,
+    ClarionEvent,
+    ClarionGroup,
+    ErrorMessage
 };
 
 struct TextRange
@@ -96,6 +100,10 @@ public:
     std::wstring FormatJSON(const std::wstring& text);
     std::wstring FormatXML(const std::wstring& text);
     std::wstring FormatSQL(const std::wstring& text);
+    std::wstring FormatSQL(const std::wstring& text, const struct SqlFormatOptions& options);
+    std::wstring FormatClarionEvent(const std::wstring& text);
+    std::wstring FormatClarionGroup(const std::wstring& text);
+    std::wstring FormatErrorMessage(const std::wstring& text);
     
     // Enable/disable highlighting
     void SetEnabled(bool enabled) { m_enabled = enabled; }
@@ -108,7 +116,10 @@ private:
     bool IsSQL(const std::wstring& text);
     bool IsStackTrace(const std::wstring& text);
     bool HasLogLevel(const std::wstring& text);
-    
+    bool IsClarionEvent(const std::wstring& text);
+    bool IsClarionGroup(const std::wstring& text);
+    bool IsErrorMessage(const std::wstring& text);
+
     // Parsing methods for each format
     std::vector<TextRange> ParseJSON(const std::wstring& text, bool isDarkTheme);
     std::vector<TextRange> ParseXML(const std::wstring& text, bool isDarkTheme);

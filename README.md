@@ -1,288 +1,132 @@
-## Contact information
+# UltimateDebugViewPP
 
-[![Discord Invite](https://img.shields.io/badge/Discord%20Live%20Coding%20Chat-invite-blue)](https://discord.gg/V6HRYgBFUX)
-![Mastodon Follow](https://img.shields.io/mastodon/follow/109524813797978857?domain=https%3A%2F%2Ftoot.community&style=social)
-![Github Follow](https://img.shields.io/github/followers/janwilmans)
+Enhanced debug viewer for Windows with modern Ribbon UI, SQL formatting, and syntax highlighting.
 
-## Debugview++ v1.20.x.x (Summer 2025 Update coming soon!)
+## Overview
 
-- new features: capture kernel messages, verbose mode and pass-through mode, big thanks to x64bugreport and 593749519 for providing information, contributions and test scenarios.
-- fixed #365: support for messages from UWP applications (poorly tested), feedback welcome!
-- fixed #396: depending on the runtime dlls, this broke when we moved to cmake, now we link the runtime statically again.
-- fixed title bar not being updated when 'Global Win32' was toggled.
-- new commandline argument /tab:<name> to select a tab that get focus at startup, contributed by KirisameMarisa
-- removed color support from 'include' filter by request (a highlight filter can still achieve the same result), contributed by Ishmaeel.
-- faster building by adding /MP.
+UltimateDebugViewPP is a streamlined version of DebugView++ focused solely on the Ultimate variant with:
+- Modern Ribbon interface
+- Scintilla-based text editor with syntax highlighting
+- SQL formatting capabilities
+- Support for multiple log sources (Win32 OutputDebugString, files, sockets, UDP)
+- Advanced filtering with regex support
+- High-performance message handling (50,000+ messages/second)
 
--- Notice:
-
-- This project is in low-maintenance mode, this means new features are only added if PRs are provided with tests.
-- Updates are limited to keeping the status-quo and OS-related updated.
-- I'm looking for maintainers, so if you would like to join me in bugfixing or adding features, please let me know.
-- 2022 update: The project was migrated to VS2022 and boost 1.80, WindowsXP (32 bit) support was removed.
-- the OutputForwarder companion extension for VS2022 can be found in the [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=JanWilmans.OutputForwarder2022)
-- nuget.exe can be downloaded from https://www.nuget.org/downloads
-
-## Debugview++, currently at v1.9 (2024 Update!)
-
-[![All Releases](https://img.shields.io/github/downloads/CobaltFusion/DebugViewPP/total.svg)](https://github.com/CobaltFusion/DebugViewPP/releases/latest)
-[![Current Release](https://img.shields.io/github/downloads/CobaltFusion/DebugViewPP/latest/total.svg)](https://github.com/CobaltFusion/DebugViewPP/releases/latest)
-[![Appveyor Build status](https://ci.appveyor.com/api/projects/status/ho962elp8chrdga0/branch/develop?svg=true)](https://ci.appveyor.com/project/janwilmans/debugview/branch/develop)
-
-[![Version 1.8.x](https://img.shields.io/github/downloads/CobaltFusion/DebugViewPP/v1.8.0.44/total.svg)](https://github.com/CobaltFusion/DebugViewPP/releases/tag/v1.8.0.44)
-
-[Download latest release](https://github.com/djeedjay/DebugViewPP/releases), I would really like to hear what you think! Leave any [**comments here**](https://github.com/djeedjay/DebugViewPP/issues/283)
-
-[Download head version](https://ci.appveyor.com/project/janwilmans/debugview/build/artifacts) ** only pick this if your feeling lucky and want to try the latest commits **
-
-Questions? Find me at [@janwilmans.bsky.social](janwilmans.bsky.social) or chat on discord as 'janwilmans'.
-There is also a [slack channel](https://cpplang.slack.com/messages/debugviewpp). If you need an invite, go [here](https://cpplang.now.sh/).
-
-Debugview++ started as a viewer for Win32 OutputDebugString messages in the style of
-Sysinternals DebugView. However, it can now be attached to virtually any other kind of logging, such as:
-
-- tailing ascii and UTF logfiles (just drag it onto the window)
-- Android ADB (or any console based standard output)
-- serial ports (using plink)
-- sockets, telnet or ssh ports (also using plink)
-- it can listen for UDP messages, handy in distributed systems
-
-See examples down below.
-
-## Sponsors
-
-This project is sponsored by:
-
-[![Resharper logo](art/resharpercpp_logo.png)](https://www.jetbrains.com/)
-
-Build in code analysis, handy auto-fixes and refactoring options
-
-[![Backtrace logo](art/backtrace_logo.png)](https://backtrace.io/)
-
-Gather and analyse crash information.
-
-[![Incredibuild logo](art/incredi_logo.png)](https://www.incredibuild.com/)
-
-We use Incredibuild to make use of all cores of multiple machines to accelerate building our C++ projects.
-
-## So when is this Debugview++ thing useful?
-
-- first of all, with debugview++ you can see messages from different processes, not just 'attached' processes.
-- also: filtering, coloring and linking. To make sense of a large amount of information humans need to filter it or order it understand it. Also it helps if important events have different colors to quickly interpret the occurring patterns.
-- finally, filtering is nice, but sometimes you need to see a line in its context to understand it, this is where linked views can help to quickly switch between a fully filtered view and a fully detailed view.
-
-New in stable version 1.8.x:
-
-- bugfixes (namely in file-tailing)
-- tested on windows 10
-- last version with (official) XP support (v141_xp target)
-- internal refactoring from boost to C++11/14 constructs
-- better commandline support using docopt.cpp
-- added filtering command line options
-- no other new features planned, if you're missing something you need, file an issue!
-
-Features we dream about and will create when we choose to spend the time:
-
-- a gantt chart-like view, a horizontal timeline, with bars/flags/signs on it to identify events
-- a better plugin based input system
-- transparent background streaming to disk
-- proper memory limits
-
-Known issues:
-
-- the history limit doesn't work right, this is troublesome for long-running duration-tests.
-  A workaround is to send 'DBGVIEWCLEAR' before each test-cycle (this clears all logs from memory).
-- there is no 'pass-through' mode like the original dbgview had, if you can help me implement this, please contact me.
-- same goes for catching kernel messages, help wanted.
-
-## References
-
-[OutputDebugString on MSDN](<https://msdn.microsoft.com/en-us/library/windows/desktop/aa363362(v=vs.85).aspx>)
-
-## Screenshot
-
-![DebugView++ Screenshot](art/syntax_high.png "DebugView++ Screenshot")
-
-Here are some features:
-
-- single selfcontaining executable, setup is provided but not required
-- minimal delay of the traced application, compared to the original dbgview a factor of 10 better.
-- fast and responsive user-interface, even with +50.000 incoming lines per second
-- runs without prerequisites on WinXPSP3 and up (v1.5 and earlier also on WinXPSP2)
-- in-memory compressed logbuffer using google snappy (typically -50% RAM consumption)
-- tailing files (drag ascii or UTF files into debugview to tail it)
-
-And more features:
-
-- capture both Win32 and Global Win32 messages
-- tabbed views
-- resolve process PID to name and track their lifetime
-- filter by process or message
-- advanced filtering, exclude, track, stop, clear (optionally using regular expressions)
-- line and token highlighting (create your own syntax highlighting)
-- SAIT (search-as-I-type) + token highlighting
-- bookmarks
-- statusbar shows detailed log/view/selection information
-- open saved logs for post-mortem analysis
-- commandline version
-- capture stdin piped messages, allows you to connect any kind of logging
-- beep-filter for monitoring without seeing the screen (To hear it make sure a 'Default Beep' sound is defined in Control Panel->Sounds)
-- clear Log now releases the message buffer instead of reusing the memory (useful when running debugview
-  for a very long time)
-- tailing logfiles over samba network (experimental)
-- support for reading and tailing Sysinternals Dbgview logfiles (in the four most common formats)
-- socket listening, Log->Sources->Add can add TCP and UDP listeners, the protocol is sending raw newline terminated strings. Multiple lines can be send in one packet.
-- dbgview agent client mode allowing logging of kernel messages
-- timezone independent and human readable timestamps in the logfiles
-- add basic support for unicode, UTF-8 via OutputDebugString and both UTF8 and UTF16 with BOMs when reading files
-- View->Process Colors, easy way to give every process its own color!
-- Options->Link views, best effort to synchronize the line-selection over all views
-
-## Download old version (stable, dated 20 Sept 2015)
-
-- [DebugView v1.5.x Zipped executables](https://github.com/CobaltFusion/DebugViewPP/files/1408599/DebugView.v1.5.zip)
-- [DebugView v1.5.x Win32 installer](https://github.com/CobaltFusion/DebugViewPP/files/1408607/DebugView.v1.5_msi.zip)
-
-Screenshot demonstrating bookmarks and highlighting features.
-
-**Highlighted**:
-
-- regex (token filter): `[^\s]*\\[\\\w+\.\s]+` filenames in blue
-- regex (token filter): `0x\w+` hexadecimal numbers in red
-- regex (highlight filter): `Unittest` lines with the word 'Unittest' have a lightgreen background
-- a doubleclick on 'bytes' causes all instances of 'bytes' to highlight in yellow
-
-See http://www.cplusplus.com/reference/regex/ECMAScript/ for all options for supported regular expressions
-
-**Android ADB example**:
-
-![DebugView++ Screenshot](art/logcat_example.png "DebugView++ Screenshot")
-
-Screenshot demonstrating connecting to ADB logcat (Android Debug Bridge)
-
-## More examples
-
-**Connect any pipe**:
-
-To connect directly to a port or service, [plink] can be used, make sure an instance of debugview++ is already running before running this command:
-
-> plink -ssh -batch -v 192.168.0.1 2>&1 | debugview++
-
-Notice that 2>&1 is used _before_ the pipe (|) symbol to redirect stderr to stdout.
-
-[plink]: http://www.chiark.greenend.org.uk/~sgtatham/putty/download.html
-
-**Connect to sysinternals dbgview agent for kernel messages**:
-
-Example: connect to sysinternals DbgView Agent, first start Dbgview.exe /a /k (/k for kernel messages)
-And connect DebugView++ using Log->Connect DebugView Agent. Note that 'Log->Connect DebugView Agent' assumes the agent is running on the same workstation as DebugView++ so it connects to 127.0.0.1. If you need to connect to a remote agent, use Log->Sources...->Add->DbgView Agent and fill in the ip-address.
-
-**Use RegexGroups + Token Highlighting**:
-
-Suppose you want to highlight some data value in your logging, since the actually value may differ, you cannot use normal matching to highlight them. With RegexGroups you can match text _before_ or \_after the actual token you want to highlight.
-
-Example:
-
-![FilterDialog Screenshot](art/regexgroups.png "RegexGroups Screenshot")
-
-## Filters:
-
-![FilterDialog Screenshot](art/filterdialog.png "FilterDialog Screenshot")
-
-Filters can be defined per view, for example choose File -> New View, and the filter dialog will popup.
-Pressing OK will open a new view without any filters.
-
-Different types of filters:
-
-All filters support regular expressions, if you are not familiar with regular expressions you can
-just type any word or part of a word to match.
-
-- include: if an include filter is added only lines containing a matching expression will be included.
-- exclude: lines containing a matching expression will be excluded from the view, excluding always takes precedence over including
-- once: only the first line containing a matching expression will be included, this resets automatically at 'clear view'.
-- highlight: lines containing a matching expression will be highlighted using the specified foreground and background colors
-- token: only the matching expression will be highlighted using the specified foreground and background colors
-- track: lines containing a matching expression will be focused and centered if possible. Note: auto scroll turns off if a track filter is matched
-- stop: if a matching expression is found autoscroll is turned off, all track filters will be disabled and the line is focused. Note: stop filters work only if autoscroll is on, think of a stop-filter as a single-shot track filter
-- beep: a standard windows beep (configurable in config panel->sounds) is played
-
-_Practical uses_:
-
-Include, exclude, once and highlight filters are the most intuitive filters to use. Track and stop can be a little confusing, let me try to give some examples.
-
-**track**: use this filter to focus interesting lines that do not occur very often, but at a regular interval, for example, so you are monitoring a process that logs output every 30 seconds and you need to check the result.
-
-**stop**: this filter is good when some special event occurs (an exception?) and you want to inspect the context of the event in the log before continuing. A press of the 'end' button will resume auto scrolling.
-
-## Other features:
-
-**views**:
-
-- reset view; make the first line in the logbuffer the first line in the view
-- reset view to this line; make the current like the first line in the view
-- clear view; make next incoming message the first line in the view
-
-**link views**: the selected line in the current view is located re-selected when you switch to another view. This is done on a best-effort bases, so if the exact line is not found, the nearest line is selected. In that case switching views will cause the currently selected line to change.
-
-Consider this use case:
-
-If you want to have auto scroll on, but some high frequency messages are annoying you, but you cannot exclude them because they help you diagnose your event when it occurs, try this:
-
-Use two views, one where the diagnostic messages are filtered and autoscroll is on, and one where the messages are included (and maybe highlighted), next turn on the 'link views' feature.
-
-Now you can monitor the filtered view, and when your event occurs, select a line and switch to the unfiltered view, the same line is now highlighted, but in full unfiltered context.
-
-**process colors**: If enabled each process (even processed with identical names) will get a its own background color automatically without adding any filters.
-
-## Other documentation:
-
-**Auto Scroll**: scrolls down to new incoming lines automatically
-
-**Auto Scroll Stop**: If enabled 'auto scroll' is turned on when the last line in the view is selected, and also
-turned off if any other line is selected.
-
-**Bookmarks**: bookmarks are view specific and can be placed on a line by clicking left of the line number or Ctrl+F2, press F2 to move to the next bookmark. Bookmarks are temporary, so cannot be saved.
-
-**ClockTime**: when enabled the time is displayed as provided by the system's real-time clock (RTC). Such a timestamp has a 16ms resolution on a typical desktop PC. When disabled, time is displayed as a relative time to the first message, however this timestamp is obtained from the High-Performance Counter (HPC) which typically has a sub-microsecond resolution.
-
-The resolution should not be confused with accuracy here, the recorded timestamp is not the actual time the message occurred, it is the time the message was received by DebugView++. Also there is no guarantee that the time between occurrence and reception of messages is constant, _however_ in practice this is **pretty** constant :)
-
-## How to build
-
-This project has a special configuration:
-
-- 32bit debug/release configurations are targeted to v140_XP, SDK v7.0 (windows XP SP3 and up)
-- 64bit debug/release configurations are targeted to v141, SDK v8.1 (runs on windows 7 and up)
-- only the release configurations also build the Wix installer
-
-The projects are configured to use Nuget to get there dependencies (boost and WTL)
-However, to build the installer you have to install [Wix Toolset manually](http://wixtoolset.org/)
-
-## cloning the GIT repository:
+## Project Structure
 
 ```
-git clone --recurse-submodules https://github.com/CobaltFusion/DebugViewPP.git
+UltimateDebugViewPP/
+├── application/           # Source code
+│   ├── DebugViewpp/      # Main application (28 files)
+│   ├── DebugViewppLib/   # Core library (40+ files)
+│   ├── CobaltFusion/     # Utilities
+│   ├── Win32Lib/         # Windows utilities
+│   ├── Libraries/        # UI components (PropertyGrid, TabbingFramework)
+│   └── include/          # Headers
+├── scintilla/            # Text editor component
+├── lexilla/              # Syntax highlighting
+├── fsqlf_dll/            # SQL formatter
+└── build/                # Build output (generated)
 ```
 
-(don't forget to include --recurse-submodules, otherwise you will get an error message saying docopt.h is missing.)
-You press 'build' and visual studio will download boost and WTL the first time only and then build the project. It is as simple as that... if it is not, contact me (jan), so I can fix any remaining issues.
+## Dependencies
 
-Since we use ATL and support Windows XP still some extra installation options are required, verify that the following option are installed:
+All dependencies are centralized to avoid duplication across projects:
 
-![VS2017 Option screen](art/vs2017_options.png "VS2017 Option screen")
+- **Boost 1.80.0**: `C:\Libraries\boost_1_80_0`
+- **WTL 10.0.10320**: `C:\Libraries\wtl_10_0_10320`
+- **Snappy 1.1.1.7**: `C:\Libraries\snappy_1_1_1_7`
 
-- zip.exe, http://gnuwin32.sourceforge.net/packages/zip.htm, choose [zip-3.0-setup.exe]
-  decompress the archive and you're done (add zip.exe to the path)
+These are shared across all C++ projects on the system.
 
-# VS2019
+## Build Instructions
 
-There are [known issues](https://twitter.com/janwilmans/status/1369956897726599176?s=20) with compilation using Visual Studio 2019 16.10.x (preview at March 11, 2021).
-Know good combinations are Boost 1.69 + Visual studio 2019 16.9.1. (I have seen problems with Asio in Boost 1.72 + Visual studio 2019 16.9.1 and Boost 1.72 + Visual studio 2019 16.10.x)
+### Prerequisites
+- Visual Studio 2022
+- CMake (install via `choco install cmake` or download from https://cmake.org)
+- Windows 10/11 SDK
 
--= Cobalt Fusion =-
+### Building
 
-Jan Wilmans
-mailto:janwilmans _at_ gmail.com
+#### Quick Build (One-liner in PowerShell)
+```powershell
+cd C:\Dev\UltimateDebugViewPP; cmake -B build -G 'Visual Studio 17 2022' .; cmake --build build --config Release --target UltimateDebugviewpp
+```
 
-Gert-Jan de Vos
-mailto:boosttestui@on.nl
+#### Step-by-Step Build
+
+1. **Generate Visual Studio solution**:
+   ```powershell
+   cd C:\Dev\UltimateDebugViewPP
+   cmake -B build -G 'Visual Studio 17 2022' .
+   ```
+
+2. **Build the executable**:
+   ```powershell
+   cmake --build build --config Release --target UltimateDebugviewpp
+   ```
+
+3. **Output location**:
+   - Executable: `C:\Dev\UltimateDebugViewPP\bin\Release\UltimateDebugviewpp.exe`
+
+### Alternative: Build with Visual Studio GUI
+
+1. Open `C:\Dev\UltimateDebugViewPP\build\UltimateDebugViewPP.sln`
+2. Set configuration to Release
+3. Build UltimateDebugviewpp project
+
+## Quick Rebuild
+
+For subsequent builds after code changes:
+```powershell
+cd C:\Dev\UltimateDebugViewPP
+cmake --build build --config Release
+```
+
+## Clean Build
+
+To start fresh:
+```powershell
+cd C:\Dev\UltimateDebugViewPP
+if (Test-Path build) { Remove-Item -Recurse -Force build }
+cmake -B build -G 'Visual Studio 17 2022' .
+cmake --build build --config Release
+```
+
+## Development Notes
+
+- **C++ Standard**: C++23
+- **Runtime**: Static (/MT)
+- **Character Set**: Unicode only
+- **Minimum Windows**: Windows 7 (0x0601)
+
+## Key Features
+
+- **Multiple Log Sources**: DBWin, files, TCP/UDP, pipes
+- **Advanced Filtering**: Include/exclude/highlight with regex
+- **Syntax Highlighting**: C++, SQL, JSON, XML, and more via Scintilla/Lexilla
+- **SQL Formatting**: Built-in SQL beautifier
+- **High Performance**: Lock-free circular buffers for message handling
+- **Process Tracking**: Monitor specific processes
+- **Tabbed Interface**: Multiple filtered views of the same data
+
+## Troubleshooting
+
+### Missing Dependencies
+If build fails with missing headers:
+1. Verify centralized libraries exist:
+   - `C:\Libraries\boost_1_80_0`
+   - `C:\Libraries\wtl_10_0_10320`
+   - `C:\Libraries\snappy_1_1_1_7`
+
+2. These were set up from the original DebugViewPP project's NuGet packages
+
+### Build Errors
+- Ensure Visual Studio 2022 is installed with C++ workload
+- Check that Windows SDK is installed
+- If CMake is not found, install it via Chocolatey: `choco install cmake`
+- After installing CMake, restart your terminal for PATH changes to take effect
+
+## Original Project
+
+This is a cleaned-up version of [DebugView++](https://github.com/CobaltFusion/DebugViewPP) containing only the UltimateDebugViewPP executable without test projects or console variants.

@@ -116,7 +116,6 @@ void CTimelineView::OnHScroll(UINT nSBCode, UINT nPos, CScrollBar /*pScrollBar*/
 {
     if (nSBCode == SB_THUMBTRACK)
     {
-        cdbg << "TRACK OnHScroll, nPos: " << nPos << "\n"; // received range is 1-100, unaffected by SetScrollRange ?
         SetScrollPos(SB_HORZ, nPos);
         Invalidate();
     }

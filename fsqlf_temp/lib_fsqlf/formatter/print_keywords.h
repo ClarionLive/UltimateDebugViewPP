@@ -14,5 +14,7 @@ void FSQLF_print(
     const struct fsqlf_kw_conf *prev_kw
 );
 
+void fsqlf_set_indent_string_internal(const char* indent_str);
+
 
 #endif

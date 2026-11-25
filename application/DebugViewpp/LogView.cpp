@@ -9,6 +9,7 @@
 #include "CobaltFusion/stringbuilder.h"
 #include "CobaltFusion/dbgstream.h"
 #include "CobaltFusion/fusionassert.h"
+#include "CobaltFusion/Str.h"
 #include "Win32/Registry.h"
 #include "DebugViewppLib/Conversions.h"
 #include "DebugViewppLib/FileIO.h"
@@ -25,6 +26,7 @@
 #include <array>
 #include <regex>
 #include <unordered_set>
+#include <set>
 #include <algorithm>
 #include <utility>
 
@@ -1358,7 +1360,34 @@ std::wstring CLogView::GetColumnText(int iItem, Column::type column) const
     case Column::Module: return WStr(msg.clarionModule);
     case Column::Procedure: return WStr(msg.clarionProcedure);
     case Column::Prefix: return WStr(msg.clarionPrefix);
-    case Column::Message: return WStr(msg.text);
+    case Column::Message: {
+        // For Clarion procedure messages, add indentation and indicators
+        if (msg.isClarionFormat && msg.callDepth > 0) {
+            std::string indentedText;
+            
+            // Add indentation based on call depth (2 spaces per level)
+            int indentLevel = (msg.callDepth - 1) * 2;
+            indentedText.append(indentLevel, ' ');
+            
+            // Add procedure event indicators
+            if (msg.procedureEvent == Message::ProcedureEvent::Open) {
+                indentedText += "> ";
+            } else if (msg.procedureEvent == Message::ProcedureEvent::Close) {
+                // For close events, reduce indent by one level to show it's closing
+                if (indentLevel >= 2) {
+                    indentedText = std::string(indentLevel - 2, ' ');
+                } else {
+                    indentedText.clear();
+                }
+                indentedText += "< ";
+            }
+            
+            // Add the original message text
+            indentedText += msg.text;
+            return WStr(indentedText);
+        }
+        return WStr(msg.text);
+    }
     default: break;
     }
     return L"";
@@ -1838,6 +1867,7 @@ void CLogView::Clear()
     SetItemCount(0);
     m_dirty = false;
     m_logLines.clear();
+    m_procedureTracker.Clear();  // Clear this view's procedure tracker
     m_highlightText.clear();
     if (m_autoScrollStop)
     {
@@ -1845,6 +1875,9 @@ void CLogView::Clear()
     }
 
     ResetFilters();
+
+    // Clear the detail view (Details, Procedure Flow, Procedure Stats tabs)
+    m_mainFrame.UpdateDetailView(this, std::vector<int>());
 }
 
 int CLogView::GetFocusLine() const
@@ -1871,12 +1904,39 @@ void CLogView::Add(int beginIndex, int line, const Message& msg)
         Clear();
     }
 
-    if (!IsIncluded(msg))
+    // If we have procedure filters, we need to parse the message first to get procedure context
+    Message processedMsg = msg;
+    if (!m_filter.procedureFilters.empty())
+    {
+        // Parse with tracker to update procedure context
+        LogFile::ParseClarionMessage(processedMsg, false, &m_procedureTracker, line);
+
+        // If message is Clarion-formatted but doesn't have explicit procedure, get it from tracker
+        if (processedMsg.clarionProcedure.empty() && processedMsg.isClarionFormat && !processedMsg.clarionThread.empty())
+        {
+            auto openProcs = m_procedureTracker.GetOpenProceduresForThread(processedMsg.clarionThread);
+            if (!openProcs.empty() && openProcs.back())
+            {
+                processedMsg.clarionProcedure = openProcs.back()->name;
+            }
+        }
+    }
+
+    // Check filter with properly populated procedure information
+    if (!IsIncluded(processedMsg))
     {
         return;
     }
 
-    if (IsBeepMessage(msg))
+    // Update tracker for non-procedure filtered messages or update again for consistency
+    // This ensures each view's tracker sees messages that pass its filter
+    if (m_filter.procedureFilters.empty())
+    {
+        LogFile::ParseClarionMessage(processedMsg, false, &m_procedureTracker, line);
+    }
+    
+
+    if (IsBeepMessage(processedMsg))
     {
         MessageBeep(0xFFFFFFFF); // A simple beep. If the sound card is not available, the sound is generated using the speaker.
     }
@@ -1893,10 +1953,10 @@ void CLogView::Add(int beginIndex, int line, const Message& msg)
     int viewline = static_cast<int>(m_logLines.size());
 
     LogLine logline(line);
-    logline.bookmark = MatchFilterType(FilterType::Bookmark, msg);
+    logline.bookmark = MatchFilterType(FilterType::Bookmark, processedMsg);
     m_logLines.push_back(logline);
 
-    if (m_autoScrollDown && MatchFilterType(FilterType::Stop, msg))
+    if (m_autoScrollDown && MatchFilterType(FilterType::Stop, processedMsg))
     {
         m_stop = [this, viewline]() {
             StopScrolling();
@@ -1905,7 +1965,7 @@ void CLogView::Add(int beginIndex, int line, const Message& msg)
         return;
     }
 
-    if (MatchFilterType(FilterType::Track, msg))
+    if (MatchFilterType(FilterType::Track, processedMsg))
     {
         m_autoScrollDown = false;
         m_track = [this, viewline]() {
@@ -2314,6 +2374,14 @@ void CLogView::LoadSettings(CRegKey& reg)
     {
         LoadFilterSettings(m_filter.processFilters, regFilters);
     }
+    if (regFilters.Open(reg, L"PrefixFilters") == ERROR_SUCCESS)
+    {
+        LoadFilterSettings(m_filter.prefixFilters, regFilters);
+    }
+    if (regFilters.Open(reg, L"ProcedureFilters") == ERROR_SUCCESS)
+    {
+        LoadFilterSettings(m_filter.procedureFilters, regFilters);
+    }
 
     ApplyFilters();
     UpdateColumns();
@@ -2377,6 +2445,14 @@ void CLogView::SaveSettings(CRegKey& reg)
     if (regFilters.Create(reg, L"ProcessFilters") == ERROR_SUCCESS)
     {
         SaveFilterSettings(m_filter.processFilters, regFilters);
+    }
+    if (regFilters.Create(reg, L"PrefixFilters") == ERROR_SUCCESS)
+    {
+        SaveFilterSettings(m_filter.prefixFilters, regFilters);
+    }
+    if (regFilters.Create(reg, L"ProcedureFilters") == ERROR_SUCCESS)
+    {
+        SaveFilterSettings(m_filter.procedureFilters, regFilters);
     }
 }
 
@@ -2482,6 +2558,20 @@ void CLogView::ApplyFilters()
     auto bookmarks = GetBookmarks();
     auto itBookmark = bookmarks.begin();
 
+    // If we have procedure filters, we need to rebuild the procedure tracker first
+    // to ensure messages have the correct procedure context
+    bool needsProcedureTracking = !m_filter.procedureFilters.empty();
+    if (needsProcedureTracking)
+    {
+        m_procedureTracker.Clear();
+        // First pass: rebuild the procedure tracker up to m_firstLine
+        for (int i = 0; i < m_firstLine && i < m_logFile.Count(); ++i)
+        {
+            Message msg = m_logFile[i];
+            LogFile::ParseClarionMessage(msg, false, &m_procedureTracker, i);
+        }
+    }
+
     std::deque<LogLine> logLines;
     //    logLines.reserve(m_logLines.size());
     int count = m_logFile.Count();
@@ -2490,7 +2580,28 @@ void CLogView::ApplyFilters()
     focusItem = -1;
     while (line < count)
     {
-        if (IsIncluded(m_logFile[line]))
+        Message msg = m_logFile[line];
+
+        // Parse with tracker to update procedure context AND populate the message's procedure field
+        if (needsProcedureTracking)
+        {
+            // ParseClarionMessage will update msg.clarionProcedure based on tracker context
+            LogFile::ParseClarionMessage(msg, false, &m_procedureTracker, line);
+
+            // However, if the message is part of a procedure but doesn't have an explicit P: field,
+            // we need to get the current procedure from the tracker
+            if (msg.clarionProcedure.empty() && msg.isClarionFormat && !msg.clarionThread.empty())
+            {
+                // Get the current open procedures for this thread
+                auto openProcs = m_procedureTracker.GetOpenProceduresForThread(msg.clarionThread);
+                if (!openProcs.empty() && openProcs.back())
+                {
+                    msg.clarionProcedure = openProcs.back()->name;
+                }
+            }
+        }
+
+        if (IsIncluded(msg))
         {
             logLines.emplace_back(LogLine(line));
             if (itBookmark != bookmarks.end() && *itBookmark == line)
@@ -2538,6 +2649,7 @@ std::vector<Filter> MoveHighlighFiltersToFront(std::vector<Filter> filters)
 
 TextColor CLogView::GetTextColor(const Message& msg) const
 {
+    // Priority 1: Message filters (highest priority)
     auto messageFilters = MoveHighlighFiltersToFront(m_filter.messageFilters);
     for (auto& filter : messageFilters)
     {
@@ -2559,6 +2671,32 @@ TextColor CLogView::GetTextColor(const Message& msg) const
         }
     }
 
+    // Priority 2: Prefix filters (for Clarion messages only)
+    if (msg.isClarionFormat && !msg.clarionPrefix.empty())
+    {
+        auto prefixFilters = MoveHighlighFiltersToFront(m_filter.prefixFilters);
+        for (auto& filter : prefixFilters)
+        {
+            std::smatch match;
+            if (filter.enable && FilterSupportsColor(filter.filterType) && std::regex_search(msg.clarionPrefix, match, filter.re))
+            {
+                if (filter.bgColor == Colors::Auto)
+                {
+                    auto it = m_matchColors.find(MatchKey(match, filter.matchType));
+                    if (it != m_matchColors.end())
+                    {
+                        return TextColor(it->second, Colors::Text);
+                    }
+                }
+                else
+                {
+                    return TextColor(filter.bgColor, filter.fgColor);
+                }
+            }
+        }
+    }
+
+    // Priority 3: Process filters
     auto processFilters = MoveHighlighFiltersToFront(m_filter.processFilters);
     for (auto& filter : processFilters)
     {
@@ -2568,6 +2706,7 @@ TextColor CLogView::GetTextColor(const Message& msg) const
         }
     }
 
+    // Priority 4: Default process colors
     if (m_processColors)
     {
         // When process colors are enabled, calculate appropriate text color for contrast
@@ -2589,20 +2728,64 @@ bool CLogView::IsClearMessage(const Message& msg) const
 bool CLogView::IsBeepMessage(const Message& msg) const
 {
     using debugviewpp::MatchFilterType;
-    return MatchFilterType(m_filter.messageFilters, FilterType::Beep, msg.text) || MatchFilterType(m_filter.processFilters, FilterType::Beep, msg.text);
+    return MatchFilterType(m_filter.messageFilters, FilterType::Beep, msg.text) ||
+           MatchFilterType(m_filter.processFilters, FilterType::Beep, msg.processName) ||
+           (!msg.clarionProcedure.empty() && MatchFilterType(m_filter.procedureFilters, FilterType::Beep, msg.clarionProcedure));
 }
 
 bool CLogView::IsIncluded(const Message& msg)
 {
     using debugviewpp::IsIncluded;
-    return IsIncluded(m_filter.processFilters, msg.processName, m_matchColors) && IsIncluded(m_filter.messageFilters, msg.text, m_matchColors);
+    using debugviewpp::IsIncludedPrefix;
+
+    // Apply standard process and message filters
+    bool processIncluded = IsIncluded(m_filter.processFilters, msg.processName, m_matchColors);
+    bool messageIncluded = IsIncluded(m_filter.messageFilters, msg.text, m_matchColors);
+
+    // Apply prefix filtering only to Clarion-formatted messages
+    bool prefixIncluded = true;
+    if (msg.isClarionFormat && !msg.clarionPrefix.empty())
+    {
+        prefixIncluded = IsIncludedPrefix(m_filter.prefixFilters, msg.clarionPrefix, m_matchColors);
+    }
+
+    // Apply procedure filtering
+    // If we have procedure filters and the message doesn't have a procedure name,
+    // we need to check if there are any Include filters - if so, exclude the message
+    bool procedureIncluded = true;
+    if (!m_filter.procedureFilters.empty())
+    {
+        if (msg.clarionProcedure.empty())
+        {
+            // Message has no procedure - check if there are any enabled Include filters
+            bool hasEnabledIncludeFilter = false;
+            for (const auto& filter : m_filter.procedureFilters)
+            {
+                if (filter.enable && filter.filterType == FilterType::Include)
+                {
+                    hasEnabledIncludeFilter = true;
+                    break;
+                }
+            }
+            // If there are Include filters, messages without procedures are excluded
+            procedureIncluded = !hasEnabledIncludeFilter;
+        }
+        else
+        {
+            // Message has a procedure - apply normal filtering
+            procedureIncluded = IsIncluded(m_filter.procedureFilters, msg.clarionProcedure, m_matchColors);
+        }
+    }
+
+    return processIncluded && messageIncluded && prefixIncluded && procedureIncluded;
 }
 
 bool CLogView::MatchFilterType(FilterType::type type, const Message& msg) const
 {
     using debugviewpp::MatchFilterType;
     return MatchFilterType(m_filter.messageFilters, type, msg.text) ||
-           MatchFilterType(m_filter.processFilters, type, msg.processName);
+           MatchFilterType(m_filter.processFilters, type, msg.processName) ||
+           (!msg.clarionProcedure.empty() && MatchFilterType(m_filter.procedureFilters, type, msg.clarionProcedure));
 }
 
 // Column layout management implementations
@@ -2759,6 +2942,33 @@ bool CLogView::LayoutExists(const std::wstring& layoutName) const
     
     CRegKey layoutReg;
     return layoutReg.Open(reg, layoutName.c_str(), KEY_READ) == ERROR_SUCCESS;
+}
+
+ClarionProcedureTracker& CLogView::GetProcedureTracker()
+{
+    return m_procedureTracker;
+}
+
+const ClarionProcedureTracker& CLogView::GetProcedureTracker() const
+{
+    return m_procedureTracker;
+}
+
+std::vector<std::wstring> CLogView::GetUniqueProcedures() const
+{
+    std::set<std::wstring> uniqueProcedures;
+
+    // Get statistics from the procedure tracker
+    auto stats = m_procedureTracker.GetStatistics();
+
+    // Extract all unique procedure names from the statistics
+    for (const auto& [procedureName, count] : stats.procedureCallCounts)
+    {
+        uniqueProcedures.insert(WStr(procedureName).str());
+    }
+
+    // Convert set to vector and return (already sorted due to std::set)
+    return std::vector<std::wstring>(uniqueProcedures.begin(), uniqueProcedures.end());
 }
 
 } // namespace debugviewpp

@@ -4,6 +4,20 @@
 #include <assert.h>      // assert
 #include "print_keywords.h"
 
+// Global configurable indent variables
+static char g_indent_string[16] = "    ";  // Default to 4 spaces
+static int g_indent_length = 4;
+
+// Setter function to configure the indent string
+void fsqlf_set_indent_string_internal(const char* indent_str) {
+    if (!indent_str) return;
+    size_t len = strlen(indent_str);
+    if (len > 15) len = 15;  // Limit to 15 chars
+    memcpy(g_indent_string, indent_str, len);
+    g_indent_string[len] = '\0';
+    g_indent_length = len;
+}
+
 
 // Return max argument.
 // Strange name is chosen just to make it unique,
@@ -138,8 +152,8 @@ static char * struct_spacing_to_str(struct fsqlf_spacing cnt)
 {
     const char *newline = "\n";
     int len_n = strlen(newline);
-    const char *indent = "    "; // 4 spaces.
-    int len_i = strlen(indent);
+    const char *indent = g_indent_string;
+    int len_i = g_indent_length;
     const char *space = " ";
     int len_s = strlen(space);
 

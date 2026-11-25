@@ -565,7 +565,9 @@ public:
 		_GetSubItemRect(iItem, iSubItem, &rcValue);
 		rcValue.right--; // Let the borders
 		rcValue.bottom--; // ... display (right/bottom)
+		
 		m_hwndInplace = prop->CreateInplaceControl(this->m_hWnd, rcValue);
+		
 		if (m_hwndInplace)
 		{
 			// Activate the new editor window
@@ -816,6 +818,8 @@ public:
 							fActivate = true;
 						if ((m_di.dwExtStyle & PGS_EX_SINGLECLICKEDIT) != 0)
 							fActivate = true;
+						
+						
 						if (fActivate)
 						{
 							if (_SpawnInplaceWindow(prop, m_iSelectedRow, m_iSelectedCol))
@@ -827,6 +831,12 @@ public:
 								prop->Activate(PACT_ACTIVATE, 0);
 							}
 						}
+						else
+						{
+						}
+					}
+					else
+					{
 					}
 				}
 
