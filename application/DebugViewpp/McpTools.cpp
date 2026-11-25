@@ -28,7 +28,12 @@
 #include "version.h"
 
 #include <filesystem>
+#include <fstream>
+#include <fcntl.h>
+#include <io.h>
 #include <shlobj.h>
+
+#include "DebugViewppLib/FileIO.h"
 
 namespace fusion {
 namespace debugviewpp {
@@ -1306,10 +1311,27 @@ public:
 
     // ---- Phase 2: saving
 
-    static json::object SaveLog(CMainFrame& f, const std::wstring& path)
+    // Same line format as File > Save Log / Save View, written to a stream we opened ourselves.
+    static long long WriteLog(CMainFrame& f, std::ofstream& os)
     {
-        f.SaveLogFile(path);
-        return json::object{{"path", WideToUtf8(path)}, {"lines", f.m_logFile.Count()}};
+        const LogFile& log = f.m_logFile;
+        for (int i = 0; i < log.Count(); ++i)
+        {
+            auto msg = log[i];
+            WriteLogFileMessage(os, msg.time, msg.systemTime, msg.processId, msg.processName, msg.text);
+        }
+        return log.Count();
+    }
+
+    static long long WriteView(CMainFrame& f, int tab, std::ofstream& os)
+    {
+        auto& view = f.GetView(tab);
+        for (auto& line : view.m_logLines)
+        {
+            auto msg = f.m_logFile[line.line];
+            WriteLogFileMessage(os, msg.time, msg.systemTime, msg.processId, msg.processName, msg.text);
+        }
+        return static_cast<long long>(view.m_logLines.size());
     }
 
     // Finds the process whose exe folder to use: the 'process' argument (name or pid), or the most
@@ -1388,11 +1410,6 @@ public:
         }
     }
 
-    static json::object SaveView(CMainFrame& f, int tab, const std::wstring& path)
-    {
-        f.GetView(tab).Save(path);
-        return json::object{{"path", WideToUtf8(path)}, {"lines", static_cast<std::int64_t>(f.GetView(tab).m_logLines.size())}, {"tab", TabJson(f, tab)}};
-    }
 };
 
 // ---------------------------------------------------------------- filters
@@ -1623,34 +1640,163 @@ std::filesystem::path PrepareExportFolder(const std::filesystem::path& base, con
     return folder;
 }
 
-// Save tools only write into the export folder chosen in Preferences, by plain file name.
-// The AI's inputs can be steered by log content, so it must never choose paths itself.
-std::wstring CreateExportFile(const std::filesystem::path& folder, const std::string& input)
+class ScopedHandle
+{
+public:
+    explicit ScopedHandle(HANDLE handle = INVALID_HANDLE_VALUE) :
+        m_handle(handle)
+    {
+    }
+    ~ScopedHandle()
+    {
+        if (m_handle != INVALID_HANDLE_VALUE && m_handle != nullptr)
+            ::CloseHandle(m_handle);
+    }
+    ScopedHandle(const ScopedHandle&) = delete;
+    ScopedHandle& operator=(const ScopedHandle&) = delete;
+    HANDLE get() const { return m_handle; }
+    bool valid() const { return m_handle != INVALID_HANDLE_VALUE && m_handle != nullptr; }
+    HANDLE release()
+    {
+        HANDLE handle = m_handle;
+        m_handle = INVALID_HANDLE_VALUE;
+        return handle;
+    }
+
+private:
+    HANDLE m_handle;
+};
+
+// The path a handle really refers to (links resolved), without the \\?\ prefix.
+std::wstring FinalPathOf(HANDLE handle)
+{
+    std::wstring buffer(4096, L'\0');
+    DWORD size = ::GetFinalPathNameByHandleW(handle, buffer.data(), static_cast<DWORD>(buffer.size()), FILE_NAME_NORMALIZED | VOLUME_NAME_DOS);
+    if (size == 0 || size >= buffer.size())
+        return {};
+    buffer.resize(size);
+    if (buffer.rfind(L"\\\\?\\UNC\\", 0) == 0)
+        return L"\\\\" + buffer.substr(8);
+    if (buffer.rfind(L"\\\\?\\", 0) == 0)
+        return buffer.substr(4);
+    return buffer;
+}
+
+std::wstring LongPathOf(const std::wstring& path)
+{
+    std::wstring buffer(4096, L'\0');
+    DWORD size = ::GetLongPathNameW(path.c_str(), buffer.data(), static_cast<DWORD>(buffer.size()));
+    if (size == 0 || size >= buffer.size())
+        return path;
+    buffer.resize(size);
+    return buffer;
+}
+
+bool SamePath(std::wstring a, std::wstring b)
+{
+    while (!a.empty() && (a.back() == L'\\' || a.back() == L'/'))
+        a.pop_back();
+    while (!b.empty() && (b.back() == L'\\' || b.back() == L'/'))
+        b.pop_back();
+    return LowerW(a) == LowerW(b);
+}
+
+void MarkForDeletion(HANDLE file)
+{
+    FILE_DISPOSITION_INFO info{};
+    info.DeleteFile = TRUE;
+    ::SetFileInformationByHandle(file, FileDispositionInfo, &info, sizeof(info));
+}
+
+// Save tools only write into the export folder chosen in Preferences, by plain file name. The AI's
+// inputs can be steered by log content and an app folder may be writable by other users, so:
+//  - the folder is opened and held without FILE_SHARE_DELETE, so it cannot be renamed or replaced by
+//    a link while we work; its real path (links resolved) must equal the expected path,
+//  - the file is created with CREATE_NEW (never an existing file, hard link or reparse point) and its
+//    real path is checked again,
+//  - everything is written through that one handle; the file is never reopened by name,
+//  - on any failure the half-written file is deleted through the handle.
+// Returns the full path; write() returns the number of lines written.
+std::pair<std::wstring, long long> WriteExportFile(const std::filesystem::path& folder, const std::string& input, const std::function<long long(std::ofstream&)>& write)
 {
     namespace fs = std::filesystem;
     std::wstring name = Utf8ToWide(input);
     if (!IsPlainMcpName(name))
         throw McpToolError("'path' must be a plain file name such as \"run1.dblog\" (letters, digits, space, . _ -). The folder is chosen by the user in Preferences.");
-
     auto ext = LowerW(fs::path(name).extension().wstring());
     if (ext != L".dblog" && ext != L".log" && ext != L".txt" && ext != L".csv")
         throw McpToolError("Only .dblog, .log, .txt and .csv files can be saved");
 
-    // Never write through an existing name: create the file atomically (CREATE_NEW fails on any existing
-    // file, hard link or reparse point), so an MCP save can only ever produce a brand-new file. The
-    // serializer then reopens this empty file by name; only a process already running as this user could
-    // swap it in between, and such a process can change the user's files directly anyway.
-    auto path = folder / name;
-    HANDLE file = ::CreateFileW(path.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_NEW, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OPEN_REPARSE_POINT, nullptr);
-    if (file == INVALID_HANDLE_VALUE)
+    ScopedHandle dir(::CreateFileW(folder.c_str(), FILE_READ_ATTRIBUTES, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING,
+                                   FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, nullptr));
+    BY_HANDLE_FILE_INFORMATION dirInfo{};
+    if (!dir.valid() || ::GetFileInformationByHandle(dir.get(), &dirInfo) == FALSE || (dirInfo.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) == 0 ||
+        (dirInfo.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0)
+        throw McpToolError("The export folder " + WideToUtf8(folder.wstring()) + " is missing or is a link; refusing to save");
+    std::wstring dirPath = FinalPathOf(dir.get());
+    if (dirPath.empty() || !SamePath(dirPath, LongPathOf(fs::absolute(folder).lexically_normal().wstring())))
+        throw McpToolError("The export folder " + WideToUtf8(folder.wstring()) + " goes through a link (" + WideToUtf8(dirPath) + "); refusing to save");
+
+    std::wstring path = dirPath + L"\\" + name;
+    ScopedHandle file(::CreateFileW(path.c_str(), GENERIC_WRITE | DELETE, 0, nullptr, CREATE_NEW, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OPEN_REPARSE_POINT, nullptr));
+    if (!file.valid())
     {
         DWORD error = ::GetLastError();
         if (error == ERROR_FILE_EXISTS || error == ERROR_ALREADY_EXISTS)
-            throw McpToolError("File already exists: " + WideToUtf8(path.wstring()) + ". Saves never replace files; choose a new name.");
-        throw McpToolError("Could not create " + WideToUtf8(path.wstring()) + " (error " + std::to_string(error) + ")");
+            throw McpToolError("File already exists: " + WideToUtf8(path) + ". Saves never replace files; choose a new name.");
+        throw McpToolError("Could not create " + WideToUtf8(path) + " (error " + std::to_string(error) + (error == ERROR_ACCESS_DENIED ? ", access denied" : "") + ")");
     }
-    ::CloseHandle(file);
-    return path.wstring();
+    if (!SamePath(FinalPathOf(file.get()), path))
+    {
+        MarkForDeletion(file.get());
+        throw McpToolError("The new file did not end up in the export folder; refusing to save");
+    }
+
+    // Hand the verified handle to a C stream (which then owns it) and write through it.
+    int fd = ::_open_osfhandle(reinterpret_cast<intptr_t>(file.get()), _O_WRONLY | _O_BINARY);
+    if (fd == -1)
+    {
+        MarkForDeletion(file.get());
+        throw McpToolError("Could not open the new file for writing");
+    }
+    HANDLE raw = file.release();
+    FILE* stream = ::_fdopen(fd, "wb");
+    if (stream == nullptr)
+    {
+        MarkForDeletion(raw);
+        ::_close(fd);
+        throw McpToolError("Could not open the new file for writing");
+    }
+
+    long long lines = 0;
+    bool ok = false;
+    std::string error;
+    try
+    {
+        std::ofstream os(stream);
+        FILETIME now{};
+        ::GetSystemTimeAsFileTime(&now);
+        WriteLogFileMessage(os, 0, now, 0, "DebugView++.exe", g_debugViewPPIdentification1);
+        lines = write(os);
+        os.flush();
+        ok = os.good();
+        if (!ok)
+            error = "write failed (disk full?)";
+    }
+    catch (const std::exception& ex)
+    {
+        error = ex.what();
+    }
+    if (!ok)
+        MarkForDeletion(raw);
+    if (::fclose(stream) != 0 && ok)
+    {
+        ok = false;
+        error = "closing the file failed";
+    }
+    if (!ok)
+        throw McpToolError("Could not save " + WideToUtf8(path) + ": " + error);
+    return {path, lines};
 }
 
 } // namespace
@@ -2096,38 +2242,24 @@ void RegisterDebugViewTools(McpToolRegistry& registry, CMainFrame& frame)
     const char* const P_Path = R"("path": {"type": "string", "description": "Plain file name ending in .dblog, .log, .txt or .csv, e.g. \"run1.dblog\". The folder is the one the user chose in Preferences (see get_status exportFolder)."})";
     const char* const P_SaveProcess = R"("process": {"type": ["string", "integer"], "description": "Only when the user chose to save next to the app: the process name or pid whose exe folder to use (default: the app that logged most recently)."})";
 
-    // Resolves the folder, creates the new file, writes it, and cleans up on failure. UI thread.
-    auto save = [](CMainFrame& frame, const json::object& args, const std::string& name, const std::function<json::object(const std::wstring&)>& write) {
-        json::object info;
-        auto folder = B::ExportFolder(frame, args, info);
-        auto path = CreateExportFile(folder, name);  // created right before writing
-        try
-        {
-            auto result = write(path);
-            for (auto& [key, value] : info)
-                result[key] = value;
-            return json::value(std::move(result));
-        }
-        catch (const McpToolError&)
-        {
-            ::DeleteFileW(path.c_str());  // we created it; don't leave an empty file behind
-            throw;
-        }
-        catch (const std::exception& ex)
-        {
-            ::DeleteFileW(path.c_str());
-            throw McpToolError(std::string("Could not save: ") + ex.what());
-        }
+    // Resolves the folder and writes a brand-new file through one verified handle. UI thread.
+    auto save = [](CMainFrame& frame, const json::object& args, const std::string& name, const std::function<long long(std::ofstream&)>& write,
+                   json::object result) {
+        auto folder = B::ExportFolder(frame, args, result);
+        auto [path, lines] = WriteExportFile(folder, name, write);
+        result["path"] = WideToUtf8(path);
+        result["lines"] = lines;
+        return json::value(std::move(result));
     };
 
     AddTool(registry, "save_log", "Save the whole log to a file", false, Close(Props({P_Path, P_SaveProcess}), R"(["path"])").c_str(),
             "Save every captured line to a NEW file on this computer (same format as File > Save Log). The file is not masked: it stays local. "
-            "It goes into the folder the user chose in Preferences (Documents\UltimateDebugView, a fixed folder, or next to the app's exe, "
+            "It goes into the folder the user chose in Preferences (Documents\\UltimateDebugView, a fixed folder, or next to the app's exe, "
             "optionally in a sub-folder); only a plain file name is accepted and existing files are never replaced. The result gives the full path.",
             [f, save](const json::object& args, McpContext& ctx) {
                 auto name = RequireString(args, "path");
                 return ctx.RunOnUi([f, args, name, save] {
-                    return save(*f, args, name, [f](const std::wstring& path) { return B::SaveLog(*f, path); });
+                    return save(*f, args, name, [f](std::ofstream& os) { return B::WriteLog(*f, os); }, json::object{});
                 });
             });
 
@@ -2138,7 +2270,7 @@ void RegisterDebugViewTools(McpToolRegistry& registry, CMainFrame& frame)
                 auto name = RequireString(args, "path");
                 return ctx.RunOnUi([f, args, name, save] {
                     int tab = B::TabOrDefault(*f, args, B::CurrentTab(*f));
-                    return save(*f, args, name, [f, tab](const std::wstring& path) { return B::SaveView(*f, tab, path); });
+                    return save(*f, args, name, [f, tab](std::ofstream& os) { return B::WriteView(*f, tab, os); }, json::object{{"tab", B::TabJson(*f, tab)}});
                 });
             });
 }
