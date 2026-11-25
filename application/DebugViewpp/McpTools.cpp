@@ -21,7 +21,14 @@
 #include "DebugViewppLib/Filter.h"
 #include "DebugViewppLib/FilterType.h"
 #include "DebugViewppLib/MatchType.h"
+#include "DebugViewppLib/SyntaxHighlighter.h"
+#include "DebugViewppLib/SqlFormatter.h"
+#include "DebugViewppLib/ClarionProcedureTracker.h"
+#include "DebugViewppLib/ClarionQueueManager.h"
 #include "version.h"
+
+#include <filesystem>
+#include <shlobj.h>
 
 namespace fusion {
 namespace debugviewpp {
@@ -781,6 +788,376 @@ public:
         json::object result{{"processes", std::move(processes)}, {"scannedFromLine", f.m_seqBase + start}, {"nextLine", NextLine(f)}};
         return result;
     }
+
+    // ---- Phase 2: single lines, navigation, bookmarks
+
+    static int IndexFromLine(CMainFrame& f, long long line)
+    {
+        if (line < f.m_seqBase)
+            throw McpToolError("Line " + std::to_string(line) + " was removed by a clear; the log now starts at line " + std::to_string(f.m_seqBase));
+        long long index = line - f.m_seqBase;
+        if (index >= f.m_logFile.Count())
+            throw McpToolError("Line " + std::to_string(line) + " does not exist yet; nextLine is " + std::to_string(NextLine(f)));
+        return static_cast<int>(index);
+    }
+
+    static int CurrentTab(CMainFrame& f)
+    {
+        int current = f.GetTabCtrl().GetCurSel();
+        return current >= 0 && current < f.GetActualViewCount() ? current : 0;
+    }
+
+    static int TabOrDefault(CMainFrame& f, const json::object& args, int fallback)
+    {
+        auto* tab = Arg(args, "tab");
+        return tab != nullptr ? ResolveTab(f, *tab) : fallback;
+    }
+
+    // Position of a log index inside a tab, or -1 when the tab's filters hide it.
+    static int PositionInTab(CMainFrame& f, int tab, int index)
+    {
+        auto& lines = f.GetView(tab).m_logLines;
+        auto it = std::lower_bound(lines.begin(), lines.end(), index, [](const LogLine& l, int v) { return l.line < v; });
+        return it != lines.end() && it->line == index ? static_cast<int>(it - lines.begin()) : -1;
+    }
+
+    static std::string Clean(CMainFrame& f, const std::string& text)
+    {
+        auto utf8 = ToUtf8Safe(text);
+        return f.m_mcpSettings.maskSecrets ? MaskSecrets(utf8) : utf8;
+    }
+
+    static const char* FormatName(ContentFormat format)
+    {
+        switch (format)
+        {
+        case ContentFormat::PlainText: return "text";
+        case ContentFormat::JSON: return "json";
+        case ContentFormat::XML: return "xml";
+        case ContentFormat::SQL: return "sql";
+        case ContentFormat::StackTrace: return "stacktrace";
+        case ContentFormat::LogLevel: return "loglevel";
+        case ContentFormat::ClarionEvent: return "clarion-event";
+        case ContentFormat::ClarionGroup: return "clarion-group";
+        case ContentFormat::ErrorMessage: return "error";
+        default: return "unknown";
+        }
+    }
+
+    static json::object Detail(CMainFrame& f, long long line)
+    {
+        int index = IndexFromLine(f, line);
+        auto obj = LineJson(f, index, true, 1);
+        Message msg = f.m_logFile[index];  // parsed: Clarion prefix split off
+        obj["message"] = Clean(f, msg.text);
+
+        if (msg.isClarionFormat)
+        {
+            auto& clarion = obj["clarion"].as_object();
+            clarion["callDepth"] = msg.callDepth;
+            clarion["procedureEvent"] = msg.procedureEvent == Message::ProcedureEvent::Open ? "open" : msg.procedureEvent == Message::ProcedureEvent::Close ? "close" : "none";
+            if (msg.procedureDuration > 0)
+                clarion["procedureDuration"] = msg.procedureDuration;
+        }
+        if (msg.isQueueMessage)
+            obj["queue"] = json::object{{"queueId", ToUtf8Safe(msg.queueId)}, {"rowIndex", msg.queueRowIndex}};
+        if (msg.isErrorMessage)
+        {
+            obj["error"] = json::object{
+                {"message", Clean(f, msg.errorMessage)},
+                {"code", Clean(f, msg.errorCode)},
+                {"description", Clean(f, msg.errorDescription)},
+                {"file", Clean(f, msg.errorFile)},
+                {"fileError", Clean(f, msg.fileError)},
+                {"fileErrorCode", Clean(f, msg.fileErrorCode)}};
+        }
+
+        static SyntaxHighlighter highlighter;  // only used on the UI thread
+        std::wstring text = Utf8ToWide(ToUtf8Safe(msg.text));
+        auto format = highlighter.DetectFormat(text);
+        obj["contentFormat"] = FormatName(format);
+        std::wstring formatted;
+        try
+        {
+            switch (format)
+            {
+            case ContentFormat::SQL: formatted = highlighter.FormatSQL(text, f.GetSqlFormatOptions()); break;
+            case ContentFormat::JSON: formatted = highlighter.FormatJSON(text); break;
+            case ContentFormat::XML: formatted = highlighter.FormatXML(text); break;
+            case ContentFormat::ErrorMessage: formatted = highlighter.FormatErrorMessage(text); break;
+            case ContentFormat::ClarionEvent: formatted = highlighter.FormatClarionEvent(text); break;
+            case ContentFormat::ClarionGroup: formatted = highlighter.FormatClarionGroup(text); break;
+            default: break;
+            }
+        }
+        catch (const std::exception&)
+        {
+            formatted.clear();
+        }
+        if (!formatted.empty() && formatted != text)
+        {
+            bool truncated = false;
+            obj["formatted"] = TruncateUtf8(Clean(f, WideToUtf8(formatted)), 32 * 1024, truncated);
+        }
+        return obj;
+    }
+
+    static json::object JumpTo(CMainFrame& f, long long line, const json::object& args)
+    {
+        int index = IndexFromLine(f, line);
+        bool tabGiven = Arg(args, "tab") != nullptr;
+        int tab = TabOrDefault(f, args, CurrentTab(f));
+        int pos = PositionInTab(f, tab, index);
+        if (pos < 0 && !tabGiven)
+        {
+            for (int t = 0; t < f.GetActualViewCount() && pos < 0; ++t)
+            {
+                pos = PositionInTab(f, t, index);
+                if (pos >= 0)
+                    tab = t;
+            }
+        }
+        if (pos < 0)
+            throw McpToolError("Line " + std::to_string(line) + (tabGiven ? " is hidden by the filters of tab '" + WideToUtf8(f.GetView(tab).GetName()) + "'" : " is hidden by the filters of every tab"));
+        f.SwitchToView(tab);
+        f.GetView(tab).ScrollToIndex(pos, true);
+        return json::object{{"line", line}, {"tab", TabJson(f, tab)}};
+    }
+
+    static json::object SetBookmark(CMainFrame& f, long long line, bool on, const json::object& args)
+    {
+        int index = IndexFromLine(f, line);
+        int tab = TabOrDefault(f, args, CurrentTab(f));
+        int pos = PositionInTab(f, tab, index);
+        if (pos < 0)
+            throw McpToolError("Line " + std::to_string(line) + " is hidden by the filters of tab '" + WideToUtf8(f.GetView(tab).GetName()) + "'");
+        auto& view = f.GetView(tab);
+        if (view.m_logLines[pos].bookmark != on)
+            view.ToggleBookmark(pos);
+        return json::object{{"line", line}, {"bookmarked", on}, {"tab", TabJson(f, tab)}};
+    }
+
+    static json::object Bookmarks(CMainFrame& f, const json::object& args)
+    {
+        int tab = TabOrDefault(f, args, CurrentTab(f));
+        json::array lines;
+        for (int index : f.GetView(tab).GetBookmarks())
+        {
+            if (lines.size() >= 500)
+                break;
+            lines.push_back(LineJson(f, index, true, 1));
+        }
+        return json::object{{"tab", TabJson(f, tab)}, {"lines", std::move(lines)}};
+    }
+
+    // ---- Phase 2: Clarion
+
+    static const ClarionProcedureTracker& Tracker(CMainFrame& f, int tab) { return f.GetView(tab).GetProcedureTracker(); }
+
+    static json::object ProcedureStats(CMainFrame& f, const json::object& args)
+    {
+        int tab = TabOrDefault(f, args, 0);
+        auto& tracker = Tracker(f, tab);
+        auto filter = Lower(GetString(args, "procedure").value_or(""));
+        int limit = Clamp(GetInt(args, "limit").value_or(100), 1, 1000);
+        bool unbalancedOnly = GetBool(args, "unbalanced_only").value_or(false);
+
+        auto totals = tracker.GetStatistics();
+        auto lifetime = tracker.GetLifetimeStatistics();
+        auto openNow = tracker.GetAggregatedOpenCounts();
+
+        struct Row
+        {
+            std::string name;
+            int opens;
+            int closes;
+            int open;
+        };
+        std::vector<Row> rows;
+        for (auto& [name, stats] : lifetime)
+        {
+            if (!filter.empty() && Lower(name).find(filter) == std::string::npos)
+                continue;
+            if (unbalancedOnly && stats.openCount == stats.closeCount)
+                continue;
+            auto it = openNow.find(name);
+            rows.push_back({name, stats.openCount, stats.closeCount, it != openNow.end() ? it->second : 0});
+        }
+        std::sort(rows.begin(), rows.end(), [](const Row& a, const Row& b) {
+            int ua = a.opens - a.closes, ub = b.opens - b.closes;
+            return ua != ub ? ua > ub : a.opens > b.opens;
+        });
+
+        json::array procedures;
+        for (auto& row : rows)
+        {
+            if (static_cast<int>(procedures.size()) >= limit)
+                break;
+            procedures.push_back(json::object{
+                {"procedure", ToUtf8Safe(row.name)},
+                {"opens", row.opens},
+                {"closes", row.closes},
+                {"unbalanced", row.opens - row.closes},
+                {"openNow", row.open}});
+        }
+
+        json::array open;
+        for (auto& [thread, node] : tracker.GetOpenProcedures())
+        {
+            if (open.size() >= 200)
+                break;
+            if (!node || (!filter.empty() && Lower(node->name).find(filter) == std::string::npos))
+                continue;
+            open.push_back(json::object{
+                {"thread", ToUtf8Safe(thread)},
+                {"procedure", ToUtf8Safe(node->name)},
+                {"module", ToUtf8Safe(node->module)},
+                {"app", ToUtf8Safe(node->app)},
+                {"depth", node->depth},
+                {"startTime", node->startTime}});
+        }
+
+        return json::object{
+            {"tab", TabJson(f, tab)},
+            {"totalProceduresCalled", totals.totalProceduresCalled},
+            {"currentlyOpen", totals.currentlyOpenProcedures},
+            {"maxCallDepth", totals.maxCallDepth},
+            {"procedures", std::move(procedures)},
+            {"procedureCount", static_cast<std::int64_t>(rows.size())},
+            {"openProcedures", std::move(open)}};
+    }
+
+    static json::object Timeline(CMainFrame& f, const json::object& args)
+    {
+        int tab = TabOrDefault(f, args, 0);
+        auto filter = Lower(GetString(args, "procedure").value_or(""));
+        auto thread = GetString(args, "thread");
+        auto process = Lower(GetString(args, "process").value_or(""));
+        long long since = GetInt(args, "since_line").value_or(-1);
+        int limit = Clamp(GetInt(args, "limit").value_or(200), 1, 2000);
+        long long lost = 0;
+        int startIndex = StartIndex(f, since, lost);
+
+        auto events = Tracker(f, tab).GetChronologicalEvents();
+        json::array list;
+        long long nextLine = NextLine(f);
+        bool more = false;
+        for (auto& e : events)
+        {
+            if (since >= 0 && e.lineIndex >= 0 && e.lineIndex < startIndex)
+                continue;
+            if (!filter.empty() && Lower(e.procedureName).find(filter) == std::string::npos)
+                continue;
+            if (thread && e.threadId != *thread)
+                continue;
+            if (!process.empty() && Lower(e.processName).find(process) == std::string::npos)
+                continue;
+            if (static_cast<int>(list.size()) >= limit)
+            {
+                more = true;
+                if (e.lineIndex >= 0)
+                    nextLine = f.m_seqBase + e.lineIndex;
+                break;
+            }
+            json::object item{
+                {"line", e.lineIndex >= 0 ? json::value(f.m_seqBase + e.lineIndex) : json::value(nullptr)},
+                {"time", e.timestamp},
+                {"event", e.isOpen ? "open" : "close"},
+                {"procedure", ToUtf8Safe(e.procedureName)},
+                {"thread", ToUtf8Safe(e.threadId)},
+                {"module", ToUtf8Safe(e.module)},
+                {"app", ToUtf8Safe(e.app)},
+                {"process", ToUtf8Safe(e.processName)},
+                {"depth", e.depth}};
+            if (!e.isOpen)
+                item["duration"] = e.duration;
+            list.push_back(std::move(item));
+        }
+        json::object result{{"tab", TabJson(f, tab)}, {"events", std::move(list)}, {"more", more}, {"nextLine", nextLine}};
+        if (lost > 0)
+            result["lost"] = lost;
+        return result;
+    }
+
+    static json::object Queues(CMainFrame& f)
+    {
+        auto* manager = f.m_logFile.GetQueueManager();
+        json::array list;
+        if (manager != nullptr)
+        {
+            for (auto& id : manager->GetAllQueueIds())
+            {
+                auto queue = manager->GetQueue(id);
+                if (!queue)
+                    continue;
+                list.push_back(json::object{
+                    {"queueId", ToUtf8Safe(id)},
+                    {"columns", static_cast<std::int64_t>(queue->headers.size())},
+                    {"rows", static_cast<std::int64_t>(queue->rows.size())},
+                    {"complete", queue->isComplete},
+                    {"startLine", f.m_seqBase + queue->startLineIndex},
+                    {"endLine", queue->endLineIndex >= 0 ? json::value(f.m_seqBase + queue->endLineIndex) : json::value(nullptr)}});
+            }
+        }
+        return json::object{{"queues", std::move(list)}};
+    }
+
+    static json::object Queue(CMainFrame& f, const std::string& id, int offset, int limit)
+    {
+        auto* manager = f.m_logFile.GetQueueManager();
+        auto queue = manager != nullptr ? manager->GetQueue(id) : nullptr;
+        if (!queue)
+        {
+            std::string ids;
+            if (manager != nullptr)
+            {
+                for (auto& q : manager->GetAllQueueIds())
+                    ids += (ids.empty() ? "" : ", ") + q;
+            }
+            throw McpToolError("No queue '" + id + "'. Queues: " + (ids.empty() ? std::string("none") : ids));
+        }
+        json::array headers;
+        for (auto& h : queue->headers)
+            headers.push_back(json::value(Clean(f, h)));
+        json::array rows;
+        int total = static_cast<int>(queue->rows.size());
+        for (int i = std::max(0, offset); i < total && static_cast<int>(rows.size()) < limit; ++i)
+        {
+            json::array cells;
+            for (auto& cell : queue->rows[static_cast<size_t>(i)])
+                cells.push_back(json::value(Clean(f, cell)));
+            rows.push_back(std::move(cells));
+        }
+        return json::object{
+            {"queueId", ToUtf8Safe(id)},
+            {"headers", std::move(headers)},
+            {"rows", std::move(rows)},
+            {"offset", offset},
+            {"totalRows", total},
+            {"complete", queue->isComplete}};
+    }
+
+    static json::object CreateProcedureTab(CMainFrame& f, const std::string& procedure, const std::string& process)
+    {
+        f.CreateProcedureView(Utf8ToAnsi(procedure), Utf8ToAnsi(process));
+        int index = f.GetActualViewCount() - 1;
+        RenameTab(f, index, AiTabName("Proc: " + procedure));
+        return TabJson(f, index);
+    }
+
+    // ---- Phase 2: saving
+
+    static json::object SaveLog(CMainFrame& f, const std::wstring& path)
+    {
+        f.SaveLogFile(path);
+        return json::object{{"path", WideToUtf8(path)}, {"lines", f.m_logFile.Count()}};
+    }
+
+    static json::object SaveView(CMainFrame& f, int tab, const std::wstring& path)
+    {
+        f.GetView(tab).Save(path);
+        return json::object{{"path", WideToUtf8(path)}, {"lines", static_cast<std::int64_t>(f.GetView(tab).m_logLines.size())}, {"tab", TabJson(f, tab)}};
+    }
 };
 
 // ---------------------------------------------------------------- filters
@@ -975,6 +1352,69 @@ void ReadOptionsFromArgs(const json::object& args, McpBridge::ReadOptions& o)
     o.maxBytes = static_cast<size_t>(Clamp(GetInt(args, "max_bytes").value_or(static_cast<long long>(DefaultMaxBytes)), 1024, static_cast<int>(MaxMaxBytes)));
     o.tail = GetBool(args, "tail").value_or(false);
     o.collapse = GetBool(args, "collapse_repeats").value_or(true);
+}
+
+std::filesystem::path KnownFolder(REFKNOWNFOLDERID id)
+{
+    PWSTR raw = nullptr;
+    std::filesystem::path result;
+    if (SUCCEEDED(::SHGetKnownFolderPath(id, 0, nullptr, &raw)) && raw != nullptr)
+        result = raw;
+    ::CoTaskMemFree(raw);
+    return result;
+}
+
+bool IsUnder(const std::filesystem::path& path, const std::filesystem::path& folder)
+{
+    if (folder.empty())
+        return false;
+    auto p = LowerW(path.wstring());
+    auto d = LowerW(folder.wstring());
+    if (!d.empty() && d.back() != L'\\')
+        d += L'\\';
+    return p.rfind(d, 0) == 0;
+}
+
+// Save tools may only write ordinary log files in ordinary folders on this computer.
+std::wstring ValidateSavePath(const std::string& input, bool overwrite)
+{
+    namespace fs = std::filesystem;
+    std::wstring wide = Utf8ToWide(input);
+    if (wide.rfind(L"\\\\", 0) == 0 || wide.rfind(L"//", 0) == 0)
+        throw McpToolError("Network and device paths are not allowed");
+
+    fs::path path(wide);
+    if (!path.has_filename())
+        throw McpToolError("'path' must name a file");
+    if (!path.is_absolute())
+    {
+        if (path.has_parent_path())
+            throw McpToolError("Give a bare file name (saved in Documents\\UltimateDebugView) or a full path like C:\\Logs\\run.dblog");
+        auto documents = KnownFolder(FOLDERID_Documents);
+        if (documents.empty())
+            throw McpToolError("Could not find the Documents folder; give a full path");
+        auto folder = documents / L"UltimateDebugView";
+        std::error_code ec;
+        fs::create_directories(folder, ec);
+        path = folder / path;
+    }
+    path = fs::weakly_canonical(path);
+
+    auto ext = LowerW(path.extension().wstring());
+    if (ext != L".dblog" && ext != L".log" && ext != L".txt" && ext != L".csv")
+        throw McpToolError("Only .dblog, .log, .txt and .csv files can be saved");
+    if (IsUnder(path, KnownFolder(FOLDERID_Windows)) || IsUnder(path, KnownFolder(FOLDERID_ProgramFiles)) || IsUnder(path, KnownFolder(FOLDERID_ProgramFilesX86)) ||
+        IsUnder(path, KnownFolder(FOLDERID_ProgramData)))
+        throw McpToolError("Saving under Windows, Program Files or ProgramData is not allowed");
+
+    std::error_code ec;
+    if (!fs::is_directory(path.parent_path(), ec))
+        throw McpToolError("Folder does not exist: " + WideToUtf8(path.parent_path().wstring()));
+    if (fs::is_directory(path, ec))
+        throw McpToolError("'path' is a folder");
+    if (fs::exists(path, ec) && !overwrite)
+        throw McpToolError("File already exists: " + WideToUtf8(path.wstring()) + ". Pass overwrite: true to replace it.");
+    return path.wstring();
 }
 
 } // namespace
@@ -1313,6 +1753,152 @@ void RegisterDebugViewTools(McpToolRegistry& registry, CMainFrame& frame)
                     auto result = FiltersJson(B::GetFilters(*f, index));
                     result["tab"] = B::TabJson(*f, index);
                     return json::value(std::move(result));
+                });
+            });
+
+    // ------------------------------------------------ Phase 2: single lines, navigation, bookmarks
+
+    const char* const P_Line = R"("line": {"type": "integer", "minimum": 0, "description": "Line number from read_messages / search_messages / wait_for_messages."})";
+
+    AddTool(registry, "get_message_detail", "Get full detail for one line", true, Close(Props({P_Line}), R"(["line"])").c_str(),
+            "Everything the detail pane knows about one line: raw text, message without the Clarion prefix, Clarion fields (thread, app, module, "
+            "procedure, call depth, open/close event), queue membership, parsed Clarion error fields, the detected content format (sql, json, xml, "
+            "error, ...) and the formatted text (SQL pretty-printed with the user's SQL options).",
+            [f](const json::object& args, McpContext& ctx) {
+                auto line = GetInt(args, "line");
+                if (!line)
+                    throw McpToolError("'line' is required");
+                return ctx.RunOnUi([f, line = *line] { return json::value(B::Detail(*f, line)); });
+            });
+
+    AddTool(registry, "jump_to_line", "Show a line to the user", false,
+            Close(Props({P_Line, R"("tab": {"type": ["string", "integer"], "description": "Tab to show it in (default: the current tab, or the first tab that shows the line)."})"}), R"(["line"])").c_str(),
+            "Scroll the viewer to a line and select it, switching tabs if needed, so the user sees the line you are talking about.",
+            [f](const json::object& args, McpContext& ctx) {
+                auto line = GetInt(args, "line");
+                if (!line)
+                    throw McpToolError("'line' is required");
+                return ctx.RunOnUi([f, args, line = *line] { return json::value(B::JumpTo(*f, line, args)); });
+            });
+
+    AddTool(registry, "set_bookmark", "Bookmark a line", false,
+            Close(Props({P_Line, R"("bookmarked": {"type": "boolean", "description": "true to set the bookmark (default), false to remove it."})",
+                         R"("tab": {"type": ["string", "integer"], "description": "Tab to bookmark in (default: the current tab)."})"}),
+                  R"(["line"])")
+                .c_str(),
+            "Set or clear a bookmark on a line in a tab, e.g. to mark the lines you want the user to look at. Bookmarks are visual only.",
+            [f](const json::object& args, McpContext& ctx) {
+                auto line = GetInt(args, "line");
+                if (!line)
+                    throw McpToolError("'line' is required");
+                bool on = GetBool(args, "bookmarked").value_or(true);
+                return ctx.RunOnUi([f, args, line = *line, on] { return json::value(B::SetBookmark(*f, line, on, args)); });
+            });
+
+    AddTool(registry, "list_bookmarks", "List bookmarked lines", true,
+            Close(Props({R"("tab": {"type": ["string", "integer"], "description": "Tab (default: the current tab)."})"})).c_str(),
+            "Lines bookmarked in a tab (by the user or by you), oldest first, at most 500.",
+            [f](const json::object& args, McpContext& ctx) { return ctx.RunOnUi([f, args] { return json::value(B::Bookmarks(*f, args)); }); });
+
+    // ------------------------------------------------ Phase 2: Clarion
+
+    const char* const P_ClarionTab = R"("tab": {"type": ["string", "integer"], "description": "Tab whose procedure tracker to use (default: the first tab). Each tab tracks the Clarion lines it shows."})";
+
+    AddTool(registry, "get_procedure_stats", "Clarion procedure statistics", true,
+            Close(Props({P_ClarionTab,
+                         R"("procedure": {"type": "string", "description": "Case-insensitive substring of the procedure name."})",
+                         R"("unbalanced_only": {"type": "boolean", "description": "Only procedures with more opens than closes (or the reverse)."})",
+                         R"("limit": {"type": "integer", "minimum": 1, "maximum": 1000, "description": "Max procedures (default 100)."})"}))
+                .c_str(),
+            "Per-procedure open/close counts from the UltimateDebug procedure tracker, sorted with the most unbalanced first, plus the procedures "
+            "open right now per thread. unbalanced > 0 means a procedure was entered more often than it was left (e.g. opened twice, or a missing close).",
+            [f](const json::object& args, McpContext& ctx) { return ctx.RunOnUi([f, args] { return json::value(B::ProcedureStats(*f, args)); }); });
+
+    AddTool(registry, "get_procedure_timeline", "Clarion procedure timeline", true,
+            Close(Props({P_ClarionTab, P_Since, P_Process,
+                         R"("procedure": {"type": "string", "description": "Case-insensitive substring of the procedure name."})",
+                         R"("thread": {"type": "string", "description": "Only this Clarion thread id."})",
+                         R"("limit": {"type": "integer", "minimum": 1, "maximum": 2000, "description": "Max events (default 200)."})"}))
+                .c_str(),
+            "Procedure open/close events in order, with line, time, thread, depth and (for closes) duration in seconds. Use since_line from a marker "
+            "to see only one test run.",
+            [f](const json::object& args, McpContext& ctx) { return ctx.RunOnUi([f, args] { return json::value(B::Timeline(*f, args)); }); });
+
+    AddTool(registry, "list_queues", "List captured Clarion queues", true, R"({"type": "object", "properties": {}, "additionalProperties": false})",
+            "Clarion queues dumped to the log with UltimateDebug (queue id, columns, rows, complete, first/last line).",
+            [f](const json::object&, McpContext& ctx) { return ctx.RunOnUi([f] { return json::value(B::Queues(*f)); }); });
+
+    AddTool(registry, "get_queue", "Get a captured Clarion queue", true,
+            Close(Props({R"("queue_id": {"type": "string", "description": "Queue id from list_queues."})",
+                         R"("offset": {"type": "integer", "minimum": 0, "description": "First row (default 0)."})",
+                         R"("limit": {"type": "integer", "minimum": 1, "maximum": 1000, "description": "Max rows (default 100)."})"}),
+                  R"(["queue_id"])")
+                .c_str(),
+            "Headers and rows of a captured Clarion queue. Passwords are masked in cell values unless masking is off.",
+            [f](const json::object& args, McpContext& ctx) {
+                auto id = RequireString(args, "queue_id");
+                int offset = Clamp(GetInt(args, "offset").value_or(0), 0, INT_MAX);
+                int limit = Clamp(GetInt(args, "limit").value_or(100), 1, 1000);
+                return ctx.RunOnUi([f, id, offset, limit] { return json::value(B::Queue(*f, id, offset, limit)); });
+            });
+
+    AddTool(registry, "create_procedure_view", "Create a procedure tab", false,
+            Close(Props({R"("procedure": {"type": "string", "description": "Clarion procedure name."})",
+                         R"("process": {"type": "string", "description": "Optional process name to limit the tab to."})"}),
+                  R"(["procedure"])")
+                .c_str(),
+            "Create a tab (named \"AI: Proc: <procedure>\") that shows only one Clarion procedure's lines, like the Procedure Stats context menu does.",
+            [f](const json::object& args, McpContext& ctx) {
+                auto procedure = RequireString(args, "procedure");
+                auto process = GetString(args, "process").value_or("");
+                return ctx.RunOnUi([f, procedure, process] { return json::value(json::object{{"tab", B::CreateProcedureTab(*f, procedure, process)}}); });
+            });
+
+    // ------------------------------------------------ Phase 2: saving
+
+    const char* const P_Path = R"("path": {"type": "string", "description": "File name or full path ending in .dblog, .log, .txt or .csv. A bare file name is saved in Documents\\UltimateDebugView."})";
+    const char* const P_Overwrite = R"("overwrite": {"type": "boolean", "description": "Replace an existing file (default false)."})";
+
+    AddTool(registry, "save_log", "Save the whole log to a file", false, Close(Props({P_Path, P_Overwrite}), R"(["path"])").c_str(),
+            "Save every captured line to a file on this computer (same format as File > Save Log). The file is not masked: it stays local. "
+            "Paths under Windows or Program Files, network paths and other extensions are refused.",
+            [f](const json::object& args, McpContext& ctx) {
+                auto path = ValidateSavePath(RequireString(args, "path"), GetBool(args, "overwrite").value_or(false));
+                return ctx.RunOnUi([f, path] {
+                    try
+                    {
+                        return json::value(B::SaveLog(*f, path));
+                    }
+                    catch (const McpToolError&)
+                    {
+                        throw;
+                    }
+                    catch (const std::exception& ex)
+                    {
+                        throw McpToolError(std::string("Could not save: ") + ex.what());
+                    }
+                });
+            });
+
+    AddTool(registry, "save_view", "Save a tab to a file", false,
+            Close(Props({P_Path, P_Overwrite, R"("tab": {"type": ["string", "integer"], "description": "Tab to save (default: the current tab)."})"}), R"(["path"])").c_str(),
+            "Save the lines a tab shows to a file on this computer (same as File > Save View). Same path rules as save_log.",
+            [f](const json::object& args, McpContext& ctx) {
+                auto path = ValidateSavePath(RequireString(args, "path"), GetBool(args, "overwrite").value_or(false));
+                return ctx.RunOnUi([f, args, path] {
+                    int tab = B::TabOrDefault(*f, args, B::CurrentTab(*f));
+                    try
+                    {
+                        return json::value(B::SaveView(*f, tab, path));
+                    }
+                    catch (const McpToolError&)
+                    {
+                        throw;
+                    }
+                    catch (const std::exception& ex)
+                    {
+                        throw McpToolError(std::string("Could not save: ") + ex.what());
+                    }
                 });
             });
 }

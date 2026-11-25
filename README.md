@@ -118,7 +118,7 @@ UltimateDebugViewPP has a built-in [Model Context Protocol](https://modelcontext
 - **Endpoint:** `http://127.0.0.1:7777/mcp` (Streamable HTTP, loopback only; non-local `Host`/`Origin` headers are rejected).
 - **Connect Claude Code:** use *Copy .mcp.json entry* on the AI / MCP tab, or see [`docs/mcp.sample.json`](docs/mcp.sample.json), or run
   `claude mcp add --transport http ultimate-debugview http://127.0.0.1:7777/mcp`.
-- **Tools:** `get_status`, `read_messages`, `wait_for_messages`, `search_messages`, `list_processes`, `insert_marker`, `clear_log`, `pause_capture`, `resume_capture`, `list_tabs`, `create_tab`, `close_tab`, `switch_tab`, `rename_tab`, `get_filters`, `set_filters`, `add_filter`, `remove_filter`, `enable_filter`.
+- **Tools:** `get_status`, `read_messages`, `wait_for_messages`, `search_messages`, `list_processes`, `insert_marker`, `clear_log`, `pause_capture`, `resume_capture`, `list_tabs`, `create_tab`, `close_tab`, `switch_tab`, `rename_tab`, `get_filters`, `set_filters`, `add_filter`, `remove_filter`, `enable_filter`, `get_message_detail`, `jump_to_line`, `set_bookmark`, `list_bookmarks`, `get_procedure_stats`, `get_procedure_timeline`, `list_queues`, `get_queue`, `create_procedure_view`, `save_log`, `save_view`.
 - **Cursors:** every line has a `line` number that only increases (also across clears). Pass `nextLine` back as `since_line` to read only new output.
 - **Your tabs are protected:** tabs the AI creates are named `AI: ...`; changing other tabs needs `allow_user_tab: true`.
 

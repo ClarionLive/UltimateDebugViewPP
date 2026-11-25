@@ -48,6 +48,14 @@
         <tr><td><code>clear_log</code>, <code>pause_capture</code>, <code>resume_capture</code></td><td>Same as the toolbar buttons.</td></tr>
         <tr><td><code>list_tabs</code>, <code>create_tab</code>, <code>close_tab</code>, <code>switch_tab</code>, <code>rename_tab</code></td><td>Organise output into filtered tabs.</td></tr>
         <tr><td><code>get_filters</code>, <code>set_filters</code>, <code>add_filter</code>, <code>remove_filter</code>, <code>enable_filter</code></td><td>Change what a tab shows or highlights.</td></tr>
+        <tr><td><code>get_message_detail</code></td><td>Everything about one line: Clarion fields, error fields, detected format and the formatted text (SQL pretty-printed with your SQL options).</td></tr>
+        <tr><td><code>jump_to_line</code></td><td>Scrolls the viewer to a line and selects it, so you see the line the assistant is talking about.</td></tr>
+        <tr><td><code>set_bookmark</code>, <code>list_bookmarks</code></td><td>Marks lines for you to look at.</td></tr>
+        <tr><td><code>get_procedure_stats</code></td><td>Clarion procedure open/close counts with the most unbalanced first (for example, a procedure opened twice), plus what is open right now.</td></tr>
+        <tr><td><code>get_procedure_timeline</code></td><td>Clarion procedure opens and closes in order, with call depth and durations.</td></tr>
+        <tr><td><code>list_queues</code>, <code>get_queue</code></td><td>Clarion queues dumped to the log by UltimateDebug.</td></tr>
+        <tr><td><code>create_procedure_view</code></td><td>Opens a tab showing one procedure's lines.</td></tr>
+        <tr><td><code>save_log</code>, <code>save_view</code></td><td>Saves the log or a tab to a .dblog/.log/.txt/.csv file (not under Windows or Program Files; never overwrites unless asked).</td></tr>
     </table>
 
     <h2>A typical test loop</h2>
@@ -71,6 +79,7 @@
         <li><strong>Access token:</strong> when set, every request must carry it.</li>
         <li><strong>Password masking:</strong> on by default. Values after <code>PWD=</code>, <code>Password=</code>, <code>Pwd=</code> and <code>Passwd=</code> are replaced by <code>***</code> in everything the assistant receives. The log on your screen is not changed.</li>
         <li><strong>No program launching:</strong> none of the tools can start programs or run commands.</li>
+        <li><strong>Saved files are not masked:</strong> <code>save_log</code> and <code>save_view</code> write the log as captured, to files on this computer only.</li>
         <li>Everything the assistant reads is sent to its AI service, so only enable the server while you are using it.</li>
     </ul>
 
