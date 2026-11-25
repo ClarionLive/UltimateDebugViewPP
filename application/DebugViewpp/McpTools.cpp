@@ -1787,13 +1787,15 @@ std::pair<std::wstring, long long> WriteExportFile(const std::filesystem::path& 
     {
         error = ex.what();
     }
-    if (!ok)
-        MarkForDeletion(raw);
-    if (::fclose(stream) != 0 && ok)
+    // Push every buffer to disk while the handle is still ours, so a failure can still delete the file.
+    if (ok && (::fflush(stream) != 0 || ::FlushFileBuffers(raw) == FALSE))
     {
         ok = false;
-        error = "closing the file failed";
+        error = "writing the file to disk failed (disk full?)";
     }
+    if (!ok)
+        MarkForDeletion(raw);
+    ::fclose(stream);  // nothing is buffered any more; this only closes the handle
     if (!ok)
         throw McpToolError("Could not save " + WideToUtf8(path) + ": " + error);
     return {path, lines};
