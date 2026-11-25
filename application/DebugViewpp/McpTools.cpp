@@ -1972,10 +1972,12 @@ void RegisterDebugViewTools(McpToolRegistry& registry, CMainFrame& frame)
                     }
                     catch (const McpToolError&)
                     {
+                        ::DeleteFileW(path.c_str());  // we created it; don't leave an empty file behind
                         throw;
                     }
                     catch (const std::exception& ex)
                     {
+                        ::DeleteFileW(path.c_str());
                         throw McpToolError(std::string("Could not save: ") + ex.what());
                     }
                 });
@@ -1995,10 +1997,12 @@ void RegisterDebugViewTools(McpToolRegistry& registry, CMainFrame& frame)
                     }
                     catch (const McpToolError&)
                     {
+                        ::DeleteFileW(path.c_str());  // we created it; don't leave an empty file behind
                         throw;
                     }
                     catch (const std::exception& ex)
                     {
+                        ::DeleteFileW(path.c_str());
                         throw McpToolError(std::string("Could not save: ") + ex.what());
                     }
                 });

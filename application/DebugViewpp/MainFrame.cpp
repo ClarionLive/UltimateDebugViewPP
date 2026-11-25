@@ -336,7 +336,13 @@ void CMainFrame::RunDeferredMcpCalls()
     {
         auto call = std::move(m_deferredMcpCalls.front());
         m_deferredMcpCalls.erase(m_deferredMcpCalls.begin());
-        call();
+        try
+        {
+            call();  // calls catch their own errors; this only protects the flag below
+        }
+        catch (...)
+        {
+        }
     }
     m_runningDeferredMcpCalls = false;
     if (m_deferredMcpCalls.empty())
