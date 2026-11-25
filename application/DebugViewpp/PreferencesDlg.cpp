@@ -11,6 +11,8 @@
 #include <commctrl.h>
 #include <bcrypt.h>
 #include <algorithm>
+#include <iterator>
+#include <shobjidl.h>
 
 namespace fusion {
 namespace debugviewpp {
@@ -1189,9 +1191,46 @@ void CPreferencesDlg::CMcpPage::Load(const McpSettings& settings, const std::wst
     SetDlgItemInt(IDC_MCP_PORT, static_cast<UINT>(settings.port), FALSE);
     SetDlgItemText(IDC_MCP_TOKEN, settings.token.c_str());
     CheckDlgButton(IDC_MCP_MASK_SECRETS, settings.maskSecrets ? BST_CHECKED : BST_UNCHECKED);
+    int exportButton = settings.exportMode == McpExportMode::Folder ? IDC_MCP_EXPORT_CUSTOM : settings.exportMode == McpExportMode::AppFolder ? IDC_MCP_EXPORT_APP : IDC_MCP_EXPORT_DOCS;
+    CheckRadioButton(IDC_MCP_EXPORT_DOCS, IDC_MCP_EXPORT_APP, exportButton);
+    SetDlgItemText(IDC_MCP_EXPORT_FOLDER, settings.exportFolder.c_str());
+    SetDlgItemText(IDC_MCP_EXPORT_SUBFOLDER, settings.exportSubfolder.c_str());
+    UpdateExportControls();
     std::wstring text = L"Status: " + (status.empty() ? std::wstring(L"not running") : status) + L"   (changes take effect when you press OK)";
     SetDlgItemText(IDC_MCP_STATUS, text.c_str());
     UpdateUrl();
+}
+
+void CPreferencesDlg::CMcpPage::UpdateExportControls()
+{
+    bool custom = IsDlgButtonChecked(IDC_MCP_EXPORT_CUSTOM) == BST_CHECKED;
+    GetDlgItem(IDC_MCP_EXPORT_FOLDER).EnableWindow(custom);
+    GetDlgItem(IDC_MCP_EXPORT_BROWSE).EnableWindow(custom);
+}
+
+void CPreferencesDlg::CMcpPage::OnExportModeChange(UINT /*uNotifyCode*/, int /*nID*/, CWindow /*wndCtl*/)
+{
+    UpdateExportControls();
+}
+
+void CPreferencesDlg::CMcpPage::OnBrowseExport(UINT /*uNotifyCode*/, int /*nID*/, CWindow /*wndCtl*/)
+{
+    CComPtr<IFileOpenDialog> dialog;
+    if (FAILED(dialog.CoCreateInstance(CLSID_FileOpenDialog)))
+        return;
+    DWORD options = 0;
+    dialog->GetOptions(&options);
+    dialog->SetOptions(options | FOS_PICKFOLDERS | FOS_FORCEFILESYSTEM | FOS_PATHMUSTEXIST);
+    dialog->SetTitle(L"Folder for logs the AI saves");
+    if (FAILED(dialog->Show(m_hWnd)))
+        return;
+    CComPtr<IShellItem> item;
+    PWSTR path = nullptr;
+    if (SUCCEEDED(dialog->GetResult(&item)) && SUCCEEDED(item->GetDisplayName(SIGDN_FILESYSPATH, &path)) && path != nullptr)
+    {
+        SetDlgItemText(IDC_MCP_EXPORT_FOLDER, path);
+        ::CoTaskMemFree(path);
+    }
 }
 
 bool CPreferencesDlg::CMcpPage::Save(McpSettings& settings)
@@ -1232,10 +1271,44 @@ bool CPreferencesDlg::CMcpPage::Save(McpSettings& settings)
         return false;
     }
 
+    auto exportMode = IsDlgButtonChecked(IDC_MCP_EXPORT_CUSTOM) == BST_CHECKED ? McpExportMode::Folder
+                      : IsDlgButtonChecked(IDC_MCP_EXPORT_APP) == BST_CHECKED   ? McpExportMode::AppFolder
+                                                                                 : McpExportMode::Documents;
+    wchar_t folderBuffer[MAX_PATH * 2] = {};
+    GetDlgItemText(IDC_MCP_EXPORT_FOLDER, folderBuffer, static_cast<int>(std::size(folderBuffer)) - 1);
+    std::wstring exportFolder(folderBuffer);
+    wchar_t subBuffer[160] = {};
+    GetDlgItemText(IDC_MCP_EXPORT_SUBFOLDER, subBuffer, 159);
+    std::wstring exportSubfolder(subBuffer);
+    for (auto* text : {&exportFolder, &exportSubfolder})
+    {
+        text->erase(0, text->find_first_not_of(L" \t"));
+        text->erase(text->find_last_not_of(L" \t") + 1);
+    }
+    if (exportMode == McpExportMode::Folder)
+    {
+        DWORD attributes = ::GetFileAttributesW(exportFolder.c_str());
+        if (exportFolder.empty() || attributes == INVALID_FILE_ATTRIBUTES || (attributes & FILE_ATTRIBUTE_DIRECTORY) == 0)
+        {
+            MessageBox(L"Choose an existing folder for the logs the AI saves (or pick another option).", L"Preferences", MB_OK | MB_ICONWARNING);
+            GetDlgItem(IDC_MCP_EXPORT_FOLDER).SetFocus();
+            return false;
+        }
+    }
+    if (!exportSubfolder.empty() && !IsPlainMcpName(exportSubfolder))
+    {
+        MessageBox(L"The sub-folder must be a single plain folder name such as DebugLogs (letters, digits, space, . _ -).", L"Preferences", MB_OK | MB_ICONWARNING);
+        GetDlgItem(IDC_MCP_EXPORT_SUBFOLDER).SetFocus();
+        return false;
+    }
+
     settings.enabled = enabled;
     settings.port = static_cast<int>(port);
     settings.token = token;
     settings.maskSecrets = IsDlgButtonChecked(IDC_MCP_MASK_SECRETS) == BST_CHECKED;
+    settings.exportMode = exportMode;
+    settings.exportFolder = exportFolder;
+    settings.exportSubfolder = exportSubfolder;
     return true;
 }
 

@@ -114,7 +114,7 @@ cmake --build build --config Release
 
 UltimateDebugViewPP has a built-in [Model Context Protocol](https://modelcontextprotocol.io) server so an AI coding assistant (Claude Code, Codex, ...) can read, wait for and filter debug output while it builds and tests your app.
 
-- **Enable:** Preferences > **AI / MCP** > *Enable MCP server* (off by default). Default port `7777`; a bearer token is required (generated automatically); best-effort password/token masking on by default; save tools write only to `Documents\UltimateDebugView`.
+- **Enable:** Preferences > **AI / MCP** > *Enable MCP server* (off by default). Default port `7777`; a bearer token is required (generated automatically); best-effort password/token masking on by default; save tools write new files only, into a folder you choose (Documents\UltimateDebugView by default, a fixed folder, or next to the app's exe, with an optional sub-folder such as `DebugLogs`).
 - **Endpoint:** `http://127.0.0.1:7777/mcp` (Streamable HTTP, loopback only; non-local `Host`/`Origin` headers are rejected).
 - **Connect Claude Code:** use *Copy .mcp.json entry* on the AI / MCP tab, or see [`docs/mcp.sample.json`](docs/mcp.sample.json), or run
   `claude mcp add --transport http ultimate-debugview http://127.0.0.1:7777/mcp --header "Authorization: Bearer <token>"`.

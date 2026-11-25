@@ -197,6 +197,12 @@
 #define IDC_MCP_STATUS               905
 #define IDC_MCP_COPY_CONFIG          906
 #define IDC_MCP_URL                  907
+#define IDC_MCP_EXPORT_DOCS          908
+#define IDC_MCP_EXPORT_CUSTOM        909
+#define IDC_MCP_EXPORT_FOLDER        910
+#define IDC_MCP_EXPORT_BROWSE        911
+#define IDC_MCP_EXPORT_APP           912
+#define IDC_MCP_EXPORT_SUBFOLDER     913
 #define IDC_PREFERENCES_TAB 404
 #define IDC_SHOW_DETAIL_PANE 410
 #define IDC_DETAIL_SPLITTER_POS 411

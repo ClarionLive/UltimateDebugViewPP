@@ -8,6 +8,8 @@
 #include <memory>
 #include <vector>
 #include <functional>
+#include <unordered_map>
+#include <unordered_set>
 
 #include "atleverything.h"
 #include <atlsplit.h>
@@ -360,6 +362,9 @@ private:
     long long m_seqBase = 0;     // lines removed by earlier clears; cursor = m_seqBase + log index
     int m_clearGeneration = 0;   // bumped by every ClearLog
     bool m_runningDeferredMcpCalls = false;
+    std::unordered_set<std::wstring> m_mcpSeenProcesses;                // "pid|name" already looked up
+    std::unordered_map<std::wstring, std::wstring> m_mcpExeFolders;     // lower-case process name -> exe folder
+    void RememberExeFolder(DWORD processId, const std::string& processName);
 
     // Helper methods for floating main tabs
     void PopOutMainTab(int index);

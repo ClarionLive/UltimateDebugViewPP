@@ -57,6 +57,33 @@ std::wstring Utf8ToWide(const std::string& text)
     return result;
 }
 
+std::wstring LowerCaseProcessKey(const std::wstring& processName)
+{
+    std::wstring key;
+    for (wchar_t c : processName)
+        key += static_cast<wchar_t>(::towlower(c));
+    if (key.size() > 4 && key.compare(key.size() - 4, 4, L".exe") == 0)
+        key.resize(key.size() - 4);
+    return key;
+}
+
+std::wstring ExeFolderOfProcess(unsigned long processId, const std::wstring& expectedName)
+{
+    HANDLE process = ::OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, processId);
+    if (process == nullptr)
+        return {};
+    wchar_t buffer[MAX_PATH * 4] = {};
+    DWORD size = static_cast<DWORD>(std::size(buffer));
+    BOOL ok = ::QueryFullProcessImageNameW(process, 0, buffer, &size);
+    ::CloseHandle(process);
+    if (ok == FALSE)
+        return {};
+    std::filesystem::path image(std::wstring(buffer, size));
+    if (!expectedName.empty() && LowerCaseProcessKey(image.filename().wstring()) != LowerCaseProcessKey(expectedName))
+        return {};  // the pid now belongs to another program
+    return image.parent_path().wstring();
+}
+
 std::string ToUtf8Safe(const std::string& text)
 {
     bool ascii = std::all_of(text.begin(), text.end(), [](char c) { return static_cast<unsigned char>(c) < 0x80; });
@@ -373,6 +400,10 @@ json::object Schema(const char* text)
 
 const char* const TabProperty = R"("tab": {"type": ["string", "integer"], "description": "Tab name (case-insensitive) or 0-based index. Omit to use the whole log."})";
 
+// Defined with the save tools further down.
+std::filesystem::path KnownFolder(REFKNOWNFOLDERID id);
+std::filesystem::path PrepareExportFolder(const std::filesystem::path& base, const std::wstring& subfolder, const std::string& description);
+
 } // namespace
 
 // ---------------------------------------------------------------- bridge into CMainFrame / CLogView (friend of both)
@@ -446,6 +477,21 @@ public:
         return tabs;
     }
 
+    static json::object ExportSummary(CMainFrame& f)
+    {
+        auto& s = f.m_mcpSettings;
+        std::string sub = s.exportSubfolder.empty() ? std::string() : "\\" + WideToUtf8(s.exportSubfolder);
+        switch (s.exportMode)
+        {
+        case McpExportMode::Folder:
+            return json::object{{"mode", "folder"}, {"folder", WideToUtf8(s.exportFolder) + sub}};
+        case McpExportMode::AppFolder:
+            return json::object{{"mode", "app-folder"}, {"folder", "<folder of the app's exe>" + sub}};
+        default:
+            return json::object{{"mode", "documents"}, {"folder", WideToUtf8(KnownFolder(FOLDERID_Documents).wstring()) + "\\UltimateDebugView" + sub}};
+        }
+    }
+
     static json::object Status(CMainFrame& f, const std::vector<std::string>& toolNames)
     {
         json::array tools;
@@ -463,6 +509,7 @@ public:
             {"currentTab", current >= 0 && current < f.GetActualViewCount() ? json::value(TabJson(f, current)) : json::value(nullptr)},
             {"tabs", TabsJson(f)},
             {"maskSecrets", f.m_mcpSettings.maskSecrets},
+            {"exportFolder", ExportSummary(f)},
             {"tools", std::move(tools)}};
     }
 
@@ -1265,6 +1312,82 @@ public:
         return json::object{{"path", WideToUtf8(path)}, {"lines", f.m_logFile.Count()}};
     }
 
+    // Finds the process whose exe folder to use: the 'process' argument (name or pid), or the most
+    // recent line in the log that did not come from the viewer itself.
+    static std::pair<DWORD, std::wstring> TargetProcess(CMainFrame& f, const json::object& args)
+    {
+        const LogFile& log = f.m_logFile;
+        auto* wanted = Arg(args, "process");
+        std::optional<DWORD> wantedPid;
+        std::wstring wantedKey;
+        if (wanted != nullptr)
+        {
+            if (wanted->is_int64() || wanted->is_uint64())
+                wantedPid = static_cast<DWORD>(wanted->is_int64() ? wanted->as_int64() : static_cast<long long>(wanted->as_uint64()));
+            else if (wanted->is_string())
+                wantedKey = LowerCaseProcessKey(Utf8ToWide(std::string(wanted->as_string())));
+            else
+                throw McpToolError("'process' must be a process name or pid");
+        }
+
+        DWORD self = ::GetCurrentProcessId();
+        int stop = std::max(0, log.Count() - MaxScanPerCall);
+        for (int i = log.Count() - 1; i >= stop; --i)
+        {
+            Message msg = log.GetUnparsed(i);
+            auto name = Utf8ToWide(ToUtf8Safe(msg.processName));
+            if (wantedPid && msg.processId != *wantedPid)
+                continue;
+            if (!wantedKey.empty() && LowerCaseProcessKey(name) != wantedKey)
+                continue;
+            if (!wantedPid && wantedKey.empty() && (msg.processId == 0 || msg.processId == self || name.empty() || name.front() == L'['))
+                continue;
+            return {msg.processId, name};
+        }
+        if (!wantedKey.empty())
+            return {0, Utf8ToWide(std::string(wanted->as_string()))};  // not in the log; try the remembered folder
+        throw McpToolError(wanted != nullptr ? "That process has no lines in the log" : "No application lines in the log yet, so there is no app folder to save into; pass 'process'");
+    }
+
+    // The folder save_log / save_view write into, per the user's Preferences.
+    static std::filesystem::path ExportFolder(CMainFrame& f, const json::object& args, json::object& info)
+    {
+        auto& settings = f.m_mcpSettings;
+        switch (settings.exportMode)
+        {
+        case McpExportMode::Folder:
+            info["exportMode"] = "folder";
+            return PrepareExportFolder(settings.exportFolder, settings.exportSubfolder, "chosen folder");
+        case McpExportMode::AppFolder:
+        {
+            info["exportMode"] = "app-folder";
+            auto [pid, name] = TargetProcess(f, args);
+            std::wstring folder = pid != 0 ? ExeFolderOfProcess(pid, name) : std::wstring();
+            if (folder.empty())
+            {
+                auto it = f.m_mcpExeFolders.find(LowerCaseProcessKey(name));
+                if (it != f.m_mcpExeFolders.end())
+                    folder = it->second;
+            }
+            if (folder.empty())
+                throw McpToolError("Can't tell where " + WideToUtf8(name) + " is installed (it is not running and was not seen while the MCP server was on). Run it once, or pass another 'process'.");
+            info["process"] = WideToUtf8(name);
+            return PrepareExportFolder(folder, settings.exportSubfolder, "folder of " + WideToUtf8(name));
+        }
+        default:
+        {
+            info["exportMode"] = "documents";
+            auto documents = KnownFolder(FOLDERID_Documents);
+            if (documents.empty())
+                throw McpToolError("Could not find the Documents folder");
+            auto folder = documents / L"UltimateDebugView";
+            std::error_code ec;
+            std::filesystem::create_directories(folder, ec);
+            return PrepareExportFolder(folder, settings.exportSubfolder, "Documents\\UltimateDebugView");
+        }
+        }
+    }
+
     static json::object SaveView(CMainFrame& f, int tab, const std::wstring& path)
     {
         f.GetView(tab).Save(path);
@@ -1476,30 +1599,42 @@ std::filesystem::path KnownFolder(REFKNOWNFOLDERID id)
     return result;
 }
 
-// Save tools only write into one export folder (Documents\UltimateDebugView), by plain file name.
-// The AI's inputs can be steered by log content, so it must never choose arbitrary paths.
-std::wstring CreateExportFile(const std::string& input)
+bool IsRealFolder(const std::filesystem::path& folder)
+{
+    DWORD attributes = ::GetFileAttributesW(folder.c_str());
+    return attributes != INVALID_FILE_ATTRIBUTES && (attributes & FILE_ATTRIBUTE_DIRECTORY) != 0 && (attributes & FILE_ATTRIBUTE_REPARSE_POINT) == 0;
+}
+
+// Adds the optional sub-folder (created on demand) and checks nothing on the way is a link.
+std::filesystem::path PrepareExportFolder(const std::filesystem::path& base, const std::wstring& subfolder, const std::string& description)
+{
+    namespace fs = std::filesystem;
+    if (base.empty() || !IsRealFolder(base))
+        throw McpToolError("The export folder (" + description + ") " + WideToUtf8(base.wstring()) + " does not exist or is a link; change it in Preferences > AI / MCP");
+    if (subfolder.empty())
+        return base;
+    if (!IsPlainMcpName(subfolder))
+        throw McpToolError("The export sub-folder name in Preferences is not a plain folder name");
+    auto folder = base / subfolder;
+    std::error_code ec;
+    fs::create_directory(folder, ec);
+    if (!IsRealFolder(folder))
+        throw McpToolError("Could not create the export folder " + WideToUtf8(folder.wstring()) + (ec ? " (" + ec.message() + ")" : std::string(" (it may be a link)")));
+    return folder;
+}
+
+// Save tools only write into the export folder chosen in Preferences, by plain file name.
+// The AI's inputs can be steered by log content, so it must never choose paths itself.
+std::wstring CreateExportFile(const std::filesystem::path& folder, const std::string& input)
 {
     namespace fs = std::filesystem;
     std::wstring name = Utf8ToWide(input);
-    bool plain = !name.empty() && name.size() <= 120 &&
-                 std::all_of(name.begin(), name.end(), [](wchar_t c) { return ::iswalnum(c) != 0 || c == L'.' || c == L'_' || c == L'-' || c == L' '; });
-    if (!plain || name.front() == L'.' || name.back() == L'.' || name.back() == L' ')
-        throw McpToolError("'path' must be a plain file name such as \"run1.dblog\" (letters, digits, space, . _ -). Files are saved in Documents\\UltimateDebugView.");
+    if (!IsPlainMcpName(name))
+        throw McpToolError("'path' must be a plain file name such as \"run1.dblog\" (letters, digits, space, . _ -). The folder is chosen by the user in Preferences.");
 
     auto ext = LowerW(fs::path(name).extension().wstring());
     if (ext != L".dblog" && ext != L".log" && ext != L".txt" && ext != L".csv")
         throw McpToolError("Only .dblog, .log, .txt and .csv files can be saved");
-
-    auto documents = KnownFolder(FOLDERID_Documents);
-    if (documents.empty())
-        throw McpToolError("Could not find the Documents folder");
-    auto folder = documents / L"UltimateDebugView";
-    std::error_code ec;
-    fs::create_directories(folder, ec);
-    DWORD attributes = ::GetFileAttributesW(folder.c_str());
-    if (attributes == INVALID_FILE_ATTRIBUTES || (attributes & FILE_ATTRIBUTE_DIRECTORY) == 0 || (attributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0)
-        throw McpToolError("The export folder Documents\\UltimateDebugView is missing or is a link; refusing to save");
 
     // Never write through an existing name: create the file atomically (CREATE_NEW fails on any existing
     // file, hard link or reparse point), so an MCP save can only ever produce a brand-new file. The
@@ -1958,53 +2093,52 @@ void RegisterDebugViewTools(McpToolRegistry& registry, CMainFrame& frame)
 
     // ------------------------------------------------ Phase 2: saving
 
-    const char* const P_Path = R"("path": {"type": "string", "description": "Plain file name ending in .dblog, .log, .txt or .csv, e.g. \"run1.dblog\". Always saved in the user's Documents\\UltimateDebugView folder."})";
-    AddTool(registry, "save_log", "Save the whole log to a file", false, Close(Props({P_Path}), R"(["path"])").c_str(),
+    const char* const P_Path = R"("path": {"type": "string", "description": "Plain file name ending in .dblog, .log, .txt or .csv, e.g. \"run1.dblog\". The folder is the one the user chose in Preferences (see get_status exportFolder)."})";
+    const char* const P_SaveProcess = R"("process": {"type": ["string", "integer"], "description": "Only when the user chose to save next to the app: the process name or pid whose exe folder to use (default: the app that logged most recently)."})";
+
+    // Resolves the folder, creates the new file, writes it, and cleans up on failure. UI thread.
+    auto save = [](CMainFrame& frame, const json::object& args, const std::string& name, const std::function<json::object(const std::wstring&)>& write) {
+        json::object info;
+        auto folder = B::ExportFolder(frame, args, info);
+        auto path = CreateExportFile(folder, name);  // created right before writing
+        try
+        {
+            auto result = write(path);
+            for (auto& [key, value] : info)
+                result[key] = value;
+            return json::value(std::move(result));
+        }
+        catch (const McpToolError&)
+        {
+            ::DeleteFileW(path.c_str());  // we created it; don't leave an empty file behind
+            throw;
+        }
+        catch (const std::exception& ex)
+        {
+            ::DeleteFileW(path.c_str());
+            throw McpToolError(std::string("Could not save: ") + ex.what());
+        }
+    };
+
+    AddTool(registry, "save_log", "Save the whole log to a file", false, Close(Props({P_Path, P_SaveProcess}), R"(["path"])").c_str(),
             "Save every captured line to a NEW file on this computer (same format as File > Save Log). The file is not masked: it stays local. "
-            "Files always go to the user's Documents\\UltimateDebugView folder; only a plain file name is accepted and existing files are never replaced.",
-            [f](const json::object& args, McpContext& ctx) {
+            "It goes into the folder the user chose in Preferences (Documents\UltimateDebugView, a fixed folder, or next to the app's exe, "
+            "optionally in a sub-folder); only a plain file name is accepted and existing files are never replaced. The result gives the full path.",
+            [f, save](const json::object& args, McpContext& ctx) {
                 auto name = RequireString(args, "path");
-                return ctx.RunOnUi([f, name] {
-                    auto path = CreateExportFile(name);  // created right before writing
-                    try
-                    {
-                        return json::value(B::SaveLog(*f, path));
-                    }
-                    catch (const McpToolError&)
-                    {
-                        ::DeleteFileW(path.c_str());  // we created it; don't leave an empty file behind
-                        throw;
-                    }
-                    catch (const std::exception& ex)
-                    {
-                        ::DeleteFileW(path.c_str());
-                        throw McpToolError(std::string("Could not save: ") + ex.what());
-                    }
+                return ctx.RunOnUi([f, args, name, save] {
+                    return save(*f, args, name, [f](const std::wstring& path) { return B::SaveLog(*f, path); });
                 });
             });
 
     AddTool(registry, "save_view", "Save a tab to a file", false,
-            Close(Props({P_Path, R"("tab": {"type": ["string", "integer"], "description": "Tab to save (default: the current tab)."})"}), R"(["path"])").c_str(),
-            "Save the lines a tab shows to a NEW file on this computer (same as File > Save View). Same rules as save_log.",
-            [f](const json::object& args, McpContext& ctx) {
+            Close(Props({P_Path, P_SaveProcess, R"("tab": {"type": ["string", "integer"], "description": "Tab to save (default: the current tab)."})"}), R"(["path"])").c_str(),
+            "Save the lines a tab shows to a NEW file on this computer (same as File > Save View). Same folder and name rules as save_log.",
+            [f, save](const json::object& args, McpContext& ctx) {
                 auto name = RequireString(args, "path");
-                return ctx.RunOnUi([f, args, name] {
+                return ctx.RunOnUi([f, args, name, save] {
                     int tab = B::TabOrDefault(*f, args, B::CurrentTab(*f));
-                    auto path = CreateExportFile(name);  // created right before writing
-                    try
-                    {
-                        return json::value(B::SaveView(*f, tab, path));
-                    }
-                    catch (const McpToolError&)
-                    {
-                        ::DeleteFileW(path.c_str());  // we created it; don't leave an empty file behind
-                        throw;
-                    }
-                    catch (const std::exception& ex)
-                    {
-                        ::DeleteFileW(path.c_str());
-                        throw McpToolError(std::string("Could not save: ") + ex.what());
-                    }
+                    return save(*f, args, name, [f, tab](const std::wstring& path) { return B::SaveView(*f, tab, path); });
                 });
             });
 }

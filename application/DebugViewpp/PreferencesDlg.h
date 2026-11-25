@@ -214,6 +214,10 @@ private:
             COMMAND_ID_HANDLER_EX(IDC_MCP_COPY_CONFIG, OnCopyConfig)
             COMMAND_HANDLER_EX(IDC_MCP_PORT, EN_CHANGE, OnChange)
             COMMAND_HANDLER_EX(IDC_MCP_TOKEN, EN_CHANGE, OnChange)
+            COMMAND_ID_HANDLER_EX(IDC_MCP_EXPORT_BROWSE, OnBrowseExport)
+            COMMAND_ID_HANDLER_EX(IDC_MCP_EXPORT_DOCS, OnExportModeChange)
+            COMMAND_ID_HANDLER_EX(IDC_MCP_EXPORT_CUSTOM, OnExportModeChange)
+            COMMAND_ID_HANDLER_EX(IDC_MCP_EXPORT_APP, OnExportModeChange)
         END_MSG_MAP()
 
         LRESULT OnInitDialog(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled);
@@ -222,6 +226,9 @@ private:
         void OnGenerateToken(UINT uNotifyCode, int nID, CWindow wndCtl);
         void OnCopyConfig(UINT uNotifyCode, int nID, CWindow wndCtl);
         void OnChange(UINT uNotifyCode, int nID, CWindow wndCtl);
+        void OnBrowseExport(UINT uNotifyCode, int nID, CWindow wndCtl);
+        void OnExportModeChange(UINT uNotifyCode, int nID, CWindow wndCtl);
+        void UpdateExportControls();
         void UpdateUrl();
 
     private:

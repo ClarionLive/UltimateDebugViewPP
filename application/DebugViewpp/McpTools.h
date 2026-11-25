@@ -59,6 +59,12 @@ void RegisterDebugViewTools(McpToolRegistry& registry, CMainFrame& frame);
 
 // Converts text captured from OutputDebugString (often ANSI) into valid UTF-8.
 std::string ToUtf8Safe(const std::string& text);
+
+// Folder of a running process' exe, or empty when it is gone or its image name does not match
+// expectedName (Windows reuses pids).
+std::wstring ExeFolderOfProcess(unsigned long processId, const std::wstring& expectedName);
+// Lower-case process name without ".exe", used to look up remembered exe folders.
+std::wstring LowerCaseProcessKey(const std::wstring& processName);
 std::string WideToUtf8(const std::wstring& text);
 std::wstring Utf8ToWide(const std::string& text);
 

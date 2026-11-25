@@ -610,12 +610,21 @@ BEGIN
     PUSHBUTTON      "Generate",IDC_MCP_GENERATE_TOKEN,376,72,60,14
     LTEXT           "Required. Clients send it as a Bearer token; one is generated if left empty.",IDC_STATIC,70,89,366,8
     CONTROL         "Mask passwords and tokens (PWD=, Password=, token=, api_key=, Bearer ...) in what the AI receives (best effort)",IDC_MCP_MASK_SECRETS,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,7,106,400,10
-    GROUPBOX        "Connect",IDC_STATIC,7,124,466,92
-    LTEXT           "",IDC_MCP_URL,17,138,446,8
-    LTEXT           "",IDC_MCP_STATUS,17,152,446,8
-    LTEXT           "Copy a ready-made entry for Claude Code's .mcp.json (with the current port and token) to the clipboard:",IDC_STATIC,17,170,446,8
-    PUSHBUTTON      "Copy .mcp.json entry",IDC_MCP_COPY_CONFIG,17,184,100,14
-    LTEXT           "Tabs the AI creates are named ""AI: ..."". It cannot change your own tabs unless you ask it to.",IDC_STATIC,7,226,466,8
+    GROUPBOX        "Connect",IDC_STATIC,7,122,466,82
+    LTEXT           "",IDC_MCP_URL,17,135,446,8
+    LTEXT           "",IDC_MCP_STATUS,17,148,446,8
+    LTEXT           "Copy a ready-made entry for Claude Code's .mcp.json (with the current port and token) to the clipboard:",IDC_STATIC,17,164,446,8
+    PUSHBUTTON      "Copy .mcp.json entry",IDC_MCP_COPY_CONFIG,17,178,100,14
+    LTEXT           "Tabs the AI creates are named ""AI: ..."". It cannot change your own tabs unless you ask it to.",IDC_STATIC,7,209,466,8
+    GROUPBOX        "Logs the AI saves (save_log / save_view)",IDC_STATIC,7,222,466,92
+    CONTROL         "UltimateDebugView folder in my Documents",IDC_MCP_EXPORT_DOCS,"Button",BS_AUTORADIOBUTTON | WS_GROUP | WS_TABSTOP,17,235,200,10
+    CONTROL         "This folder:",IDC_MCP_EXPORT_CUSTOM,"Button",BS_AUTORADIOBUTTON,17,251,60,10
+    CONTROL         "Next to the app's exe (the program that wrote the log lines)",IDC_MCP_EXPORT_APP,"Button",BS_AUTORADIOBUTTON,17,268,300,10
+    EDITTEXT        IDC_MCP_EXPORT_FOLDER,80,249,330,14,ES_AUTOHSCROLL | WS_GROUP
+    PUSHBUTTON      "Browse...",IDC_MCP_EXPORT_BROWSE,414,249,50,14
+    LTEXT           "Sub-folder:",IDC_STATIC,17,288,60,8
+    EDITTEXT        IDC_MCP_EXPORT_SUBFOLDER,80,286,120,14,ES_AUTOHSCROLL
+    LTEXT           "Optional, e.g. DebugLogs. Created when needed. The AI only chooses file names.",IDC_STATIC,206,288,260,8
 END
 
 /////////////////////////////////////////////////////////////////////////////

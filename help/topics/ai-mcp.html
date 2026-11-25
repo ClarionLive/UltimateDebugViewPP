@@ -55,8 +55,17 @@
         <tr><td><code>get_procedure_timeline</code></td><td>Clarion procedure opens and closes in order, with call depth and durations.</td></tr>
         <tr><td><code>list_queues</code>, <code>get_queue</code></td><td>Clarion queues dumped to the log by UltimateDebug.</td></tr>
         <tr><td><code>create_procedure_view</code></td><td>Opens a tab showing one procedure's lines.</td></tr>
-        <tr><td><code>save_log</code>, <code>save_view</code></td><td>Saves the log or a tab as a .dblog/.log/.txt/.csv file in <code>Documents\UltimateDebugView</code> (by file name only; existing files are never replaced).</td></tr>
+        <tr><td><code>save_log</code>, <code>save_view</code></td><td>Saves the log or a tab as a new .dblog/.log/.txt/.csv file in the folder you chose (see below). The assistant only gives a file name; existing files are never replaced.</td></tr>
     </table>
+
+    <h2>Where saved logs go</h2>
+    <p>On the <strong>AI / MCP</strong> tab, under <strong>Logs the AI saves</strong>, choose one of:</p>
+    <ul>
+        <li><strong>UltimateDebugView folder in my Documents</strong> (the default).</li>
+        <li><strong>This folder:</strong> any existing folder, for example <code>C:\Temp</code> (use <strong>Browse...</strong>).</li>
+        <li><strong>Next to the app's exe:</strong> the folder of the program that wrote the log lines, for example <code>C:\Apps\Invoice</code> for <code>Invoice.exe</code>. The assistant can name the program (<code>process</code>); otherwise the app that logged most recently is used. The viewer remembers each app's folder while the MCP server is on, so this still works after the app has closed.</li>
+    </ul>
+    <p>Add an optional <strong>Sub-folder</strong> such as <code>DebugLogs</code>; it is created when needed. Programs installed under Program Files usually cannot be written to; use a sub-folder elsewhere in that case.</p>
 
     <h2>A typical test loop</h2>
     <ol>
@@ -79,7 +88,7 @@
         <li><strong>Access token:</strong> always required, so other programs and other users on this computer cannot use the server. It is created for you when you enable the server.</li>
         <li><strong>Password masking:</strong> on by default. Values of <code>PWD=</code>, <code>Password=</code> / <code>"password":</code>, <code>secret</code>, <code>token</code>, <code>api_key</code>, <code>Bearer</code> tokens and passwords in URLs (<code>user:pass@</code>) are replaced by <code>***</code> in everything the assistant receives, and its searches only see the masked text. This is best effort: it cannot recognise every kind of secret. The log on your screen is not changed.</li>
         <li><strong>No program launching:</strong> none of the tools can start programs or run commands.</li>
-        <li><strong>Saved files are not masked:</strong> <code>save_log</code> and <code>save_view</code> write the log as captured, only into <code>Documents\UltimateDebugView</code>. The assistant cannot choose another folder.</li>
+        <li><strong>Saved files are not masked:</strong> <code>save_log</code> and <code>save_view</code> write the log as captured, only into the folder you chose in Preferences. The assistant cannot choose another folder.</li>
         <li>Everything the assistant reads is sent to its AI service, so only enable the server while you are using it.</li>
     </ul>
 
