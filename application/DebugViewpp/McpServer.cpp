@@ -36,6 +36,7 @@ const char* const SupportedProtocolVersions[] = {"2025-06-18", "2025-03-26", "20
 constexpr std::uint64_t MaxBodyBytes = 1024 * 1024;
 constexpr std::size_t MaxConnections = 16;
 constexpr DWORD IdleReceiveTimeoutMs = 5 * 60 * 1000;
+constexpr DWORD PreAuthReceiveTimeoutMs = 10 * 1000;
 constexpr auto UiCallTimeout = std::chrono::seconds(15);
 
 const char* const ServerInstructions =
@@ -169,6 +170,7 @@ void McpServer::Impl::AcceptLoop()
         {
             if (ec == net::error::operation_aborted || !acceptor->is_open())
                 break;
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));  // no hot spin on persistent errors
             continue;
         }
 
@@ -180,7 +182,8 @@ void McpServer::Impl::AcceptLoop()
             continue;
         }
 
-        DWORD timeout = IdleReceiveTimeoutMs;
+        // Short read timeout until the client has authenticated, so idle sockets cannot hold the slots.
+        DWORD timeout = PreAuthReceiveTimeoutMs;
         ::setsockopt(socket->native_handle(), SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<const char*>(&timeout), sizeof(timeout));
 
         auto done = std::make_shared<std::atomic<bool>>(false);
@@ -214,6 +217,7 @@ void McpServer::Impl::Serve(std::shared_ptr<tcp::socket> socket, std::shared_ptr
 {
     beast::flat_buffer buffer;
     boost::system::error_code ec;
+    bool authenticated = false;
     while (!stopping)
     {
         http::request_parser<http::string_body> parser;
@@ -234,11 +238,18 @@ void McpServer::Impl::Serve(std::shared_ptr<tcp::socket> socket, std::shared_ptr
             res.set(http::field::content_type, "text/plain");
             res.body() = ex.what();
         }
-        res.keep_alive(req.keep_alive());
+        bool rejected = res.result() == http::status::unauthorized || res.result() == http::status::forbidden;
+        res.keep_alive(req.keep_alive() && !rejected);
         res.prepare_payload();
         http::write(*socket, res, ec);
         if (ec || !res.keep_alive())
             break;
+        if (!authenticated)
+        {
+            authenticated = true;
+            DWORD timeout = IdleReceiveTimeoutMs;
+            ::setsockopt(socket->native_handle(), SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<const char*>(&timeout), sizeof(timeout));
+        }
     }
     socket->shutdown(tcp::socket::shutdown_both, ec);
     socket->close(ec);
@@ -272,11 +283,11 @@ http::response<http::string_body> McpServer::Impl::HandleHttp(const http::reques
     if (!origin.empty() && !IsLoopbackOrigin(std::string_view(origin.data(), origin.size())))
         return reply(http::status::forbidden, "text/plain", "Forbidden origin");
 
-    if (!config.token.empty())
+    // Every request must carry the token: loopback is reachable by every local process and user.
     {
         auto auth = req[http::field::authorization];
         std::string expected = "Bearer " + config.token;
-        if (!ConstantTimeEquals(std::string_view(auth.data(), auth.size()), expected))
+        if (config.token.empty() || !ConstantTimeEquals(std::string_view(auth.data(), auth.size()), expected))
         {
             auto res = reply(http::status::unauthorized, "text/plain", "Missing or wrong bearer token");
             res.set(http::field::www_authenticate, "Bearer");
@@ -408,9 +419,17 @@ json::value McpServer::Impl::CallTool(const json::object& params)
 
 json::value McpServer::Impl::RunOnUi(std::function<json::value()> fn)
 {
+    // A posted call is either claimed by the UI thread (and then always runs to completion)
+    // or cancelled by the waiter (and then never runs). This keeps "the call failed" honest:
+    // a timed-out mutation can never take effect later.
+    enum : int { Pending = 0, Claimed = 1, Cancelled = 2 };
+    auto state = std::make_shared<std::atomic<int>>(Pending);
     auto promise = std::make_shared<std::promise<json::value>>();
     auto future = promise->get_future();
-    bool posted = config.postToUi && config.postToUi([promise, fn = std::move(fn)] {
+    bool posted = config.postToUi && config.postToUi([state, promise, fn = std::move(fn)] {
+        int expected = Pending;
+        if (!state->compare_exchange_strong(expected, Claimed))
+            return;  // the caller gave up before the UI got to it
         try
         {
             promise->set_value(fn());
@@ -426,10 +445,18 @@ json::value McpServer::Impl::RunOnUi(std::function<json::value()> fn)
     auto deadline = std::chrono::steady_clock::now() + UiCallTimeout;
     while (future.wait_for(std::chrono::milliseconds(50)) != std::future_status::ready)
     {
+        bool timedOut = std::chrono::steady_clock::now() > deadline;
+        if (!stopping && !timedOut)
+            continue;
+        int expected = Pending;
+        if (state->compare_exchange_strong(expected, Cancelled))
+        {
+            throw McpToolError(stopping ? "The MCP server is shutting down; the call was not carried out"
+                                        : "The viewer was busy for 15 s (a dialog may be open); the call was not carried out and is safe to retry");
+        }
+        // Already running on the UI thread: it will finish, so wait for its real result.
         if (stopping)
-            throw McpToolError("The MCP server is shutting down");
-        if (std::chrono::steady_clock::now() > deadline)
-            throw McpToolError("The viewer did not respond within 15 s (a modal dialog may be open)");
+            throw McpToolError("The MCP server is shutting down while the call was running; its outcome is unknown");
     }
     return future.get();
 }
@@ -447,6 +474,11 @@ McpServer::~McpServer()
 bool McpServer::Start(const McpServerConfig& config, std::string& error)
 {
     Stop();
+    if (config.token.size() < 16)
+    {
+        error = "an access token of at least 16 characters is required";
+        return false;
+    }
     auto& impl = *m_impl;
     impl.config = config;
     impl.stopping = false;
@@ -499,8 +531,8 @@ void McpServer::Stop()
     }
     for (auto& connection : connections)
     {
+        // Only shut down here; the connection thread owns close().
         connection.socket->shutdown(tcp::socket::shutdown_both, ec);
-        connection.socket->close(ec);
     }
     for (auto& connection : connections)
     {

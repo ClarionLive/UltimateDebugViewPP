@@ -608,8 +608,8 @@ BEGIN
     LTEXT           "Access token:",IDC_STATIC,7,74,60,8
     EDITTEXT        IDC_MCP_TOKEN,70,72,300,14,ES_AUTOHSCROLL
     PUSHBUTTON      "Generate",IDC_MCP_GENERATE_TOKEN,376,72,60,14
-    LTEXT           "Optional. When set, clients must send it as a Bearer token.",IDC_STATIC,70,89,366,8
-    CONTROL         "Mask passwords (PWD=, Password=, Pwd=, Passwd=) in what the AI receives",IDC_MCP_MASK_SECRETS,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,7,106,400,10
+    LTEXT           "Required. Clients send it as a Bearer token; one is generated if left empty.",IDC_STATIC,70,89,366,8
+    CONTROL         "Mask passwords and tokens (PWD=, Password=, token=, api_key=, Bearer ...) in what the AI receives (best effort)",IDC_MCP_MASK_SECRETS,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,7,106,400,10
     GROUPBOX        "Connect",IDC_STATIC,7,124,466,92
     LTEXT           "",IDC_MCP_URL,17,138,446,8
     LTEXT           "",IDC_MCP_STATUS,17,152,446,8

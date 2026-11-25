@@ -249,6 +249,17 @@ void CMainFrame::StartMcpServer()
         return;
     }
 
+    // The server never runs without a token; create one the first time it is needed.
+    if (m_mcpSettings.token.size() < McpMinTokenLength)
+    {
+        m_mcpSettings.token = GenerateMcpToken();
+        CRegKey reg;
+        if (reg.Create(HKEY_CURRENT_USER, RegistryPath) == ERROR_SUCCESS)
+        {
+            reg.SetStringValue(L"McpToken", m_mcpSettings.token.c_str());
+        }
+    }
+
     if (!m_mcpTools)
     {
         m_mcpTools = std::make_unique<McpToolRegistry>();
@@ -292,11 +303,39 @@ void CMainFrame::StopMcpServer()
 LRESULT CMainFrame::OnMcpCall(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM lParam)
 {
     std::unique_ptr<std::function<void()>> pFn(reinterpret_cast<std::function<void()>*>(lParam));
-    if (pFn && *pFn)
+    if (!pFn || !*pFn)
     {
-        (*pFn)();  // exceptions are caught inside and handed back to the waiting MCP request
+        return 0;
     }
+
+    // A modal dialog (Filter, Preferences, a message box) disables the frame and may hold pointers
+    // into the log and views. Posted calls still arrive through its message loop, so hold them until
+    // the frame is enabled again. A call still held after 15 s is cancelled by the MCP server and
+    // then does nothing when it finally runs.
+    if (!IsWindowEnabled() || !m_deferredMcpCalls.empty())
+    {
+        m_deferredMcpCalls.push_back(std::move(*pFn));
+        ::SetTimer(m_hWnd, McpDeferTimerId, 100, nullptr);
+        return 0;
+    }
+
+    (*pFn)();  // exceptions are caught inside and handed back to the waiting MCP request
     return 0;
+}
+
+void CMainFrame::RunDeferredMcpCalls()
+{
+    if (!IsWindowEnabled())
+    {
+        return;
+    }
+    ::KillTimer(m_hWnd, McpDeferTimerId);
+    auto calls = std::move(m_deferredMcpCalls);
+    m_deferredMcpCalls.clear();
+    for (auto& call : calls)
+    {
+        call();
+    }
 }
 
 void CMainFrame::ApplyMcpSettings(const McpSettings& settings)
@@ -833,6 +872,10 @@ void CMainFrame::OnTimer(UINT_PTR nIDEvent)
         // Reset cursor after dialog closes
         ::SetCursor(::LoadCursor(nullptr, IDC_ARROW));
         ::KillTimer(m_hWnd, 1001);
+    }
+    else if (nIDEvent == McpDeferTimerId)
+    {
+        RunDeferredMcpCalls();
     }
 }
 
@@ -3173,6 +3216,9 @@ void CMainFrame::OnLogCrop(UINT /*uNotifyCode*/, int /*nID*/, CWindow /*wndCtl*/
 
     LogFile temp;
     temp.Append(m_logFile, selection.beginLine, selection.endLine);
+    // Cropping renumbers the log; keep MCP cursors monotonic like ClearLog does.
+    m_seqBase += m_logFile.Count();
+    ++m_clearGeneration;
     std::swap(temp, m_logFile);
 
     m_logSources.ResetTimer();

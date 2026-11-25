@@ -1218,7 +1218,21 @@ bool CPreferencesDlg::CMcpPage::Save(McpSettings& settings)
         return false;
     }
 
-    settings.enabled = IsDlgButtonChecked(IDC_MCP_ENABLE) == BST_CHECKED;
+    bool enabled = IsDlgButtonChecked(IDC_MCP_ENABLE) == BST_CHECKED;
+    if (token.empty())
+    {
+        // A token is always required; create one so enabling the server is one click.
+        token = GenerateMcpToken();
+        SetDlgItemText(IDC_MCP_TOKEN, token.c_str());
+    }
+    else if (token.size() < McpMinTokenLength)
+    {
+        MessageBox(L"The access token must be at least 16 characters. Press Generate for a random one.", L"Preferences", MB_OK | MB_ICONWARNING);
+        GetDlgItem(IDC_MCP_TOKEN).SetFocus();
+        return false;
+    }
+
+    settings.enabled = enabled;
     settings.port = static_cast<int>(port);
     settings.token = token;
     settings.maskSecrets = IsDlgButtonChecked(IDC_MCP_MASK_SECRETS) == BST_CHECKED;
@@ -1227,20 +1241,13 @@ bool CPreferencesDlg::CMcpPage::Save(McpSettings& settings)
 
 void CPreferencesDlg::CMcpPage::OnGenerateToken(UINT /*uNotifyCode*/, int /*nID*/, CWindow /*wndCtl*/)
 {
-    unsigned char bytes[24] = {};
-    if (!BCRYPT_SUCCESS(::BCryptGenRandom(nullptr, bytes, sizeof(bytes), BCRYPT_USE_SYSTEM_PREFERRED_RNG)))
+    auto token = GenerateMcpToken();
+    if (token.empty())
     {
         MessageBox(L"Could not generate a random token.", L"Preferences", MB_OK | MB_ICONERROR);
         return;
     }
-    static const wchar_t hex[] = L"0123456789abcdef";
-    std::wstring generated;
-    for (unsigned char b : bytes)
-    {
-        generated += hex[b >> 4];
-        generated += hex[b & 0x0F];
-    }
-    SetDlgItemText(IDC_MCP_TOKEN, generated.c_str());
+    SetDlgItemText(IDC_MCP_TOKEN, token.c_str());
 }
 
 void CPreferencesDlg::CMcpPage::OnChange(UINT /*uNotifyCode*/, int /*nID*/, CWindow /*wndCtl*/)

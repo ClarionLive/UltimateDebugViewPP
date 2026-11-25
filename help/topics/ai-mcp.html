@@ -16,7 +16,7 @@
     <ol>
         <li>Open <strong>Preferences</strong> and choose the <strong>AI / MCP</strong> tab.</li>
         <li>Tick <strong>Enable MCP server</strong>. The default port is <code>7777</code>.</li>
-        <li>Optionally press <strong>Generate</strong> to create an access token.</li>
+        <li>An access token is created automatically (press <strong>Generate</strong> for a new one). Every client must send it.</li>
         <li>Press <strong>OK</strong>. The status bar shows <code>MCP :7777</code> while the server runs, or the reason it could not start (for example, the port is in use).</li>
     </ol>
     <p>The server is off by default and only accepts connections from this computer (<code>127.0.0.1</code>).</p>
@@ -32,8 +32,8 @@
     }
   }
 }</code></pre>
-    <p>Leave out <code>headers</code> if you did not set a token. You can also add it from a terminal:</p>
-    <pre><code>claude mcp add --transport http ultimate-debugview http://127.0.0.1:7777/mcp</code></pre>
+    <p>The <code>headers</code> line is required. You can also add it from a terminal:</p>
+    <pre><code>claude mcp add --transport http ultimate-debugview http://127.0.0.1:7777/mcp --header "Authorization: Bearer &lt;your token&gt;"</code></pre>
     <p>Any MCP client that supports the Streamable HTTP transport can connect the same way.</p>
 
     <h2>What the assistant can do</h2>
@@ -55,7 +55,7 @@
         <tr><td><code>get_procedure_timeline</code></td><td>Clarion procedure opens and closes in order, with call depth and durations.</td></tr>
         <tr><td><code>list_queues</code>, <code>get_queue</code></td><td>Clarion queues dumped to the log by UltimateDebug.</td></tr>
         <tr><td><code>create_procedure_view</code></td><td>Opens a tab showing one procedure's lines.</td></tr>
-        <tr><td><code>save_log</code>, <code>save_view</code></td><td>Saves the log or a tab to a .dblog/.log/.txt/.csv file (not under Windows or Program Files; never overwrites unless asked).</td></tr>
+        <tr><td><code>save_log</code>, <code>save_view</code></td><td>Saves the log or a tab as a .dblog/.log/.txt/.csv file in <code>Documents\UltimateDebugView</code> (by file name only; never overwrites unless asked).</td></tr>
     </table>
 
     <h2>A typical test loop</h2>
@@ -76,10 +76,10 @@
     <h2>Security and privacy</h2>
     <ul>
         <li><strong>Local only:</strong> the server listens on <code>127.0.0.1</code> and rejects requests from web pages on other sites.</li>
-        <li><strong>Access token:</strong> when set, every request must carry it.</li>
-        <li><strong>Password masking:</strong> on by default. Values after <code>PWD=</code>, <code>Password=</code>, <code>Pwd=</code> and <code>Passwd=</code> are replaced by <code>***</code> in everything the assistant receives. The log on your screen is not changed.</li>
+        <li><strong>Access token:</strong> always required, so other programs and other users on this computer cannot use the server. It is created for you when you enable the server.</li>
+        <li><strong>Password masking:</strong> on by default. Values of <code>PWD=</code>, <code>Password=</code> / <code>"password":</code>, <code>secret</code>, <code>token</code>, <code>api_key</code>, <code>Bearer</code> tokens and passwords in URLs (<code>user:pass@</code>) are replaced by <code>***</code> in everything the assistant receives, and its searches only see the masked text. This is best effort: it cannot recognise every kind of secret. The log on your screen is not changed.</li>
         <li><strong>No program launching:</strong> none of the tools can start programs or run commands.</li>
-        <li><strong>Saved files are not masked:</strong> <code>save_log</code> and <code>save_view</code> write the log as captured, to files on this computer only.</li>
+        <li><strong>Saved files are not masked:</strong> <code>save_log</code> and <code>save_view</code> write the log as captured, only into <code>Documents\UltimateDebugView</code>. The assistant cannot choose another folder.</li>
         <li>Everything the assistant reads is sent to its AI service, so only enable the server while you are using it.</li>
     </ul>
 

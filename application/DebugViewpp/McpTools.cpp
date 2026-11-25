@@ -106,14 +106,26 @@ std::string Utf8ToAnsi(const std::string& text)
     return result;
 }
 
-// PWD=..., Password=..., Pwd=..., Passwd=... (connection strings and Clarion owner strings)
+// Best-effort masking of common credential forms (it cannot sanitise arbitrary text):
+//   PWD=x, Password: x, passwd=x, secret=x, client_secret=x, token=x, access_token=x, api_key=x, apikey=x
+//   (also JSON-style "password": "x"), Authorization: Bearer x, and scheme://user:password@host
 std::string MaskSecrets(const std::string& text)
 {
     auto lower = Lower(text);
-    if (lower.find("pw") == std::string::npos && lower.find("pass") == std::string::npos)
+    static const char* const hints[] = {"pw", "pass", "secret", "token", "key", "bearer", "://"};
+    if (std::none_of(std::begin(hints), std::end(hints), [&](const char* h) { return lower.find(h) != std::string::npos; }))
         return text;
-    static const std::regex re(R"(((?:\b|_)(?:pwd|password|passwd)\s*=\s*)("[^"]*"|'[^']*'|[^;,\s'")]*))", std::regex::ECMAScript | std::regex::icase);
-    return std::regex_replace(text, re, "$1***");
+
+    static const std::regex keyValue(
+        R"rx(((?:\b|_)(?:pwd|password|passwd|secret|client_secret|token|access_token|refresh_token|api_key|apikey|api-key)"?\s*[=:]\s*"?)("[^"]*"|'[^']*'|[^;,\s'"})]*))rx",
+        std::regex::ECMAScript | std::regex::icase);
+    static const std::regex bearer(R"rx((\bbearer\s+)[A-Za-z0-9._~+/=-]+)rx", std::regex::ECMAScript | std::regex::icase);
+    static const std::regex urlCredentials(R"rx((\b[a-z][a-z0-9+.-]*://[^\s:/@]+:)[^\s@/]+@)rx", std::regex::ECMAScript | std::regex::icase);
+
+    auto masked = std::regex_replace(text, keyValue, "$1***");
+    masked = std::regex_replace(masked, bearer, "$1***");
+    masked = std::regex_replace(masked, urlCredentials, "$1***@");
+    return masked;
 }
 
 std::string TruncateUtf8(const std::string& text, size_t maxBytes, bool& truncated)
@@ -232,6 +244,9 @@ std::regex CompileRegex(const std::string& pattern)
     }
 }
 
+constexpr size_t MaxRegexLength = 500;
+constexpr size_t MaxRegexSubjectBytes = 4096;  // std::regex recurses; keep its input bounded
+
 LineQuery ParseQuery(const json::object& args)
 {
     LineQuery query;
@@ -239,6 +254,8 @@ LineQuery ParseQuery(const json::object& args)
         query.containsLower = Lower(*contains);
     if (auto pattern = GetString(args, "regex"); pattern && !pattern->empty())
     {
+        if (pattern->size() > MaxRegexLength)
+            throw McpToolError("'regex' is limited to 500 characters");
         query.re = CompileRegex(*pattern);
         query.hasRegex = true;
     }
@@ -249,18 +266,60 @@ LineQuery ParseQuery(const json::object& args)
     return query;
 }
 
-bool Matches(const LineQuery& query, const Message& msg)
+// Case-insensitive (ASCII) substring test without allocating; needleLower is already lower case.
+bool ContainsNoCase(std::string_view haystack, std::string_view needleLower)
+{
+    if (needleLower.empty())
+        return true;
+    auto it = std::search(haystack.begin(), haystack.end(), needleLower.begin(), needleLower.end(), [](char a, char b) {
+        return std::tolower(static_cast<unsigned char>(a)) == static_cast<unsigned char>(b);
+    });
+    return it != haystack.end();
+}
+
+// When masking is on, text criteria match the masked text, so a search cannot probe a hidden secret.
+bool Matches(const LineQuery& query, const Message& msg, bool mask)
 {
     if (query.pid && msg.processId != *query.pid)
         return false;
-    if (!query.processLower.empty() && Lower(msg.processName).find(query.processLower) == std::string::npos)
+    if (!query.processLower.empty() && !ContainsNoCase(msg.processName, query.processLower))
         return false;
-    if (!query.containsLower.empty() && Lower(msg.text).find(query.containsLower) == std::string::npos)
+    if (query.containsLower.empty() && !query.hasRegex)
+        return true;
+
+    std::string maskedText;
+    std::string_view text = msg.text;
+    if (mask)
+    {
+        maskedText = MaskSecrets(msg.text);
+        text = maskedText;
+    }
+    if (!ContainsNoCase(text, query.containsLower))
         return false;
-    if (query.hasRegex && !std::regex_search(msg.text, query.re))
-        return false;
+    if (query.hasRegex)
+    {
+        auto subject = text.substr(0, MaxRegexSubjectBytes);
+        if (!std::regex_search(subject.begin(), subject.end(), query.re))
+            return false;
+    }
     return true;
 }
+
+// Bounds the time a scan may hold the UI thread; checked every 1024 lines.
+class ScanBudget
+{
+public:
+    explicit ScanBudget(std::chrono::milliseconds budget) :
+        m_deadline(std::chrono::steady_clock::now() + budget)
+    {
+    }
+    bool Expired(int scanned) const { return (scanned & 1023) == 1023 && std::chrono::steady_clock::now() > m_deadline; }
+
+private:
+    std::chrono::steady_clock::time_point m_deadline;
+};
+
+constexpr auto UiScanBudget = std::chrono::milliseconds(150);
 
 // ---------------------------------------------------------------- schemas
 
@@ -568,17 +627,19 @@ public:
         int end = source.Count();
         int pos = 0;
         bool olderAvailable = false;
+        ScanBudget budget(UiScanBudget);
+        bool mask = f.m_mcpSettings.maskSecrets;
 
         if (!o.tail)
         {
             pos = source.LowerBound(startIndex);
             std::string lastText;
             DWORD lastPid = 0;
-            for (int scanned = 0; pos < end && scanned < MaxScanPerCall; ++scanned)
+            for (int scanned = 0; pos < end && scanned < MaxScanPerCall && !budget.Expired(scanned); ++scanned)
             {
                 int index = source.At(pos);
                 Message msg = log.GetUnparsed(index);
-                if (Matches(o.query, msg))
+                if (Matches(o.query, msg, mask))
                 {
                     if (o.collapse && !groups.empty() && msg.processId == lastPid && msg.text == lastText)
                     {
@@ -602,11 +663,11 @@ public:
             int p = end - 1;
             std::string lastText;
             DWORD lastPid = 0;
-            for (int scanned = 0; p >= lowest && scanned < MaxScanPerCall; ++scanned, --p)
+            for (int scanned = 0; p >= lowest && scanned < MaxScanPerCall && !budget.Expired(scanned); ++scanned, --p)
             {
                 int index = source.At(p);
                 Message msg = log.GetUnparsed(index);
-                if (!Matches(o.query, msg))
+                if (!Matches(o.query, msg, mask))
                     continue;
                 if (o.collapse && !groups.empty() && msg.processId == lastPid && msg.text == lastText)
                 {
@@ -706,10 +767,12 @@ public:
         size_t bytes = 0;
         bool truncated = false;
         int scanned = 0;
-        for (; pos < end && scanned < MaxScanPerCall; ++pos, ++scanned)
+        ScanBudget budget(UiScanBudget);
+        bool mask = f.m_mcpSettings.maskSecrets;
+        for (; pos < end && scanned < MaxScanPerCall && !budget.Expired(scanned); ++pos, ++scanned)
         {
             Message msg = log.GetUnparsed(source.At(pos));
-            if (!Matches(query, msg))
+            if (!Matches(query, msg, mask))
                 continue;
             if (static_cast<int>(matches.size()) == limit)
                 break;
@@ -756,7 +819,9 @@ public:
         constexpr int MaxScan = 500000;
         int start = std::max(0, count - MaxScan);
         std::map<std::pair<DWORD, std::string>, Stats> stats;
-        for (int i = start; i < count; ++i)
+        ScanBudget budget(std::chrono::milliseconds(500));
+        int scannedTo = start;
+        for (int i = start; i < count && !budget.Expired(i - start); ++i, scannedTo = i)
         {
             Message msg = log.GetUnparsed(i);
             auto& s = stats[{msg.processId, msg.processName}];
@@ -785,7 +850,11 @@ public:
                 {"firstSeen", IsoTime(s.firstTime)},
                 {"lastSeen", IsoTime(s.lastTime)}});
         }
-        json::object result{{"processes", std::move(processes)}, {"scannedFromLine", f.m_seqBase + start}, {"nextLine", NextLine(f)}};
+        json::object result{
+            {"processes", std::move(processes)},
+            {"scannedFromLine", f.m_seqBase + start},
+            {"complete", scannedTo >= count},
+            {"nextLine", NextLine(f)}};
         return result;
     }
 
@@ -1364,56 +1433,40 @@ std::filesystem::path KnownFolder(REFKNOWNFOLDERID id)
     return result;
 }
 
-bool IsUnder(const std::filesystem::path& path, const std::filesystem::path& folder)
-{
-    if (folder.empty())
-        return false;
-    auto p = LowerW(path.wstring());
-    auto d = LowerW(folder.wstring());
-    if (!d.empty() && d.back() != L'\\')
-        d += L'\\';
-    return p.rfind(d, 0) == 0;
-}
-
-// Save tools may only write ordinary log files in ordinary folders on this computer.
+// Save tools only write into one export folder (Documents\UltimateDebugView), by plain file name.
+// The AI's inputs can be steered by log content, so it must never choose arbitrary paths.
 std::wstring ValidateSavePath(const std::string& input, bool overwrite)
 {
     namespace fs = std::filesystem;
-    std::wstring wide = Utf8ToWide(input);
-    if (wide.rfind(L"\\\\", 0) == 0 || wide.rfind(L"//", 0) == 0)
-        throw McpToolError("Network and device paths are not allowed");
+    std::wstring name = Utf8ToWide(input);
+    bool plain = !name.empty() && name.size() <= 120 &&
+                 std::all_of(name.begin(), name.end(), [](wchar_t c) { return ::iswalnum(c) != 0 || c == L'.' || c == L'_' || c == L'-' || c == L' '; });
+    if (!plain || name.front() == L'.' || name.back() == L'.' || name.back() == L' ')
+        throw McpToolError("'path' must be a plain file name such as \"run1.dblog\" (letters, digits, space, . _ -). Files are saved in Documents\\UltimateDebugView.");
 
-    fs::path path(wide);
-    if (!path.has_filename())
-        throw McpToolError("'path' must name a file");
-    if (!path.is_absolute())
-    {
-        if (path.has_parent_path())
-            throw McpToolError("Give a bare file name (saved in Documents\\UltimateDebugView) or a full path like C:\\Logs\\run.dblog");
-        auto documents = KnownFolder(FOLDERID_Documents);
-        if (documents.empty())
-            throw McpToolError("Could not find the Documents folder; give a full path");
-        auto folder = documents / L"UltimateDebugView";
-        std::error_code ec;
-        fs::create_directories(folder, ec);
-        path = folder / path;
-    }
-    path = fs::weakly_canonical(path);
-
-    auto ext = LowerW(path.extension().wstring());
+    auto ext = LowerW(fs::path(name).extension().wstring());
     if (ext != L".dblog" && ext != L".log" && ext != L".txt" && ext != L".csv")
         throw McpToolError("Only .dblog, .log, .txt and .csv files can be saved");
-    if (IsUnder(path, KnownFolder(FOLDERID_Windows)) || IsUnder(path, KnownFolder(FOLDERID_ProgramFiles)) || IsUnder(path, KnownFolder(FOLDERID_ProgramFilesX86)) ||
-        IsUnder(path, KnownFolder(FOLDERID_ProgramData)))
-        throw McpToolError("Saving under Windows, Program Files or ProgramData is not allowed");
 
+    auto documents = KnownFolder(FOLDERID_Documents);
+    if (documents.empty())
+        throw McpToolError("Could not find the Documents folder");
+    auto folder = documents / L"UltimateDebugView";
     std::error_code ec;
-    if (!fs::is_directory(path.parent_path(), ec))
-        throw McpToolError("Folder does not exist: " + WideToUtf8(path.parent_path().wstring()));
-    if (fs::is_directory(path, ec))
-        throw McpToolError("'path' is a folder");
-    if (fs::exists(path, ec) && !overwrite)
-        throw McpToolError("File already exists: " + WideToUtf8(path.wstring()) + ". Pass overwrite: true to replace it.");
+    fs::create_directories(folder, ec);
+    DWORD attributes = ::GetFileAttributesW(folder.c_str());
+    if (attributes == INVALID_FILE_ATTRIBUTES || (attributes & FILE_ATTRIBUTE_DIRECTORY) == 0 || (attributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0)
+        throw McpToolError("The export folder Documents\\UltimateDebugView is missing or is a link; refusing to save");
+
+    auto path = folder / name;
+    attributes = ::GetFileAttributesW(path.c_str());
+    if (attributes != INVALID_FILE_ATTRIBUTES)
+    {
+        if ((attributes & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT)) != 0)
+            throw McpToolError("'path' names a folder or link inside the export folder");
+        if (!overwrite)
+            throw McpToolError("File already exists: " + WideToUtf8(path.wstring()) + ". Pass overwrite: true to replace it.");
+    }
     return path.wstring();
 }
 
@@ -1446,7 +1499,8 @@ void RegisterDebugViewTools(McpToolRegistry& registry, CMainFrame& frame)
             "Read captured lines from the whole log or one tab, oldest first. Each line has line (cursor number), time, systemTime, pid, process, text "
             "and Clarion fields when present. Returns nextLine: pass it as since_line next time to get only new output. more: true means another page is "
             "waiting; truncated: true means the byte budget was hit. lost > 0 means a clear removed lines you had not read yet. "
-            "Passwords such as PWD=... are masked unless the user turned masking off.",
+            "Passwords and tokens (PWD=, Password:, token=, api_key=, Bearer ..., user:pass@ in URLs) are masked on a best-effort basis unless the user "
+            "turned masking off; text filters then match the masked text. A long scan stops after a short time budget with more: true; just call again.",
             [f](const json::object& args, McpContext& ctx) {
                 B::ReadOptions o;
                 ReadOptionsFromArgs(args, o);
@@ -1856,12 +1910,12 @@ void RegisterDebugViewTools(McpToolRegistry& registry, CMainFrame& frame)
 
     // ------------------------------------------------ Phase 2: saving
 
-    const char* const P_Path = R"("path": {"type": "string", "description": "File name or full path ending in .dblog, .log, .txt or .csv. A bare file name is saved in Documents\\UltimateDebugView."})";
+    const char* const P_Path = R"("path": {"type": "string", "description": "Plain file name ending in .dblog, .log, .txt or .csv, e.g. \"run1.dblog\". Always saved in the user's Documents\\UltimateDebugView folder."})";
     const char* const P_Overwrite = R"("overwrite": {"type": "boolean", "description": "Replace an existing file (default false)."})";
 
     AddTool(registry, "save_log", "Save the whole log to a file", false, Close(Props({P_Path, P_Overwrite}), R"(["path"])").c_str(),
             "Save every captured line to a file on this computer (same format as File > Save Log). The file is not masked: it stays local. "
-            "Paths under Windows or Program Files, network paths and other extensions are refused.",
+            "Files always go to the user's Documents\\UltimateDebugView folder; only a plain file name is accepted.",
             [f](const json::object& args, McpContext& ctx) {
                 auto path = ValidateSavePath(RequireString(args, "path"), GetBool(args, "overwrite").value_or(false));
                 return ctx.RunOnUi([f, path] {

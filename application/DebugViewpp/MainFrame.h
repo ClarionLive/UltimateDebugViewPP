@@ -7,6 +7,7 @@
 
 #include <memory>
 #include <vector>
+#include <functional>
 
 #include "atleverything.h"
 #include <atlsplit.h>
@@ -151,6 +152,8 @@ private:
     void StartMcpServer();
     void StopMcpServer();
     LRESULT OnMcpCall(UINT uMsg, WPARAM wParam, LPARAM lParam);
+    void RunDeferredMcpCalls();
+    static constexpr UINT_PTR McpDeferTimerId = 1002;
 
     DECLARE_MSG_MAP()
 
@@ -353,6 +356,7 @@ private:
     std::unique_ptr<McpToolRegistry> m_mcpTools;
     std::unique_ptr<McpServer> m_mcpServer;
     std::wstring m_mcpError;
+    std::vector<std::function<void()>> m_deferredMcpCalls;  // held while a modal dialog disables the frame
     long long m_seqBase = 0;     // lines removed by earlier clears; cursor = m_seqBase + log index
     int m_clearGeneration = 0;   // bumped by every ClearLog
 
