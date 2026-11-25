@@ -238,13 +238,15 @@ void McpServer::Impl::Serve(std::shared_ptr<tcp::socket> socket, std::shared_ptr
             res.set(http::field::content_type, "text/plain");
             res.body() = ex.what();
         }
-        bool rejected = res.result() == http::status::unauthorized || res.result() == http::status::forbidden;
-        res.keep_alive(req.keep_alive() && !rejected);
+        // Only a successful (2xx) response proves the client holds the token; before that, any other
+        // response closes the connection so it cannot keep a slot under the long idle timeout.
+        bool success = res.result_int() >= 200 && res.result_int() < 300;
+        res.keep_alive(req.keep_alive() && (success || authenticated));
         res.prepare_payload();
         http::write(*socket, res, ec);
         if (ec || !res.keep_alive())
             break;
-        if (!authenticated)
+        if (!authenticated && success)
         {
             authenticated = true;
             DWORD timeout = IdleReceiveTimeoutMs;

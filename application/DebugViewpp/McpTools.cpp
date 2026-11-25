@@ -106,10 +106,11 @@ std::string Utf8ToAnsi(const std::string& text)
     return result;
 }
 
-// Best-effort masking of common credential forms (it cannot sanitise arbitrary text):
-//   PWD=x, Password: x, passwd=x, secret=x, client_secret=x, token=x, access_token=x, api_key=x, apikey=x
-//   (also JSON-style "password": "x"), Authorization: Bearer x, and scheme://user:password@host
-std::string MaskSecrets(const std::string& text)
+std::string TruncateUtf8(const std::string& text, size_t maxBytes, bool& truncated);
+
+// Masks one line (at most MaxMaskLineBytes). Quantifiers are bounded because MSVC's std::regex
+// recurses per character and would overflow the stack on very long runs.
+std::string MaskLine(const std::string& text)
 {
     auto lower = Lower(text);
     static const char* const hints[] = {"pw", "pass", "secret", "token", "key", "bearer", "://"};
@@ -117,15 +118,57 @@ std::string MaskSecrets(const std::string& text)
         return text;
 
     static const std::regex keyValue(
-        R"rx(((?:\b|_)(?:pwd|password|passwd|secret|client_secret|token|access_token|refresh_token|api_key|apikey|api-key)"?\s*[=:]\s*"?)("[^"]*"|'[^']*'|[^;,\s'"})]*))rx",
+        R"rx(((?:\b|_)(?:pwd|password|passwd|secret|client_secret|token|access_token|refresh_token|api_key|apikey|api-key)"?\s*[=:]\s*"?)("[^"]{0,1024}"?|'[^']{0,1024}'?|[^;,\s'"})]{0,1024}))rx",
         std::regex::ECMAScript | std::regex::icase);
-    static const std::regex bearer(R"rx((\bbearer\s+)[A-Za-z0-9._~+/=-]+)rx", std::regex::ECMAScript | std::regex::icase);
-    static const std::regex urlCredentials(R"rx((\b[a-z][a-z0-9+.-]*://[^\s:/@]+:)[^\s@/]+@)rx", std::regex::ECMAScript | std::regex::icase);
+    static const std::regex bearer(R"rx((\bbearer\s+)[A-Za-z0-9._~+/=*-]{1,1024})rx", std::regex::ECMAScript | std::regex::icase);
+    static const std::regex urlCredentials(R"rx((\b[a-z][a-z0-9+.-]{0,30}://[^\s:/@]{1,256}:)[^\s@/]{1,512}@)rx", std::regex::ECMAScript | std::regex::icase);
 
-    auto masked = std::regex_replace(text, keyValue, "$1***");
-    masked = std::regex_replace(masked, bearer, "$1***");
-    masked = std::regex_replace(masked, urlCredentials, "$1***@");
+    // Values longer than the bounded quantifier are masked in further passes ("***" followed by
+    // more of the value matches again) until nothing changes.
+    std::string masked = text;
+    for (int pass = 0; pass < 12; ++pass)
+    {
+        auto next = std::regex_replace(masked, keyValue, "$1***");
+        next = std::regex_replace(next, bearer, "$1***");
+        next = std::regex_replace(next, urlCredentials, "$1***@");
+        bool done = next == masked;
+        masked = std::move(next);
+        if (done)
+            break;
+    }
     return masked;
+}
+
+constexpr size_t MaxMaskLineBytes = 8 * 1024;
+
+// Best-effort masking of common credential forms (it cannot sanitise arbitrary text):
+//   PWD=x, Password: x, passwd=x, secret=x, client_secret=x, token=x, access_token=x, api_key=x, apikey=x
+//   (also JSON-style "password": "x"), Authorization: Bearer x, and scheme://user:password@host
+// Works line by line; any line longer than 8 KB is cut to 8 KB (with an ellipsis) so nothing unmasked follows.
+std::string MaskSecrets(const std::string& text)
+{
+    if (text.size() <= MaxMaskLineBytes && text.find('\n') == std::string::npos)
+        return MaskLine(text);
+
+    std::string result;
+    result.reserve(text.size());
+    size_t start = 0;
+    for (;;)
+    {
+        size_t newline = text.find('\n', start);
+        size_t end = newline == std::string::npos ? text.size() : newline;
+        std::string line = text.substr(start, end - start);
+        bool cut = false;
+        line = TruncateUtf8(line, MaxMaskLineBytes, cut);
+        result += MaskLine(line);
+        if (cut)
+            result += "\xE2\x80\xA6";  // U+2026 ellipsis
+        if (newline == std::string::npos)
+            break;
+        result += '\n';
+        start = newline + 1;
+    }
+    return result;
 }
 
 std::string TruncateUtf8(const std::string& text, size_t maxBytes, bool& truncated)
@@ -305,7 +348,7 @@ bool Matches(const LineQuery& query, const Message& msg, bool mask)
     return true;
 }
 
-// Bounds the time a scan may hold the UI thread; checked every 1024 lines.
+// Bounds the time a scan may hold the UI thread; checked every 256 lines.
 class ScanBudget
 {
 public:
@@ -313,7 +356,7 @@ public:
         m_deadline(std::chrono::steady_clock::now() + budget)
     {
     }
-    bool Expired(int scanned) const { return (scanned & 1023) == 1023 && std::chrono::steady_clock::now() > m_deadline; }
+    bool Expired(int scanned) const { return (scanned & 255) == 255 && std::chrono::steady_clock::now() > m_deadline; }
 
 private:
     std::chrono::steady_clock::time_point m_deadline;
@@ -1435,7 +1478,7 @@ std::filesystem::path KnownFolder(REFKNOWNFOLDERID id)
 
 // Save tools only write into one export folder (Documents\UltimateDebugView), by plain file name.
 // The AI's inputs can be steered by log content, so it must never choose arbitrary paths.
-std::wstring ValidateSavePath(const std::string& input, bool overwrite)
+std::wstring CreateExportFile(const std::string& input)
 {
     namespace fs = std::filesystem;
     std::wstring name = Utf8ToWide(input);
@@ -1458,15 +1501,20 @@ std::wstring ValidateSavePath(const std::string& input, bool overwrite)
     if (attributes == INVALID_FILE_ATTRIBUTES || (attributes & FILE_ATTRIBUTE_DIRECTORY) == 0 || (attributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0)
         throw McpToolError("The export folder Documents\\UltimateDebugView is missing or is a link; refusing to save");
 
+    // Never write through an existing name: create the file atomically (CREATE_NEW fails on any existing
+    // file, hard link or reparse point), so an MCP save can only ever produce a brand-new file. The
+    // serializer then reopens this empty file by name; only a process already running as this user could
+    // swap it in between, and such a process can change the user's files directly anyway.
     auto path = folder / name;
-    attributes = ::GetFileAttributesW(path.c_str());
-    if (attributes != INVALID_FILE_ATTRIBUTES)
+    HANDLE file = ::CreateFileW(path.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_NEW, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OPEN_REPARSE_POINT, nullptr);
+    if (file == INVALID_HANDLE_VALUE)
     {
-        if ((attributes & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT)) != 0)
-            throw McpToolError("'path' names a folder or link inside the export folder");
-        if (!overwrite)
-            throw McpToolError("File already exists: " + WideToUtf8(path.wstring()) + ". Pass overwrite: true to replace it.");
+        DWORD error = ::GetLastError();
+        if (error == ERROR_FILE_EXISTS || error == ERROR_ALREADY_EXISTS)
+            throw McpToolError("File already exists: " + WideToUtf8(path.wstring()) + ". Saves never replace files; choose a new name.");
+        throw McpToolError("Could not create " + WideToUtf8(path.wstring()) + " (error " + std::to_string(error) + ")");
     }
+    ::CloseHandle(file);
     return path.wstring();
 }
 
@@ -1911,14 +1959,13 @@ void RegisterDebugViewTools(McpToolRegistry& registry, CMainFrame& frame)
     // ------------------------------------------------ Phase 2: saving
 
     const char* const P_Path = R"("path": {"type": "string", "description": "Plain file name ending in .dblog, .log, .txt or .csv, e.g. \"run1.dblog\". Always saved in the user's Documents\\UltimateDebugView folder."})";
-    const char* const P_Overwrite = R"("overwrite": {"type": "boolean", "description": "Replace an existing file (default false)."})";
-
-    AddTool(registry, "save_log", "Save the whole log to a file", false, Close(Props({P_Path, P_Overwrite}), R"(["path"])").c_str(),
-            "Save every captured line to a file on this computer (same format as File > Save Log). The file is not masked: it stays local. "
-            "Files always go to the user's Documents\\UltimateDebugView folder; only a plain file name is accepted.",
+    AddTool(registry, "save_log", "Save the whole log to a file", false, Close(Props({P_Path}), R"(["path"])").c_str(),
+            "Save every captured line to a NEW file on this computer (same format as File > Save Log). The file is not masked: it stays local. "
+            "Files always go to the user's Documents\\UltimateDebugView folder; only a plain file name is accepted and existing files are never replaced.",
             [f](const json::object& args, McpContext& ctx) {
-                auto path = ValidateSavePath(RequireString(args, "path"), GetBool(args, "overwrite").value_or(false));
-                return ctx.RunOnUi([f, path] {
+                auto name = RequireString(args, "path");
+                return ctx.RunOnUi([f, name] {
+                    auto path = CreateExportFile(name);  // created right before writing
                     try
                     {
                         return json::value(B::SaveLog(*f, path));
@@ -1935,12 +1982,13 @@ void RegisterDebugViewTools(McpToolRegistry& registry, CMainFrame& frame)
             });
 
     AddTool(registry, "save_view", "Save a tab to a file", false,
-            Close(Props({P_Path, P_Overwrite, R"("tab": {"type": ["string", "integer"], "description": "Tab to save (default: the current tab)."})"}), R"(["path"])").c_str(),
-            "Save the lines a tab shows to a file on this computer (same as File > Save View). Same path rules as save_log.",
+            Close(Props({P_Path, R"("tab": {"type": ["string", "integer"], "description": "Tab to save (default: the current tab)."})"}), R"(["path"])").c_str(),
+            "Save the lines a tab shows to a NEW file on this computer (same as File > Save View). Same rules as save_log.",
             [f](const json::object& args, McpContext& ctx) {
-                auto path = ValidateSavePath(RequireString(args, "path"), GetBool(args, "overwrite").value_or(false));
-                return ctx.RunOnUi([f, args, path] {
+                auto name = RequireString(args, "path");
+                return ctx.RunOnUi([f, args, name] {
                     int tab = B::TabOrDefault(*f, args, B::CurrentTab(*f));
+                    auto path = CreateExportFile(name);  // created right before writing
                     try
                     {
                         return json::value(B::SaveView(*f, tab, path));

@@ -312,7 +312,7 @@ LRESULT CMainFrame::OnMcpCall(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM lParam)
     // into the log and views. Posted calls still arrive through its message loop, so hold them until
     // the frame is enabled again. A call still held after 15 s is cancelled by the MCP server and
     // then does nothing when it finally runs.
-    if (!IsWindowEnabled() || !m_deferredMcpCalls.empty())
+    if (!IsWindowEnabled() || !m_deferredMcpCalls.empty() || m_runningDeferredMcpCalls)
     {
         m_deferredMcpCalls.push_back(std::move(*pFn));
         ::SetTimer(m_hWnd, McpDeferTimerId, 100, nullptr);
@@ -325,16 +325,23 @@ LRESULT CMainFrame::OnMcpCall(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM lParam)
 
 void CMainFrame::RunDeferredMcpCalls()
 {
-    if (!IsWindowEnabled())
+    if (m_runningDeferredMcpCalls)
     {
-        return;
+        return;  // re-entered from a nested message loop; the outer loop continues
     }
-    ::KillTimer(m_hWnd, McpDeferTimerId);
-    auto calls = std::move(m_deferredMcpCalls);
-    m_deferredMcpCalls.clear();
-    for (auto& call : calls)
+    m_runningDeferredMcpCalls = true;
+    // Take calls one at a time from the front and re-check before each: a call may open a dialog
+    // (and pump messages), and calls posted meanwhile queue behind the ones already waiting.
+    while (!m_deferredMcpCalls.empty() && IsWindowEnabled())
     {
+        auto call = std::move(m_deferredMcpCalls.front());
+        m_deferredMcpCalls.erase(m_deferredMcpCalls.begin());
         call();
+    }
+    m_runningDeferredMcpCalls = false;
+    if (m_deferredMcpCalls.empty())
+    {
+        ::KillTimer(m_hWnd, McpDeferTimerId);
     }
 }
 

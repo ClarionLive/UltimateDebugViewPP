@@ -359,6 +359,7 @@ private:
     std::vector<std::function<void()>> m_deferredMcpCalls;  // held while a modal dialog disables the frame
     long long m_seqBase = 0;     // lines removed by earlier clears; cursor = m_seqBase + log index
     int m_clearGeneration = 0;   // bumped by every ClearLog
+    bool m_runningDeferredMcpCalls = false;
 
     // Helper methods for floating main tabs
     void PopOutMainTab(int index);
