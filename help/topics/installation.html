@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Installation - UltimateDebugView++</title>
+    <link rel="stylesheet" href="../css/topic-styles.css">
+</head>
+<body>
+    <h1>Installation</h1>
+    <p class="lead">UltimateDebugView++ is a portable application that requires no installation. Simply extract and run!</p>
+
+    <h2>System Requirements</h2>
+    <table>
+        <tr>
+            <th>Component</th>
+            <th>Minimum</th>
+            <th>Recommended</th>
+        </tr>
+        <tr>
+            <td>Operating System</td>
+            <td>Windows 7 SP1 (64-bit)</td>
+            <td>Windows 10/11 (64-bit)</td>
+        </tr>
+        <tr>
+            <td>Processor</td>
+            <td>1.5 GHz Dual Core</td>
+            <td>2.5 GHz Quad Core or better</td>
+        </tr>
+        <tr>
+            <td>Memory</td>
+            <td>2 GB RAM</td>
+            <td>8 GB RAM or more</td>
+        </tr>
+        <tr>
+            <td>Storage</td>
+            <td>50 MB available space</td>
+            <td>500 MB for logs and data</td>
+        </tr>
+        <tr>
+            <td>Runtime</td>
+            <td colspan="2">Visual C++ 2022 Redistributable</td>
+        </tr>
+        <tr>
+            <td>.NET Framework</td>
+            <td colspan="2">4.7.2 or later (for some features)</td>
+        </tr>
+    </table>
+
+    <h2>Download and Extract</h2>
+    <div class="steps">
+        <div class="step">
+            <h4>Download the Latest Release</h4>
+            <p>Get the latest version from the GitHub releases page or your organization's software repository.</p>
+        </div>
+        <div class="step">
+            <h4>Extract the Archive</h4>
+            <p>Right-click the downloaded ZIP file and select "Extract All". Choose a location like:</p>
+            <ul>
+                <li><code>C:\Program Files\UltimateDebugViewPP</code> (requires admin rights)</li>
+                <li><code>C:\Tools\UltimateDebugViewPP</code> (no admin required)</li>
+                <li><code>%USERPROFILE%\Apps\UltimateDebugViewPP</code> (user-specific)</li>
+            </ul>
+        </div>
+        <div class="step">
+            <h4>Verify Files</h4>
+            <p>Ensure these files are present:</p>
+            <ul>
+                <li><code>UltimateDebugviewpp.exe</code> - Main executable</li>
+                <li><code>fsqlf_dll.dll</code> - SQL formatting library</li>
+                <li><code>help\</code> - Help documentation folder</li>
+            </ul>
+        </div>
+    </div>
+
+    <h2>First Run Setup</h2>
+    <ol>
+        <li>Navigate to the extraction folder</li>
+        <li>Double-click <code>UltimateDebugviewpp.exe</code></li>
+        <li>If prompted by Windows Defender, click "More info" then "Run anyway"</li>
+        <li>The application will create configuration files in <code>%APPDATA%\UltimateDebugView++</code></li>
+    </ol>
+
+    <div class="tip">
+        <strong>For Administrator Features:</strong> Right-click the executable and select "Run as administrator" to enable kernel message capture and other privileged features.
+    </div>
+
+    <h2>Optional: Create Desktop Shortcut</h2>
+    <ol>
+        <li>Right-click <code>UltimateDebugviewpp.exe</code></li>
+        <li>Select "Send to" → "Desktop (create shortcut)"</li>
+        <li>Optionally rename the shortcut</li>
+        <li>Right-click the shortcut → Properties to set "Run as administrator" if needed</li>
+    </ol>
+
+    <h2>Optional: Add to PATH</h2>
+    <p>To run from anywhere via command line:</p>
+    <ol>
+        <li>Open System Properties → Advanced → Environment Variables</li>
+        <li>Edit the PATH variable</li>
+        <li>Add your UltimateDebugView++ directory</li>
+        <li>Restart any open command prompts</li>
+    </ol>
+
+    <h2>Visual C++ Runtime</h2>
+    <p>If you see an error about missing DLL files:</p>
+    <ol>
+        <li>Download the Visual C++ 2022 Redistributable from Microsoft</li>
+        <li>Install the x64 version</li>
+        <li>Restart your computer</li>
+        <li>Try running UltimateDebugView++ again</li>
+    </ol>
+
+    <h2>Portable Usage</h2>
+    <p>For USB drive or portable use:</p>
+    <ul>
+        <li>Copy the entire folder to your USB drive</li>
+        <li>Run directly from the USB drive</li>
+        <li>Settings are stored in the application folder when running portably</li>
+        <li>No registry entries or system modifications are made</li>
+    </ul>
+
+    <div class="note">
+        UltimateDebugView++ is completely portable and leaves no traces on the host system when run from removable media.
+    </div>
+
+    <h2>Uninstallation</h2>
+    <p>Since it's portable, simply:</p>
+    <ol>
+        <li>Close UltimateDebugView++ if running</li>
+        <li>Delete the application folder</li>
+        <li>Optionally delete <code>%APPDATA%\UltimateDebugView++</code> to remove settings</li>
+    </ol>
+
+    <div class="topic-nav">
+        <a href="quick-start.html" class="nav-prev">Quick Start</a>
+        <a href="first-run.html" class="nav-next">First Run</a>
+    </div>
+</body>
+</html>

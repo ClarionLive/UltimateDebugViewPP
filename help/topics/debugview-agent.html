@@ -1,0 +1,61 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DebugView Agent - UltimateDebugView++</title>
+    <link rel="stylesheet" href="../css/topic-styles.css">
+</head>
+<body>
+    <h1>DebugView Agent</h1>
+    <p class="lead">Remote debugging using the Sysinternals DebugView Agent protocol.</p>
+
+    <h2>Overview</h2>
+    <p>The DebugView Agent allows you to capture debug output from remote machines. UltimateDebugView++ implements the DbgviewReader class for compatibility with the standard DebugView Agent protocol.</p>
+
+    <h2>Agent Setup</h2>
+
+    <h3>On Remote Machine</h3>
+    <ol>
+        <li>Install Sysinternals DebugView</li>
+        <li>Run: <code>Dbgview /a /t</code></li>
+        <li>Configure agent options:
+            <ul>
+                <li>Port: 2020 (default)</li>
+                <li>Password: Optional security</li>
+                <li>Compression: For bandwidth optimization</li>
+            </ul>
+        </li>
+    </ol>
+
+    <h3>In UltimateDebugView++</h3>
+    <ol>
+        <li>Click <strong>Home â†’ Remote Agent</strong></li>
+        <li>Enter remote machine address</li>
+        <li>Provide password if set</li>
+        <li>Click Connect</li>
+    </ol>
+
+    <h2>Connection Management</h2>
+    <ul>
+        <li><strong>Auto-reconnect:</strong> Automatic reconnection on disconnect</li>
+        <li><strong>Connection timeout:</strong> Configurable timeout values</li>
+        <li><strong>Keep-alive:</strong> Maintains connection health</li>
+        <li><strong>Multiple connections:</strong> Connect to several agents</li>
+    </ul>
+
+    <h2>Security Considerations</h2>
+    <ul>
+        <li>Use passwords for authentication</li>
+        <li>Restrict agent to specific IP addresses</li>
+        <li>Use VPN for internet connections</li>
+        <li>Monitor agent access logs</li>
+    </ul>
+
+    <div class="topic-nav">
+        <a href="network-sources.html" class="nav-prev">Previous: Network Sources</a>
+        <a href="filtering-basics.html" class="nav-next">Next: Filtering Basics</a>
+    </div>
+</body>
+</html>
+

@@ -1,0 +1,96 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clarion Code Examples - UltimateDebugView++</title>
+    <link rel="stylesheet" href="../css/topic-styles.css">
+</head>
+<body>
+    <h1>Clarion Code Examples</h1>
+    <p class="lead">Practical examples of using UltimateDebug in Clarion applications.</p>
+
+    <h2>Basic Setup</h2>
+    <pre><code>! Global data section
+INCLUDE(''UltimateDebug.inc''),ONCE
+ud  UltimateDebug
+
+! Program initialization
+ud.Init()
+ud.SetApplicationName(''CustomerManager'')
+ud.Enabled = TRUE</code></pre>
+
+    <h2>Procedure Tracking</h2>
+    <pre><code>UpdateCustomer PROCEDURE
+CODE
+    ud.Init(''UpdateCustomer'')
+    ud.Debug(''Customer ID: '' & CUS:ID)
+
+    ! Update logic here
+
+    ud.EndOfProcedure()
+    RETURN</code></pre>
+
+    <h2>Error Handling</h2>
+    <pre><code>IF ERRORCODE()
+    ud.Error(''Database error: '' & ERROR())
+    ud.Debug(''Failed on Customer: '' & CUS:ID)
+    MESSAGE(ERROR())
+END</code></pre>
+
+    <h2>Queue Debugging</h2>
+    <pre><code>! Display queue contents
+LOOP I# = 1 TO RECORDS(MyQueue)
+    GET(MyQueue, I#)
+    ud.Debug(''Queue['' & I# & '']: '' & MyQueue.Field)
+END
+
+! Or use built-in method
+ud.DebugQueue(MyQueue)</code></pre>
+
+    <h2>SQL Logging</h2>
+    <pre><code>! Log SQL queries
+SQLString = ''SELECT * FROM Customers WHERE Active = 1''
+ud.SQL(SQLString)
+PROP:SQL = SQLString
+
+! Enable automatic SQL trace
+ud.EnableSQLTrace()</code></pre>
+
+    <h2>Event Debugging</h2>
+    <pre><code>! In window procedure
+OF EVENT:Accepted
+    ud.DebugEvent()
+    CASE FIELD()
+    OF ?OK
+        ud.Debug(''OK button clicked'')
+    OF ?Cancel
+        ud.Debug(''Cancel button clicked'')
+    END</code></pre>
+
+    <h2>Conditional Debugging</h2>
+    <pre><code>! Debug only specific operations
+IF DEBUG:DetailedLogging
+    ud.AddCategoryToDebug(''DatabaseOperations'')
+END
+
+! Later in code
+ud.DebugIf(''DatabaseOperations'', ''Executing query: '' & SQLString)</code></pre>
+
+    <h2>Performance Profiling</h2>
+    <pre><code>! Time critical operations
+ud.StartTimer(''DatabaseQuery'')
+! ... database operation ...
+ud.StopTimer(''DatabaseQuery'')
+
+! Manual timing
+StartTime = CLOCK()
+! ... operation ...
+ud.Debug(''Operation took: '' & (CLOCK() - StartTime) & '' ms'')</code></pre>
+
+    <div class="topic-nav">
+        <a href="clarion-messages.html" class="nav-prev">Previous: Message Format</a>
+        <a href="syntax-highlighting.html" class="nav-next">Next: Syntax Highlighting</a>
+    </div>
+</body>
+</html>

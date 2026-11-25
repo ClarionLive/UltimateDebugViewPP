@@ -67,3 +67,6 @@ target_include_directories(UltimateDebugviewpp PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include>
   $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/scintilla/include>
 )
+# In-app help lives in <repo>/help and is copied next to the executable.
+add_custom_command(TARGET UltimateDebugviewpp POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/help" "$<TARGET_FILE_DIR:UltimateDebugviewpp>/help")

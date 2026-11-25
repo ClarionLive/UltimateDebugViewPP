@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Assistants (MCP) - UltimateDebugView++</title>
+    <link rel="stylesheet" href="../css/topic-styles.css">
+</head>
+<body>
+    <h1>AI Assistants (MCP)</h1>
+    <p class="lead">Let an AI coding assistant such as Claude Code read, wait for and filter your debug output while it builds and tests your application.</p>
+
+    <p>UltimateDebugView++ has a built-in <strong>Model Context Protocol (MCP)</strong> server. An assistant connected to it can put a marker in the log, run your app, wait for the line it expects and read what happened, instead of asking you to copy messages or send screenshots.</p>
+
+    <h2>Turning it on</h2>
+    <ol>
+        <li>Open <strong>Preferences</strong> and choose the <strong>AI / MCP</strong> tab.</li>
+        <li>Tick <strong>Enable MCP server</strong>. The default port is <code>7777</code>.</li>
+        <li>Optionally press <strong>Generate</strong> to create an access token.</li>
+        <li>Press <strong>OK</strong>. The status bar shows <code>MCP :7777</code> while the server runs, or the reason it could not start (for example, the port is in use).</li>
+    </ol>
+    <p>The server is off by default and only accepts connections from this computer (<code>127.0.0.1</code>).</p>
+
+    <h2>Connecting Claude Code</h2>
+    <p>Press <strong>Copy .mcp.json entry</strong> on the AI / MCP tab and paste it into <code>.mcp.json</code> in your project folder. It looks like this:</p>
+    <pre><code>{
+  "mcpServers": {
+    "ultimate-debugview": {
+      "type": "http",
+      "url": "http://127.0.0.1:7777/mcp",
+      "headers": { "Authorization": "Bearer &lt;your token&gt;" }
+    }
+  }
+}</code></pre>
+    <p>Leave out <code>headers</code> if you did not set a token. You can also add it from a terminal:</p>
+    <pre><code>claude mcp add --transport http ultimate-debugview http://127.0.0.1:7777/mcp</code></pre>
+    <p>Any MCP client that supports the Streamable HTTP transport can connect the same way.</p>
+
+    <h2>What the assistant can do</h2>
+    <table>
+        <tr><th>Tool</th><th>What it does</th></tr>
+        <tr><td><code>get_status</code></td><td>Version, available tools, capture state, tabs and the current cursor.</td></tr>
+        <tr><td><code>read_messages</code></td><td>Reads lines from the whole log or one tab, from a cursor onwards. Repeated identical lines are folded into one with a count.</td></tr>
+        <tr><td><code>wait_for_messages</code></td><td>Waits (up to 55 seconds per call) until a matching line arrives. The viewer stays responsive while it waits.</td></tr>
+        <tr><td><code>search_messages</code></td><td>Finds lines and returns each with the lines around it.</td></tr>
+        <tr><td><code>list_processes</code></td><td>Processes that wrote to the log, with line counts and first/last seen times.</td></tr>
+        <tr><td><code>insert_marker</code></td><td>Writes a marker line such as <code>=== test 3 ===</code> to bracket a test run.</td></tr>
+        <tr><td><code>clear_log</code>, <code>pause_capture</code>, <code>resume_capture</code></td><td>Same as the toolbar buttons.</td></tr>
+        <tr><td><code>list_tabs</code>, <code>create_tab</code>, <code>close_tab</code>, <code>switch_tab</code>, <code>rename_tab</code></td><td>Organise output into filtered tabs.</td></tr>
+        <tr><td><code>get_filters</code>, <code>set_filters</code>, <code>add_filter</code>, <code>remove_filter</code>, <code>enable_filter</code></td><td>Change what a tab shows or highlights.</td></tr>
+    </table>
+
+    <h2>A typical test loop</h2>
+    <ol>
+        <li>The assistant calls <code>insert_marker</code> and keeps the cursor it returns.</li>
+        <li>It runs your application.</li>
+        <li>It calls <code>wait_for_messages</code> with that cursor and a pattern such as <code>ERROR|Main entered</code>.</li>
+        <li>It calls <code>read_messages</code> from the cursor to see everything the run logged.</li>
+    </ol>
+
+    <h2>Your tabs and filters are safe</h2>
+    <ul>
+        <li>Tabs the assistant creates are named <strong>AI: ...</strong>.</li>
+        <li>It cannot change the filters of, rename or close your own tabs unless you ask it to (it then has to say so explicitly in the call).</li>
+        <li>The first tab can never be closed.</li>
+    </ul>
+
+    <h2>Security and privacy</h2>
+    <ul>
+        <li><strong>Local only:</strong> the server listens on <code>127.0.0.1</code> and rejects requests from web pages on other sites.</li>
+        <li><strong>Access token:</strong> when set, every request must carry it.</li>
+        <li><strong>Password masking:</strong> on by default. Values after <code>PWD=</code>, <code>Password=</code>, <code>Pwd=</code> and <code>Passwd=</code> are replaced by <code>***</code> in everything the assistant receives. The log on your screen is not changed.</li>
+        <li><strong>No program launching:</strong> none of the tools can start programs or run commands.</li>
+        <li>Everything the assistant reads is sent to its AI service, so only enable the server while you are using it.</li>
+    </ul>
+
+    <h2>Troubleshooting</h2>
+    <ul>
+        <li><strong>Status bar says "MCP off: ..."</strong>: the port is probably used by another program. Pick another port on the AI / MCP tab and update <code>.mcp.json</code>.</li>
+        <li><strong>The assistant gets "401"</strong>: the token in <code>.mcp.json</code> does not match the one in Preferences.</li>
+        <li><strong>A call reports "did not respond within 15 s"</strong>: a dialog is open in the viewer. Close it and try again.</li>
+        <li><strong>Nothing is captured</strong>: check that capture is not paused (<code>get_status</code> shows <code>paused</code>).</li>
+    </ul>
+</body>
+</html>

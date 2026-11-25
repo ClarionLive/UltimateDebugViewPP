@@ -1,0 +1,61 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Remote Debugging - UltimateDebugView++</title>
+    <link rel="stylesheet" href="../css/topic-styles.css">
+</head>
+<body>
+    <h1>Remote Debugging</h1>
+    <p class="lead">Debug applications on remote machines using network connections.</p>
+
+    <h2>Remote Debugging Methods</h2>
+    <ul>
+        <li><strong>DebugView Agent:</strong> TCP connection to remote agent</li>
+        <li><strong>UDP Broadcasting:</strong> Network-wide message collection</li>
+        <li><strong>File Sharing:</strong> Monitor remote log files</li>
+        <li><strong>Custom Protocols:</strong> Application-specific remote debugging</li>
+    </ul>
+
+    <h2>Setup Remote Debugging</h2>
+
+    <h3>Using DebugView Agent</h3>
+    <ol>
+        <li>Install agent on remote machine</li>
+        <li>Configure firewall (port 2020)</li>
+        <li>Start agent service</li>
+        <li>Connect from UltimateDebugView++</li>
+    </ol>
+
+    <h3>Using UDP</h3>
+    <ol>
+        <li>Configure application to send UDP</li>
+        <li>Set up UDP listener in UltimateDebugView++</li>
+        <li>Ensure network connectivity</li>
+        <li>Start capturing</li>
+    </ol>
+
+    <h2>Security Considerations</h2>
+    <ul>
+        <li>Use VPN for internet connections</li>
+        <li>Implement authentication</li>
+        <li>Encrypt sensitive data</li>
+        <li>Restrict access by IP</li>
+        <li>Use dedicated debugging ports</li>
+    </ul>
+
+    <h2>Network Configuration</h2>
+    <ul>
+        <li>Open firewall ports</li>
+        <li>Configure router forwarding</li>
+        <li>Set up static IPs for servers</li>
+        <li>Test connectivity first</li>
+    </ul>
+
+    <div class="topic-nav">
+        <a href="performance.html" class="nav-prev">Previous: Performance Tips</a>
+        <a href="keyboard-shortcuts.html" class="nav-next">Next: Keyboard Shortcuts</a>
+    </div>
+</body>
+</html>

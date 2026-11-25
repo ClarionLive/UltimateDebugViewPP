@@ -1,0 +1,209 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quick Start Guide - UltimateDebugView++</title>
+    <link rel="stylesheet" href="../css/topic-styles.css">
+</head>
+<body>
+    <h1>Quick Start Guide</h1>
+    <p class="lead">Get started with UltimateDebugView++ in just a few minutes. This guide covers the essentials to begin capturing and analyzing debug messages.</p>
+
+    <h2>Installation</h2>
+    <div class="steps">
+        <div class="step">
+            <h4>Download the Application</h4>
+            <p>Download UltimateDebugviewpp.exe from the official repository.</p>
+        </div>
+        <div class="step">
+            <h4>Extract Files</h4>
+            <p>Extract the archive to your preferred location (e.g., <code>C:\Program Files\UltimateDebugView++</code>).</p>
+        </div>
+        <div class="step">
+            <h4>Run the Executable</h4>
+            <p>Double-click <code>UltimateDebugviewpp.exe</code> to launch. No installation required!</p>
+        </div>
+    </div>
+
+    <div class="tip">
+        For capturing kernel messages, right-click the executable and select "Run as Administrator".
+    </div>
+
+    <h2>First Launch</h2>
+    <p>When you first run UltimateDebugView++:</p>
+    <ul>
+        <li>The application automatically starts capturing Win32 OutputDebugString messages</li>
+        <li>The main window displays with the toolbar and menu system at the top</li>
+        <li>A default configuration is created in <code>%APPDATA%\UltimateDebugView++</code></li>
+        <li>The message list area is ready to display incoming debug output</li>
+    </ul>
+
+    <h2>Basic Operations</h2>
+
+    <h3>Viewing Debug Messages</h3>
+    <p>Messages appear automatically as your applications output debug information. Each message shows:</p>
+    <ul>
+        <li><strong>Index:</strong> Sequential message number</li>
+        <li><strong>Time:</strong> Timestamp of the message</li>
+        <li><strong>Process:</strong> Name and ID of the source application</li>
+        <li><strong>Message:</strong> The actual debug output</li>
+    </ul>
+
+    <h3>Essential Controls</h3>
+    <table>
+        <tr>
+            <th>Action</th>
+            <th>How To</th>
+            <th>Keyboard Shortcut</th>
+        </tr>
+        <tr>
+            <td>Clear View</td>
+            <td>Click Clear button in Home tab</td>
+            <td><span class="keyboard-key">Ctrl</span>+<span class="keyboard-key">X</span></td>
+        </tr>
+        <tr>
+            <td>Pause/Resume</td>
+            <td>Click Pause button or press Space</td>
+            <td><span class="keyboard-key">Space</span></td>
+        </tr>
+        <tr>
+            <td>Auto-scroll</td>
+            <td>Toggle Auto Scroll button</td>
+            <td><span class="keyboard-key">Scroll Lock</span></td>
+        </tr>
+        <tr>
+            <td>Find Text</td>
+            <td>Use Find in Home tab</td>
+            <td><span class="keyboard-key">Ctrl</span>+<span class="keyboard-key">F</span></td>
+        </tr>
+        <tr>
+            <td>Filter Messages</td>
+            <td>Click Filter button</td>
+            <td><span class="keyboard-key">F5</span></td>
+        </tr>
+    </table>
+
+    <h2>Your First Debug Session</h2>
+
+    <h3>Test with a Simple Message</h3>
+    <p>To verify UltimateDebugView++ is working, you can send a test message:</p>
+    
+    <div class="example">
+        <h4>From Command Line (PowerShell):</h4>
+        <pre><code>Add-Type -TypeDefinition @"
+    using System;
+    using System.Runtime.InteropServices;
+    public class Debug {
+        [DllImport("kernel32.dll")]
+        public static extern void OutputDebugString(string message);
+    }
+"@
+[Debug]::OutputDebugString("Hello from UltimateDebugView++!")</code></pre>
+    </div>
+
+    <div class="example">
+        <h4>From C++ Application:</h4>
+        <pre><code>#include <windows.h>
+
+int main() {
+    OutputDebugString(L"Hello from C++!");
+    return 0;
+}</code></pre>
+    </div>
+
+    <div class="example">
+        <h4>From Clarion Application:</h4>
+        <pre><code>INCLUDE('UltimateDebug.INC'),ONCE
+
+MyDebug  UltimateDebug
+
+CODE
+    MyDebug.Debug('Hello from Clarion!')</code></pre>
+    </div>
+
+    <h2>Quick Filtering</h2>
+    <p>Focus on specific messages quickly:</p>
+
+    <div class="steps">
+        <div class="step">
+            <h4>Include Filter</h4>
+            <p>Select text in a message, press <span class="keyboard-key">Ctrl</span>+<span class="keyboard-key">I</span> to show only messages containing that text.</p>
+        </div>
+        <div class="step">
+            <h4>Exclude Filter</h4>
+            <p>Select text, press <span class="keyboard-key">Ctrl</span>+<span class="keyboard-key">E</span> to hide messages with that text.</p>
+        </div>
+        <div class="step">
+            <h4>Highlight</h4>
+            <p>Select text, press <span class="keyboard-key">Ctrl</span>+<span class="keyboard-key">H</span> to color-code matching messages.</p>
+        </div>
+    </div>
+
+    <h2>Monitoring Log Files</h2>
+    <p>To monitor an existing log file:</p>
+    <ol>
+        <li>Click <strong>File â†’ Open</strong> (or press <span class="keyboard-key">Ctrl</span>+<span class="keyboard-key">O</span>)</li>
+        <li>Browse to your log file</li>
+        <li>Select it and click Open</li>
+        <li>UltimateDebugView++ will display existing content and monitor for new additions</li>
+    </ol>
+
+    <div class="note">
+        File monitoring continues even if the file is deleted and recreated, making it perfect for rotating log files.
+    </div>
+
+    <h2>Common Use Cases</h2>
+
+    <h3>Debugging a Specific Process</h3>
+    <ol>
+        <li>Start UltimateDebugView++</li>
+        <li>Launch your application</li>
+        <li>Right-click on a message from your app</li>
+        <li>Select "Filter by Process" to see only its messages</li>
+    </ol>
+
+    <h3>Finding Errors Quickly</h3>
+    <ol>
+        <li>Press <span class="keyboard-key">F5</span> to open filters</li>
+        <li>Add a highlight filter for "error" (case-insensitive)</li>
+        <li>Choose red color for easy visibility</li>
+        <li>All error messages will now be highlighted in red</li>
+    </ol>
+
+    <h3>Saving Important Sessions</h3>
+    <ol>
+        <li>Capture your debug session</li>
+        <li>Click <strong>File â†’ Save</strong> (or press <span class="keyboard-key">Ctrl</span>+<span class="keyboard-key">S</span>)</li>
+        <li>Choose a location and filename</li>
+        <li>Later, use <strong>File â†’ Open</strong> to review the saved session</li>
+    </ol>
+
+    <h2>Tips for Effective Debugging</h2>
+    <ul>
+        <li><strong>Use prefixes:</strong> Start messages with [INFO], [ERROR], [SQL] for easy filtering</li>
+        <li><strong>Create views:</strong> Press <span class="keyboard-key">Ctrl</span>+<span class="keyboard-key">N</span> for separate filtered views</li>
+        <li><strong>Bookmark important messages:</strong> Press <span class="keyboard-key">Ctrl</span>+<span class="keyboard-key">F2</span> to bookmark</li>
+        <li><strong>Export for analysis:</strong> Save filtered results as CSV for spreadsheet analysis</li>
+        <li><strong>Use regex:</strong> Enable regex in filters for powerful pattern matching</li>
+    </ul>
+
+    <div class="important">
+        Remember to clear old messages periodically (<span class="keyboard-key">Ctrl</span>+<span class="keyboard-key">X</span>) to maintain performance when debugging high-volume applications.
+    </div>
+
+    <h2>Next Steps</h2>
+    <p>Now that you're capturing messages, explore these topics:</p>
+    <ul>
+        <li><a href="ribbon-interface.html">Master the toolbar and menu system</a></li>
+        <li><a href="filtering-basics.html">Advanced Filtering Techniques</a></li>
+        <li><a href="sql-formatting.html">SQL Formatting Features</a></li>
+        <li><a href="keyboard-shortcuts.html">Keyboard Shortcuts Reference</a></li>
+    </ul>
+
+    <div class="topic-nav">
+        <a href="welcome.html" class="nav-prev">Welcome</a>
+        <a href="installation.html" class="nav-next">Installation</a>
+    </div>
+</body>
+</html>

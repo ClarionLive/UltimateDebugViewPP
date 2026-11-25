@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Detail Pane - UltimateDebugView++</title>
+    <link rel="stylesheet" href="../css/topic-styles.css">
+</head>
+<body>
+    <h1>Detail Pane</h1>
+    <p class="lead">View and analyze message details with syntax highlighting and formatting.</p>
+
+    <h2>Overview</h2>
+    <p>The detail pane provides an enhanced view of selected messages with:</p>
+    <ul>
+        <li>Syntax highlighting for various languages</li>
+        <li>Automatic SQL formatting</li>
+        <li>JSON/XML structure visualization</li>
+        <li>Line numbers and text wrapping</li>
+        <li>Search and navigation within content</li>
+    </ul>
+
+    <h2>Accessing the Detail Pane</h2>
+    <ul>
+        <li><strong>Toggle:</strong> Press F4 or View → Detail Pane</li>
+        <li><strong>Auto-show:</strong> Double-click any message</li>
+        <li><strong>Resize:</strong> Drag the splitter between panes</li>
+        <li><strong>Position:</strong> Bottom (default) or right side</li>
+    </ul>
+
+    <h2>Features</h2>
+
+    <h3>Syntax Highlighting</h3>
+    <p>Automatically detects and highlights:</p>
+    <ul>
+        <li><strong>SQL:</strong> Keywords, functions, strings, comments</li>
+        <li><strong>JSON:</strong> Keys, values, arrays, objects</li>
+        <li><strong>XML/HTML:</strong> Tags, attributes, content</li>
+        <li><strong>C++/C#:</strong> Keywords, types, strings, comments</li>
+        <li><strong>JavaScript:</strong> Keywords, functions, objects</li>
+        <li><strong>Python:</strong> Keywords, functions, strings</li>
+        <li><strong>Clarion:</strong> Keywords, procedures, variables</li>
+    </ul>
+
+    <h3>SQL Formatting</h3>
+    <p>When SQL is detected:</p>
+    <ol>
+        <li>Automatic beautification applied</li>
+        <li>Proper indentation and line breaks</li>
+        <li>Keyword capitalization</li>
+        <li>Click <strong>Format SQL</strong> for manual formatting</li>
+    </ol>
+
+    <h3>Text Operations</h3>
+    <ul>
+        <li><strong>Copy:</strong> Ctrl+C or right-click menu</li>
+        <li><strong>Select All:</strong> Ctrl+A</li>
+        <li><strong>Find:</strong> Ctrl+F for search within content</li>
+        <li><strong>Word Wrap:</strong> Toggle with toolbar button</li>
+        <li><strong>Zoom:</strong> Ctrl+Mouse Wheel</li>
+    </ul>
+
+    <h2>Toolbar Controls</h2>
+    <p>The detail pane toolbar provides:</p>
+    <ul>
+        <li><strong>Copy:</strong> Copy selected or all text</li>
+        <li><strong>Format:</strong> Apply formatting (SQL, JSON, XML)</li>
+        <li><strong>Wrap:</strong> Toggle word wrapping</li>
+        <li><strong>Numbers:</strong> Show/hide line numbers</li>
+        <li><strong>Language:</strong> Override syntax highlighting</li>
+        <li><strong>Export:</strong> Save content to file</li>
+    </ul>
+
+    <h2>Navigation</h2>
+
+    <h3>Within the Pane</h3>
+    <ul>
+        <li><strong>Scroll:</strong> Mouse wheel or scrollbars</li>
+        <li><strong>Jump to line:</strong> Ctrl+G</li>
+        <li><strong>Find next:</strong> F3</li>
+        <li><strong>Find previous:</strong> Shift+F3</li>
+    </ul>
+
+    <h3>Between Messages</h3>
+    <ul>
+        <li><strong>Next message:</strong> Down arrow in main list</li>
+        <li><strong>Previous message:</strong> Up arrow in main list</li>
+        <li><strong>Keep focus:</strong> Lock pane with pin button</li>
+    </ul>
+
+    <h2>Advanced Features</h2>
+
+    <h3>Code Folding</h3>
+    <p>For structured content (JSON, XML, code):</p>
+    <ul>
+        <li>Click fold markers in margin</li>
+        <li>Ctrl+Shift+[ to fold current block</li>
+        <li>Ctrl+Shift+] to unfold</li>
+        <li>Alt+0 to fold all</li>
+        <li>Alt+Shift+0 to unfold all</li>
+    </ul>
+
+    <h3>Bookmarks</h3>
+    <ul>
+        <li><strong>Set:</strong> Ctrl+F2 on a line</li>
+        <li><strong>Next:</strong> F2</li>
+        <li><strong>Previous:</strong> Shift+F2</li>
+        <li><strong>Clear all:</strong> Ctrl+Shift+F2</li>
+    </ul>
+
+    <h3>Multi-Selection</h3>
+    <ul>
+        <li>Ctrl+Click for multiple cursors</li>
+        <li>Alt+Drag for column selection</li>
+        <li>Ctrl+D to select next occurrence</li>
+    </ul>
+
+    <h2>Context Menu</h2>
+    <p>Right-click in the detail pane for:</p>
+    <ul>
+        <li>Copy/Cut/Paste operations</li>
+        <li>Format selection</li>
+        <li>Change syntax highlighting</li>
+        <li>Export to file</li>
+        <li>Print preview</li>
+    </ul>
+
+    <h2>Customization</h2>
+
+    <h3>Appearance</h3>
+    <ul>
+        <li><strong>Font:</strong> Settings → Detail Pane → Font</li>
+        <li><strong>Colors:</strong> Settings → Syntax Colors</li>
+        <li><strong>Theme:</strong> Light/Dark theme support</li>
+    </ul>
+
+    <h3>Behavior</h3>
+    <ul>
+        <li><strong>Auto-format SQL:</strong> Enable/disable</li>
+        <li><strong>Auto-detect language:</strong> Configure detection</li>
+        <li><strong>Tab size:</strong> Spaces vs tabs</li>
+        <li><strong>Line endings:</strong> Windows/Unix/Mac</li>
+    </ul>
+
+    <h2>Performance Tips</h2>
+    <ul>
+        <li>Disable syntax highlighting for very large messages</li>
+        <li>Turn off auto-format for high-volume capture</li>
+        <li>Use the pin feature to prevent constant updates</li>
+        <li>Close detail pane when not needed</li>
+    </ul>
+
+    <div class="note">
+        <strong>Tip:</strong> Use Shift+F4 to quickly copy the current message to clipboard without opening the detail pane.
+    </div>
+
+    <div class="topic-nav">
+        <a href="views-tabs.html" class="nav-prev">Previous: Views & Tabs</a>
+        <a href="preferences.html" class="nav-next">Next: Preferences</a>
+    </div>
+</body>
+</html>

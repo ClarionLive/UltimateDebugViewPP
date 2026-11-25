@@ -1,0 +1,58 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clarion Message Format - UltimateDebugView++</title>
+    <link rel="stylesheet" href="../css/topic-styles.css">
+</head>
+<body>
+    <h1>Clarion Message Format</h1>
+    <p class="lead">Understanding the structured format of Clarion debug messages.</p>
+
+    <h2>Message Structure</h2>
+    <pre><code>[||]X,T:123,P:UpdateCustomer,M:Customer,A:MyApp,PRE:[Info],MSG:Processing record</code></pre>
+
+    <h3>Components Explained</h3>
+    <ul>
+        <li><strong>[||]:</strong> Clarion message identifier</li>
+        <li><strong>X:</strong> Message type (O=Open, C=Close, M=Message)</li>
+        <li><strong>T:123:</strong> Thread ID</li>
+        <li><strong>P:UpdateCustomer:</strong> Current procedure</li>
+        <li><strong>M:Customer:</strong> Module name</li>
+        <li><strong>A:MyApp:</strong> Application name</li>
+        <li><strong>PRE:[Info]:</strong> Message prefix/category</li>
+        <li><strong>MSG:Processing record:</strong> Actual message</li>
+    </ul>
+
+    <h2>Message Types</h2>
+    <ul>
+        <li><strong>O (Open):</strong> Procedure entry</li>
+        <li><strong>C (Close):</strong> Procedure exit</li>
+        <li><strong>M (Message):</strong> Regular debug message</li>
+        <li><strong>E (Event):</strong> Windows event</li>
+        <li><strong>Q (Queue):</strong> Queue data</li>
+        <li><strong>G (Group):</strong> Group data</li>
+        <li><strong>S (SQL):</strong> SQL query</li>
+    </ul>
+
+    <h2>Parsing in UltimateDebugView++</h2>
+    <p>Messages are automatically parsed to extract:</p>
+    <ul>
+        <li>Thread information for filtering</li>
+        <li>Procedure names for call stack</li>
+        <li>Module/Application for categorization</li>
+        <li>Prefixes for highlighting</li>
+        <li>Content for formatting</li>
+    </ul>
+
+    <h2>Custom Message Formatting</h2>
+    <p>Create custom formatted messages:</p>
+    <pre><code>ud.SetFormat(''[||]X,T:{{thread}},APP:{{app}},MSG:{{message}}'')</code></pre>
+
+    <div class="topic-nav">
+        <a href="clarion-api.html" class="nav-prev">Previous: UltimateDebug API</a>
+        <a href="clarion-examples.html" class="nav-next">Next: Code Examples</a>
+    </div>
+</body>
+</html>

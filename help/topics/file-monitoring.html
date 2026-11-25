@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Monitoring - UltimateDebugView++</title>
+    <link rel="stylesheet" href="../css/topic-styles.css">
+</head>
+<body>
+    <h1>File Monitoring</h1>
+    <p class="lead">Monitor log files in real-time and watch them update as applications write new content - like "tail -f" on Windows.</p>
+
+    <h2>Overview</h2>
+    <p>File monitoring allows UltimateDebugView++ to watch text log files and display new content as it's written. This is essential for debugging applications that write to log files instead of using OutputDebugString, including web servers, databases, and many enterprise applications.</p>
+
+    <h2>Adding a File to Monitor</h2>
+    <ol>
+        <li>Open <strong>Log → Sources...</strong></li>
+        <li>Click <strong>Add</strong> button</li>
+        <li>Select <strong>File</strong> as source type</li>
+        <li>Browse to select your log file or enter the path</li>
+        <li>Configure monitoring options:
+            <ul>
+                <li><strong>Keep Tailing:</strong> Continue monitoring for new content (recommended)</li>
+                <li><strong>From Beginning:</strong> Load existing file content first</li>
+                <li><strong>From End:</strong> Start monitoring from current end of file</li>
+            </ul>
+        </li>
+        <li>Click OK to start monitoring</li>
+    </ol>
+
+    <h2>Supported File Types</h2>
+
+    <h3>Text Log Files</h3>
+    <ul>
+        <li><strong>.log:</strong> Standard log files</li>
+        <li><strong>.txt:</strong> Text files</li>
+        <li><strong>.out/.err:</strong> Output and error logs</li>
+        <li><strong>No extension:</strong> Unix-style logs</li>
+        <li><strong>Custom extensions:</strong> Any text-based file</li>
+    </ul>
+
+    <h3>Application Logs</h3>
+    <ul>
+        <li><strong>IIS Logs:</strong> W3C extended log format</li>
+        <li><strong>Apache Logs:</strong> Access and error logs</li>
+        <li><strong>SQL Server:</strong> ERRORLOG files</li>
+        <li><strong>Application-specific:</strong> Custom application logs</li>
+    </ul>
+
+    <h2>File Monitoring Features</h2>
+
+    <h3>Real-time Updates</h3>
+    <ul>
+        <li>Automatically detects when file is modified</li>
+        <li>Uses Windows file change notifications for efficiency</li>
+        <li>Minimal CPU usage even with many files</li>
+        <li>Configurable check interval (default: 100ms)</li>
+    </ul>
+
+    <h3>File Rotation Handling</h3>
+    <p>Automatically handles common log rotation scenarios:</p>
+    <ul>
+        <li><strong>Rename rotation:</strong> log.txt → log.txt.1, new log.txt created</li>
+        <li><strong>Date rotation:</strong> log-2024-01-15.txt → log-2024-01-16.txt</li>
+        <li><strong>Size rotation:</strong> Detects when file is truncated and restarts</li>
+        <li><strong>Continuous monitoring:</strong> Follows the active log file</li>
+    </ul>
+
+    <h3>Network Path Support</h3>
+    <ul>
+        <li>UNC paths: \\server\share\logfile.log</li>
+        <li>Mapped drives: Z:\logs\application.log</li>
+        <li>Automatic reconnection on network interruption</li>
+        <li>Cached reading for better network performance</li>
+    </ul>
+
+    <h2>Practical Examples</h2>
+
+    <h3>Web Server Logs</h3>
+    <p>Monitor IIS or Apache access logs:</p>
+    <pre><code>C:\inetpub\logs\LogFiles\W3SVC1\u_ex*.log
+C:\Apache24\logs\access.log
+C:\Apache24\logs\error.log</code></pre>
+
+    <h3>Application Logs</h3>
+    <p>Common application log locations:</p>
+    <pre><code>C:\ProgramData\MyApp\logs\application.log
+C:\Users\%USERNAME%\AppData\Local\MyApp\debug.log
+C:\Program Files\MyService\logs\service.log</code></pre>
+
+    <h3>Development Logs</h3>
+    <p>Monitor build and debug output:</p>
+    <pre><code>.\bin\Debug\trace.log
+.\build\output.log
+.\test-results\test-run.log</code></pre>
+
+    <h3>System Logs</h3>
+    <p>Windows and service logs:</p>
+    <pre><code>C:\Windows\System32\LogFiles\*.log
+C:\Windows\Temp\*.log
+C:\ProgramData\MySQL\data\error.log</code></pre>
+
+    <h2>Configuring File Monitoring</h2>
+
+    <h3>Reading Options</h3>
+    <ul>
+        <li><strong>From Beginning:</strong> Read entire existing file first
+            <ul>
+                <li>Good for small files or first-time debugging</li>
+                <li>May cause delay with very large files</li>
+            </ul>
+        </li>
+        <li><strong>From End:</strong> Start from current position
+            <ul>
+                <li>Recommended for large active logs</li>
+                <li>Ignores existing content</li>
+            </ul>
+        </li>
+        <li><strong>Keep Tailing:</strong> Continue monitoring after reaching end
+            <ul>
+                <li>Essential for real-time monitoring</li>
+                <li>Should usually be enabled</li>
+            </ul>
+        </li>
+    </ul>
+
+    <h3>Performance Settings</h3>
+    <ul>
+        <li><strong>Poll Interval:</strong> How often to check for changes (milliseconds)</li>
+        <li><strong>Buffer Size:</strong> Read buffer for each check</li>
+        <li><strong>Max Lines:</strong> Limit lines kept in memory</li>
+        <li><strong>Encoding:</strong> UTF-8, ASCII, Unicode detection</li>
+    </ul>
+
+    <h2>Working with Multiple Files</h2>
+
+    <h3>Monitoring Multiple Logs</h3>
+    <ul>
+        <li>Add each file as a separate source</li>
+        <li>Each file gets its own monitoring thread</li>
+        <li>Messages are merged chronologically</li>
+        <li>Use prefixes to identify source file</li>
+    </ul>
+
+    <h3>Wildcard Support</h3>
+    <p>Monitor multiple files with patterns:</p>
+    <ul>
+        <li><strong>*.log:</strong> All .log files in directory</li>
+        <li><strong>app-*.txt:</strong> All files matching pattern</li>
+        <li><strong>error_????.log:</strong> Specific pattern matching</li>
+    </ul>
+
+    <h2>Filtering File Content</h2>
+
+    <h3>Pre-Processing</h3>
+    <p>Filter lines before they enter the message buffer:</p>
+    <ul>
+        <li>Include only lines with specific keywords</li>
+        <li>Exclude verbose or repetitive content</li>
+        <li>Transform log format for consistency</li>
+    </ul>
+
+    <h3>Source Identification</h3>
+    <p>File messages can be identified by:</p>
+    <ul>
+        <li><strong>[FILE] prefix:</strong> Automatic file source marker</li>
+        <li><strong>Filename in process column:</strong> Shows source file</li>
+        <li><strong>Custom prefix:</strong> Add your own identifier</li>
+        <li><strong>Color coding:</strong> Different colors per file</li>
+    </ul>
+
+    <h2>Common Issues and Solutions</h2>
+
+    <h3>File Access Errors</h3>
+    <table>
+        <tr><th>Error</th><th>Solution</th></tr>
+        <tr><td>Access Denied</td><td>Check file permissions, run as administrator if needed</td></tr>
+        <tr><td>File Locked</td><td>Ensure file isn't exclusively locked by writer</td></tr>
+        <tr><td>Path Not Found</td><td>Verify file path and network connectivity</td></tr>
+        <tr><td>Sharing Violation</td><td>File may be opened exclusively by another process</td></tr>
+    </table>
+
+    <h3>Missing Updates</h3>
+    <ul>
+        <li><strong>Keep Tailing disabled:</strong> Enable to continue monitoring</li>
+        <li><strong>File not changing:</strong> Verify application is writing to file</li>
+        <li><strong>Buffer full:</strong> Increase message buffer size</li>
+        <li><strong>Filters too restrictive:</strong> Check include/exclude filters</li>
+    </ul>
+
+    <h3>Performance Issues</h3>
+    <ul>
+        <li><strong>Too many files:</strong> Limit simultaneous monitored files</li>
+        <li><strong>Large files:</strong> Start from end instead of beginning</li>
+        <li><strong>Network latency:</strong> Increase poll interval for network files</li>
+        <li><strong>High update rate:</strong> Apply pre-filters to reduce volume</li>
+    </ul>
+
+    <h2>Best Practices</h2>
+
+    <h3>File Selection</h3>
+    <ul>
+        <li>Monitor only actively written files</li>
+        <li>Avoid monitoring system files unless necessary</li>
+        <li>Use specific paths rather than wildcards when possible</li>
+        <li>Consider file size and growth rate</li>
+    </ul>
+
+    <h3>Configuration</h3>
+    <ul>
+        <li>Start from end for large existing files</li>
+        <li>Always enable "Keep Tailing" for active logs</li>
+        <li>Use appropriate poll intervals (100-500ms typical)</li>
+        <li>Set reasonable buffer limits</li>
+    </ul>
+
+    <h3>Organization</h3>
+    <ul>
+        <li>Create separate tabs for different file groups</li>
+        <li>Use descriptive names for file sources</li>
+        <li>Apply filters to focus on relevant content</li>
+        <li>Color-code different file types</li>
+    </ul>
+
+    <h2>Advanced Techniques</h2>
+
+    <h3>Log Parsing</h3>
+    <p>Extract structured data from logs:</p>
+    <ul>
+        <li>Use regex filters to parse fields</li>
+        <li>Extract timestamps for chronological sorting</li>
+        <li>Parse log levels for highlighting</li>
+        <li>Extract error codes for filtering</li>
+    </ul>
+
+    <h3>Correlation</h3>
+    <p>Correlate events across multiple files:</p>
+    <ul>
+        <li>Monitor application and system logs together</li>
+        <li>Use timestamps to align events</li>
+        <li>Track request IDs across files</li>
+        <li>Create unified view of distributed systems</li>
+    </ul>
+
+    <h3>Automation</h3>
+    <p>Automate file monitoring setup:</p>
+    <ul>
+        <li>Save configurations with file sources</li>
+        <li>Use command-line to add files</li>
+        <li>Create templates for common scenarios</li>
+        <li>Script source addition via configuration files</li>
+    </ul>
+
+    <div class="note">
+        <strong>Tip:</strong> For high-volume log files, use pre-filters to reduce the data before it enters UltimateDebugView++. This significantly improves performance and reduces memory usage.
+    </div>
+
+    <h2>Related Topics</h2>
+    <ul>
+        <li><a href="message-sources.html">Message Sources Overview</a></li>
+        <li><a href="filtering-basics.html">Filtering Messages</a></li>
+        <li><a href="regex-patterns.html">Using Regular Expressions</a></li>
+        <li><a href="performance.html">Performance Optimization</a></li>
+    </ul>
+
+    <div class="topic-nav">
+        <a href="win32-capture.html" class="nav-prev">Previous: Win32 Capture</a>
+        <a href="network-sources.html" class="nav-next">Next: Network Sources</a>
+    </div>
+</body>
+</html>

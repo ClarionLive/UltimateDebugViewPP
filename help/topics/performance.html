@@ -1,0 +1,70 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Performance Tips - UltimateDebugView++</title>
+    <link rel="stylesheet" href="../css/topic-styles.css">
+</head>
+<body>
+    <h1>Performance Tips</h1>
+    <p class="lead">Optimize UltimateDebugView++ for high-volume debugging scenarios.</p>
+
+    <h2>High-Volume Handling</h2>
+    <p>Capable of processing 50,000+ messages per second with:</p>
+    <ul>
+        <li>Lock-free circular buffers</li>
+        <li>Multi-threaded architecture</li>
+        <li>Efficient memory management</li>
+        <li>Optimized rendering</li>
+    </ul>
+
+    <h2>Performance Settings</h2>
+
+    <h3>Buffer Management</h3>
+    <ul>
+        <li><strong>Buffer size:</strong> Increase for high volume (default: 100,000)</li>
+        <li><strong>Circular buffer:</strong> Auto-discard old messages</li>
+        <li><strong>Memory limit:</strong> Set maximum memory usage</li>
+    </ul>
+
+    <h3>Display Optimization</h3>
+    <ul>
+        <li><strong>Virtual scrolling:</strong> Only render visible messages</li>
+        <li><strong>Update frequency:</strong> Batch UI updates</li>
+        <li><strong>Disable auto-scroll:</strong> When reviewing messages</li>
+        <li><strong>Limit visible columns:</strong> Hide unnecessary data</li>
+    </ul>
+
+    <h2>Filter Performance</h2>
+    <ul>
+        <li>Use exclude filters first</li>
+        <li>Prefer simple over regex when possible</li>
+        <li>Limit active filter count</li>
+        <li>Use process filters for focus</li>
+    </ul>
+
+    <h2>Best Practices</h2>
+    <ul>
+        <li>Close unused tabs</li>
+        <li>Disable syntax highlighting for very long messages</li>
+        <li>Use time-based filtering</li>
+        <li>Archive old messages regularly</li>
+        <li>Monitor memory usage in status bar</li>
+    </ul>
+
+    <h2>Troubleshooting Slowdowns</h2>
+    <ul>
+        <li>Check filter complexity</li>
+        <li>Reduce buffer size if memory constrained</li>
+        <li>Disable auto-formatting for SQL</li>
+        <li>Close detail pane when not needed</li>
+        <li>Restart to clear memory</li>
+    </ul>
+
+    <div class="topic-nav">
+        <a href="export-options.html" class="nav-prev">Previous: Export Options</a>
+        <a href="remote-debugging.html" class="nav-next">Next: Remote Debugging</a>
+    </div>
+</body>
+</html>

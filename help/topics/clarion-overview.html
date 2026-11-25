@@ -1,0 +1,98 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clarion Integration Overview - UltimateDebugView++</title>
+    <link rel="stylesheet" href="../css/topic-styles.css">
+</head>
+<body>
+    <h1>Clarion Integration Overview</h1>
+    <p class="lead">Enhanced debugging support specifically designed for Clarion developers.</p>
+
+    <h2>Clarion-Specific Features</h2>
+    <ul>
+        <li><strong>UltimateDebug Class:</strong> Comprehensive debugging API</li>
+        <li><strong>Procedure Tracking:</strong> Call stack visualization</li>
+        <li><strong>Queue/Group Display:</strong> Formatted data structures</li>
+        <li><strong>Event Monitoring:</strong> Windows event tracking</li>
+        <li><strong>SQL Tracing:</strong> Database query logging</li>
+        <li><strong>Thread Management:</strong> Multi-thread debugging</li>
+    </ul>
+
+    <h2>Message Format</h2>
+    <p>Clarion messages use a structured format:</p>
+    <pre><code>[||]X,T:&lt;thread&gt;,P:&lt;procedure&gt;,M:&lt;module&gt;,A:&lt;app&gt;,PRE:&lt;prefix&gt;,MSG:&lt;message&gt;</code></pre>
+
+    <h3>Format Components</h3>
+    <ul>
+        <li><strong>[||]:</strong> Clarion message marker</li>
+        <li><strong>X:</strong> Message type indicator</li>
+        <li><strong>T:</strong> Thread ID</li>
+        <li><strong>P:</strong> Current procedure</li>
+        <li><strong>M:</strong> Module name</li>
+        <li><strong>A:</strong> Application name</li>
+        <li><strong>PRE:</strong> Message prefix/category</li>
+        <li><strong>MSG:</strong> Actual message content</li>
+    </ul>
+
+    <h2>Special Prefixes</h2>
+    <p>UltimateDebugView++ recognizes Clarion prefixes:</p>
+    <ul>
+        <li><strong>[Open]:</strong> Procedure entry</li>
+        <li><strong>[Close]:</strong> Procedure exit</li>
+        <li><strong>[Queue]:</strong> Queue data display</li>
+        <li><strong>[Group]:</strong> Group data display</li>
+        <li><strong>[Events]:</strong> Windows events</li>
+        <li><strong>[Assert]:</strong> Assertion messages</li>
+        <li><strong>[ERROR]:</strong> Error conditions</li>
+        <li><strong>[SQL]:</strong> SQL queries</li>
+        <li><strong>[Trace]:</strong> Execution trace</li>
+    </ul>
+
+    <h2>Procedure Tracking</h2>
+    <p>Advanced call stack visualization:</p>
+    <ul>
+        <li>Automatic procedure entry/exit detection</li>
+        <li>Call hierarchy display</li>
+        <li>Execution timing statistics</li>
+        <li>Thread-aware tracking</li>
+        <li>Performance profiling</li>
+    </ul>
+
+    <h2>Getting Started</h2>
+    <ol>
+        <li>Include UltimateDebug class in your application</li>
+        <li>Initialize in program setup:
+            <pre><code>ud.Init()
+ud.SetApplicationName(AppName)</code></pre>
+        </li>
+        <li>Add procedure tracking:
+            <pre><code>ud.Init(ProcedureName)
+! Your code here
+ud.EndOfProcedure()</code></pre>
+        </li>
+        <li>Use debug methods throughout code</li>
+    </ol>
+
+    <h2>Benefits for Clarion Developers</h2>
+    <ul>
+        <li>Rich data structure visualization</li>
+        <li>SQL query formatting and analysis</li>
+        <li>Multi-threaded application debugging</li>
+        <li>Performance profiling capabilities</li>
+        <li>Event-driven programming support</li>
+        <li>Integration with Clarion IDE</li>
+    </ul>
+
+    <div class="note">
+        <strong>Note:</strong> UltimateDebugView++ was originally created specifically for Clarion development and includes many Clarion-optimized features.
+    </div>
+
+    <div class="topic-nav">
+        <a href="sql-options.html" class="nav-prev">Previous: SQL Options</a>
+        <a href="clarion-api.html" class="nav-next">Next: UltimateDebug Class</a>
+    </div>
+</body>
+</html>
+

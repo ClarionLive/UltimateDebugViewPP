@@ -1,0 +1,84 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Saved Filters - UltimateDebugView++</title>
+    <link rel="stylesheet" href="../css/topic-styles.css">
+</head>
+<body>
+    <h1>Saved Filters</h1>
+    <p class="lead">Save and manage filter configurations for different debugging scenarios.</p>
+
+    <h2>Saving Filter Sets</h2>
+    <ol>
+        <li>Configure your filters</li>
+        <li>Click <strong>Edit menu - Save Filter Set</strong></li>
+        <li>Enter a descriptive name</li>
+        <li>Optional: Add description</li>
+        <li>Click Save</li>
+    </ol>
+
+    <h2>Loading Filter Sets</h2>
+    <ol>
+        <li>Click <strong>Edit menu - Load Filter Set</strong></li>
+        <li>Select from saved sets</li>
+        <li>Choose load option:
+            <ul>
+                <li><strong>Replace:</strong> Clear existing filters</li>
+                <li><strong>Append:</strong> Add to existing filters</li>
+            </ul>
+        </li>
+        <li>Click Load</li>
+    </ol>
+
+    <h2>Managing Filter Sets</h2>
+    <ul>
+        <li><strong>Edit:</strong> Modify saved filter sets</li>
+        <li><strong>Delete:</strong> Remove unused sets</li>
+        <li><strong>Export:</strong> Share with team members</li>
+        <li><strong>Import:</strong> Load shared filter sets</li>
+        <li><strong>Set as Default:</strong> Auto-load on startup</li>
+    </ul>
+
+    <h2>Common Filter Set Examples</h2>
+
+    <h3>Production Monitoring</h3>
+    <ul>
+        <li>Include: ERROR|CRITICAL|FATAL</li>
+        <li>Exclude: DEBUG|TRACE</li>
+        <li>Highlight: CRITICAL (Red)</li>
+        <li>Beep: FATAL</li>
+    </ul>
+
+    <h3>Development Debugging</h3>
+    <ul>
+        <li>Include: MyComponent</li>
+        <li>Highlight: SQL (Blue)</li>
+        <li>Highlight: ERROR (Red)</li>
+        <li>Bookmark: Exception</li>
+    </ul>
+
+    <h3>Performance Analysis</h3>
+    <ul>
+        <li>Include: PERF|TIMING|SLOW</li>
+        <li>Exclude: INFO|DEBUG</li>
+        <li>Highlight: >1000ms (Orange)</li>
+        <li>Track: Memory usage</li>
+    </ul>
+
+    <h2>Filter Set Storage</h2>
+    <p>Filter sets are stored in:</p>
+    <ul>
+        <li>Windows Registry (per-user)</li>
+        <li>Export to XML files</li>
+        <li>Shareable configuration files</li>
+    </ul>
+
+    <div class="topic-nav">
+        <a href="regex-patterns.html" class="nav-prev">Previous: Regular Expressions</a>
+        <a href="sql-formatting.html" class="nav-next">Next: SQL Formatting</a>
+    </div>
+</body>
+</html>
+

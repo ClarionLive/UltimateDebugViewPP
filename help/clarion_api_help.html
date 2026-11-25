@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clarion API Reference - UltimateDebugView++</title>
+    <link rel="stylesheet" href="css/help.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>UltimateDebug Class API Reference</h1>
+            <p class="subtitle">For Clarion Programmers using UltimateDebugView++</p>
+        </header>
+
+        <nav class="toc">
+            <h2>Table of Contents</h2>
+            <ul>
+                <li><a href="#getting-started">Getting Started</a></li>
+                <li><a href="#core-methods">Core Debug Methods</a></li>
+                <li><a href="#initialization">Initialization Methods</a></li>
+                <li><a href="#configuration">Configuration Methods</a></li>
+                <li><a href="#utility">Utility Methods</a></li>
+                <li><a href="#properties">Properties</a></li>
+                <li><a href="#examples">Code Examples</a></li>
+                <li><a href="#message-format">Message Format</a></li>
+            </ul>
+        </nav>
+
+        <main>
+            <section id="getting-started">
+                <h2>Getting Started</h2>
+                <p>The UltimateDebug class provides comprehensive debugging capabilities for Clarion applications. It sends formatted messages to UltimateDebugView++, which can filter, highlight, and analyze your debug output.</p>
+
+                <h3>Basic Setup</h3>
+                <pre><code>INCLUDE('UltimateDebug.INC'),ONCE
+
+MyDebug  UltimateDebug
+
+CODE
+  MyDebug.Debug('Application started')
+  ! Your code here...</code></pre>
+            </section>
+
+            <section id="core-methods">
+                <h2>Core Debug Methods</h2>
+
+                <div class="method">
+                    <h3>Debug</h3>
+                    <div class="signature">Debug(STRING pDebugString, &lt;STRING pCustomPrefix&gt;, BYTE pNoClip = 0, BYTE pForce = 0, &lt;STRING pID&gt;)</div>
+                    <div class="description">
+                        <p>Sends a debug message to UltimateDebugView++.</p>
+                        <h4>Parameters:</h4>
+                        <ul>
+                            <li><code>pDebugString</code> - The message to send</li>
+                            <li><code>pCustomPrefix</code> (optional) - Custom prefix for filtering (e.g., '[SQL]', '[ERROR]')</li>
+                            <li><code>pNoClip</code> - Set to 1 to preserve trailing spaces</li>
+                            <li><code>pForce</code> - Set to 1 to force output even if DebugOff is TRUE</li>
+                            <li><code>pID</code> (optional) - Unique ID to group related messages</li>
+                        </ul>
+                        <h4>Example:</h4>
+                        <pre><code>MyDebug.Debug('Processing customer: ' & CLIP(CUS:Name))
+MyDebug.Debug('SQL Query executed', '[SQL]')
+MyDebug.Debug('Critical error!', '[ERROR]', , 1)  ! Force output</code></pre>
+                    </div>
+                </div>
+
+                <div class="method">
+                    <h3>DebugQueue</h3>
+                    <div class="signature">DebugQueue(*QUEUE pQueue, &lt;STRING pMsg&gt;, &lt;BYTE pNoTouch&gt;, BYTE pSendToDebugView=0, LONG pMaximumRecords=30)</div>
+                    <div class="description">
+                        <p>Displays the contents of a queue in a formatted table or sends it to the debug viewer.</p>
+                        <h4>Parameters:</h4>
+                        <ul>
+                            <li><code>pQueue</code> - Reference to the queue to debug</li>
+                            <li><code>pMsg</code> (optional) - Description message</li>
+                            <li><code>pNoTouch</code> (optional) - Set to 1 to not change queue pointer</li>
+                            <li><code>pSendToDebugView</code> - Set to 1 to send to debug viewer instead of showing window</li>
+                            <li><code>pMaximumRecords</code> - Maximum records to display (default: 30)</li>
+                        </ul>
+                        <h4>Example:</h4>
+                        <pre><code>CustomerQ  QUEUE
+Name         STRING(50)
+Balance      DECIMAL(10,2)
+           END
+
+! Fill queue...
+MyDebug.DebugQueue(CustomerQ, 'Customer List', , 1)  ! Send to viewer</code></pre>
+                    </div>
+                </div>
+
+                <div class="method">
+                    <h3>DebugGroup</h3>
+                    <div class="signature">DebugGroup(*GROUP pGroup, &lt;STRING pMsg&gt;, &lt;STRING pStructureType&gt;, BYTE pSendToDebugView=0)</div>
+                    <div class="description">
+                        <p>Displays the contents of a group structure.</p>
+                        <h4>Parameters:</h4>
+                        <ul>
+                            <li><code>pGroup</code> - Reference to the group to debug</li>
+                            <li><code>pMsg</code> (optional) - Description message</li>
+                            <li><code>pStructureType</code> (optional) - Type description (e.g., 'Record')</li>
+                            <li><code>pSendToDebugView</code> - Set to 1 to send to debug viewer</li>
+                        </ul>
+                        <h4>Example:</h4>
+                        <pre><code>Customer  GROUP
+ID          LONG
+Name        STRING(50)
+          END
+
+MyDebug.DebugGroup(Customer, 'Current Customer', 'Record', 1)</code></pre>
+                    </div>
+                </div>
+
+                <div class="method">
+                    <h3>DebugRecord</h3>
+                    <div class="signature">DebugRecord(*FILE pFile, &lt;STRING pMsg&gt;)</div>
+                    <div class="description">
+                        <p>Displays the current record buffer of a file.</p>
+                        <h4>Parameters:</h4>
+                        <ul>
+                            <li><code>pFile</code> - Reference to the file</li>
+                            <li><code>pMsg</code> (optional) - Description message</li>
+                        </ul>
+                        <h4>Example:</h4>
+                        <pre><code>GET(Customers, CUS:ID_Key)
+IF ~ERRORCODE()
+  MyDebug.DebugRecord(Customers, 'Found customer')
+END</code></pre>
+                    </div>
+                </div>
+
+                <div class="method">
+                    <h3>DebugEvent</h3>
+                    <div class="signature">DebugEvent(&lt;STRING pDebugProcedure&gt;)</div>
+                    <div class="description">
+                        <p>Logs Windows event information including event type, field, focus, and other event details.</p>
+                        <h4>Parameters:</h4>
+                        <ul>
+                            <li><code>pDebugProcedure</code> (optional) - Procedure name for context</li>
+                        </ul>
+                        <h4>Example:</h4>
+                        <pre><code>! In your ACCEPT loop
+ACCEPT
+  MyDebug.DebugEvent('MainWindow')
+  CASE EVENT()
+  ! ... handle events
+  END
+END</code></pre>
+                    </div>
+                </div>
+            </section>
+
+            <section id="initialization">
+                <h2>Initialization Methods</h2>
+
+                <div class="method">
+                    <h3>Init</h3>
+                    <div class="signature">Init(&lt;STRING pProcedure&gt;, &lt;STRING pModuleName&gt;, &lt;STRING pAppName&gt;, &lt;STRING pModified&gt;) ,LONG</div>
+                    <div class="description">
+                        <p>Initializes debugging for a procedure. Tracks procedure entry and manages thread context.</p>
+                        <h4>Parameters:</h4>
+                        <ul>
+                            <li><code>pProcedure</code> - Procedure name</li>
+                            <li><code>pModuleName</code> - Module name</li>
+                            <li><code>pAppName</code> - Application name</li>
+                            <li><code>pModified</code> - Last modified date/time</li>
+                        </ul>
+                        <h4>Returns:</h4>
+                        <p>Procedure ID for use with EndOfProcedure</p>
+                        <h4>Example:</h4>
+                        <pre><code>ProcessCustomers  PROCEDURE
+ProcID  LONG
+
+CODE
+  ProcID = MyDebug.Init('ProcessCustomers', 'CUSTPROC.CLW', 'MyApp.EXE')
+  ! Procedure code...
+  MyDebug.EndOfProcedure(ProcID)</code></pre>
+                    </div>
+                </div>
+
+                <div class="method">
+                    <h3>EndOfProcedure</h3>
+                    <div class="signature">EndOfProcedure(LONG pID)</div>
+                    <div class="description">
+                        <p>Marks the end of a procedure for tracking purposes.</p>
+                        <h4>Parameters:</h4>
+                        <ul>
+                            <li><code>pID</code> - Procedure ID returned from Init()</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <section id="configuration">
+                <h2>Configuration Methods</h2>
+
+                <div class="method">
+                    <h3>SetPrefix</h3>
+                    <div class="signature">SetPrefix(STRING pPrefix)</div>
+                    <div class="description">
+                        <p>Sets the default prefix for all debug messages.</p>
+                        <h4>Example:</h4>
+                        <pre><code>MyDebug.SetPrefix('[MODULE1]')
+MyDebug.Debug('This message will have [MODULE1] prefix')</code></pre>
+                    </div>
+                </div>
+
+                <div class="method">
+                    <h3>BeginTemporaryPrefix / EndTemporaryPrefix</h3>
+                    <div class="signature">BeginTemporaryPrefix(STRING pPrefix)<br>EndTemporaryPrefix()</div>
+                    <div class="description">
+                        <p>Temporarily changes the message prefix. Useful for grouping related messages.</p>
+                        <h4>Example:</h4>
+                        <pre><code>MyDebug.BeginTemporaryPrefix('[TRANSACTION]')
+MyDebug.Debug('Starting transaction')
+MyDebug.Debug('Processing items')
+MyDebug.Debug('Committing')
+MyDebug.EndTemporaryPrefix()</code></pre>
+                    </div>
+                </div>
+
+                <div class="method">
+                    <h3>AddCategoryToDebug</h3>
+                    <div class="signature">AddCategoryToDebug(STRING pCategory)</div>
+                    <div class="description">
+                        <p>Adds a debug category for filtering purposes.</p>
+                    </div>
+                </div>
+
+                <div class="method">
+                    <h3>AddProcedureException / RemoveProcedureException</h3>
+                    <div class="signature">AddProcedureException(STRING pProcedureName)<br>RemoveProcedureException(STRING pProcedureName)</div>
+                    <div class="description">
+                        <p>Excludes or includes specific procedures from debug output.</p>
+                        <h4>Example:</h4>
+                        <pre><code>! Exclude noisy procedure
+MyDebug.AddProcedureException('RefreshDisplay')
+
+! Later, re-enable it
+MyDebug.RemoveProcedureException('RefreshDisplay')</code></pre>
+                    </div>
+                </div>
+            </section>
+
+            <section id="utility">
+                <h2>Utility Methods</h2>
+
+                <div class="method">
+                    <h3>ClearDebugView</h3>
+                    <div class="signature">ClearDebugView()</div>
+                    <div class="description">
+                        <p>Clears the UltimateDebugView++ output window. Sends the special "DBGVIEWCLEAR" message.</p>
+                        <h4>Example:</h4>
+                        <pre><code>MyDebug.ClearDebugView()  ! Start with clean output</code></pre>
+                    </div>
+                </div>
+
+                <div class="method">
+                    <h3>UseFilteredView</h3>
+                    <div class="signature">UseFilteredView()</div>
+                    <div class="description">
+                        <p>Switches to a filtered view in UltimateDebugView++.</p>
+                    </div>
+                </div>
+
+                <div class="method">
+                    <h3>TurnOnTracing / TurnOffTracing</h3>
+                    <div class="signature">TurnOnTracing(FILE pFile)<br>TurnOffTracing(FILE pFile)</div>
+                    <div class="description">
+                        <p>Enables or disables SQL tracing for a file.</p>
+                        <h4>Example:</h4>
+                        <pre><code>MyDebug.TurnOnTracing(Customers)
+! SQL operations will be logged
+OPEN(Customers)
+! ...
+MyDebug.TurnOffTracing(Customers)</code></pre>
+                    </div>
+                </div>
+
+                <div class="method">
+                    <h3>Error / ErrorCode</h3>
+                    <div class="signature">Error(&lt;STRING pMessage&gt;) ,BYTE<br>ErrorCode(&lt;STRING pMessage&gt;) ,BYTE</div>
+                    <div class="description">
+                        <p>Logs error information including ERRORCODE(), ERROR(), ERRORFILE(), etc.</p>
+                        <h4>Returns:</h4>
+                        <p>Current ERRORCODE() value</p>
+                        <h4>Example:</h4>
+                        <pre><code>GET(Customers, CUS:ID_Key)
+IF MyDebug.Error('Failed to get customer')
+  ! Handle error
+END</code></pre>
+                    </div>
+                </div>
+
+                <div class="method">
+                    <h3>DecToHex</h3>
+                    <div class="signature">DecToHex(LONG pNumber) ,STRING</div>
+                    <div class="description">
+                        <p>Converts a decimal number to hexadecimal string.</p>
+                        <h4>Example:</h4>
+                        <pre><code>MyDebug.Debug('Color value: ' & MyDebug.DecToHex(COLOR:Red))</code></pre>
+                    </div>
+                </div>
+            </section>
+
+            <section id="properties">
+                <h2>Properties</h2>
+
+                <table class="property-table">
+                    <thead>
+                        <tr>
+                            <th>Property</th>
+                            <th>Type</th>
+                            <th>Default</th>
+                            <th>Description</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>DebugOff</code></td>
+                            <td>BYTE</td>
+                            <td>FALSE</td>
+                            <td>Set to TRUE to disable all debug output</td>
+                        </tr>
+                        <tr>
+                            <td><code>DebugPrefix</code></td>
+                            <td>STRING(60)</td>
+                            <td>''</td>
+                            <td>Default prefix for all messages</td>
+                        </tr>
+                        <tr>
+                            <td><code>SaveToFile</code></td>
+                            <td>BYTE</td>
+                            <td>FALSE</td>
+                            <td>Set to TRUE to save debug output to file</td>
+                        </tr>
+                        <tr>
+                            <td><code>ASCIIFileName</code></td>
+                            <td>STRING</td>
+                            <td>'DebugLog_*.txt'</td>
+                            <td>Filename for debug log</td>
+                        </tr>
+                        <tr>
+                            <td><code>SaveToJson</code></td>
+                            <td>BYTE</td>
+                            <td>FALSE</td>
+                            <td>Set to TRUE to save in JSON format</td>
+                        </tr>
+                        <tr>
+                            <td><code>JSONFileName</code></td>
+                            <td>STRING</td>
+                            <td>''</td>
+                            <td>Filename for JSON output</td>
+                        </tr>
+                        <tr>
+                            <td><code>UsePlainFormat</code></td>
+                            <td>BYTE</td>
+                            <td>FALSE</td>
+                            <td>Use plain text format instead of structured</td>
+                        </tr>
+                        <tr>
+                            <td><code>DebugNoCR</code></td>
+                            <td>BYTE</td>
+                            <td>FALSE</td>
+                            <td>Suppress carriage returns in output</td>
+                        </tr>
+                        <tr>
+                            <td><code>ShowAll</code></td>
+                            <td>BOOL</td>
+                            <td>TRUE</td>
+                            <td>Show all event details</td>
+                        </tr>
+                        <tr>
+                            <td><code>ShowField</code></td>
+                            <td>BOOL</td>
+                            <td>FALSE</td>
+                            <td>Show field information in events</td>
+                        </tr>
+                        <tr>
+                            <td><code>ShowThread</code></td>
+                            <td>BOOL</td>
+                            <td>FALSE</td>
+                            <td>Show thread ID in events</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <section id="examples">
+                <h2>Code Examples</h2>
+
+                <h3>Complete Application Example</h3>
+                <pre><code>PROGRAM
+
+INCLUDE('UltimateDebug.INC'),ONCE
+
+MyDebug      UltimateDebug
+Customers    FILE,DRIVER('MSSQL')
+Record         RECORD
+ID               LONG
+Name             STRING(50)
+Balance          DECIMAL(10,2)
+               END
+             END
+
+CustomerQ    QUEUE
+Name           STRING(50)
+Balance        DECIMAL(10,2)
+             END
+
+CODE
+  ! Initialize debugging
+  MyDebug.SetPrefix('[MAIN]')
+  MyDebug.Debug('Application starting')
+
+  ! Turn on SQL tracing
+  MyDebug.TurnOnTracing(Customers)
+
+  OPEN(Customers)
+  IF MyDebug.Error('Failed to open Customers file')
+    HALT(1, 'Cannot open database')
+  END
+
+  MyDebug.BeginTemporaryPrefix('[LOADING]')
+  SET(Customers)
+  LOOP
+    NEXT(Customers)
+    IF ERRORCODE() THEN BREAK.
+
+    CustomerQ.Name = CUS:Name
+    CustomerQ.Balance = CUS:Balance
+    ADD(CustomerQ)
+
+    IF CUS:Balance < 0
+      MyDebug.Debug('Negative balance: ' & CLIP(CUS:Name) & ' = ' & CUS:Balance, '[WARNING]')
+    END
+  END
+  MyDebug.EndTemporaryPrefix()
+
+  ! Display the queue
+  MyDebug.DebugQueue(CustomerQ, 'Loaded Customers', , 1)
+
+  CLOSE(Customers)
+  MyDebug.Debug('Application ending')</code></pre>
+
+                <h3>Error Handling Pattern</h3>
+                <pre><code>TryOperation  PROCEDURE
+RetVal  BYTE(0)
+
+CODE
+  MyDebug.BeginTemporaryPrefix('[OPERATION]')
+
+  ! Attempt operation
+  DO SomethingRisky
+
+  IF ERRORCODE()
+    MyDebug.Error('Operation failed')
+    MyDebug.DebugRecord(MyFile, 'Failed record state')
+    RetVal = 1
+  ELSE
+    MyDebug.Debug('Operation successful')
+  END
+
+  MyDebug.EndTemporaryPrefix()
+  RETURN RetVal</code></pre>
+
+                <h3>Queue Processing with Debug</h3>
+                <pre><code>ProcessQueue  PROCEDURE(*QUEUE Q)
+Counter  LONG
+
+CODE
+  MyDebug.Debug('Processing queue with ' & RECORDS(Q) & ' records')
+
+  LOOP Counter = 1 TO RECORDS(Q)
+    GET(Q, Counter)
+
+    MyDebug.Debug('Processing record ' & Counter, '[DETAIL]')
+
+    ! Process record...
+
+    IF Counter % 100 = 0
+      MyDebug.Debug('Processed ' & Counter & ' records', '[PROGRESS]')
+    END
+  END
+
+  MyDebug.Debug('Queue processing complete')</code></pre>
+            </section>
+
+            <section id="message-format">
+                <h2>Message Format</h2>
+
+                <p>Messages sent to UltimateDebugView++ use a special format that enables advanced filtering and processing:</p>
+
+                <h3>Standard Format</h3>
+                <pre><code>[||]X,T:&lt;thread&gt;,P:&lt;procedure&gt;,M:&lt;module&gt;,A:&lt;app&gt;,PRE:&lt;prefix&gt;,MSG:&lt;message&gt;</code></pre>
+
+                <h3>Components:</h3>
+                <ul>
+                    <li><code>[||]X</code> - Message marker for UltimateDebugView++</li>
+                    <li><code>T:</code> - Thread ID</li>
+                    <li><code>P:</code> - Procedure name</li>
+                    <li><code>M:</code> - Module name</li>
+                    <li><code>A:</code> - Application name</li>
+                    <li><code>PRE:</code> - Message prefix/category</li>
+                    <li><code>MSG:</code> - Actual message content</li>
+                    <li><code>I:</code> - Optional unique ID for grouping</li>
+                </ul>
+
+                <h3>Special Prefixes</h3>
+                <p>UltimateDebugView++ recognizes these special prefixes:</p>
+                <ul>
+                    <li><code>[Open]</code> - Procedure entry</li>
+                    <li><code>[Close]</code> - Procedure exit</li>
+                    <li><code>[Queue]</code> - Queue data</li>
+                    <li><code>[Group]</code> - Group/structure data</li>
+                    <li><code>[Events]</code> - Windows events</li>
+                    <li><code>[Assert]</code> - Assertion messages</li>
+                    <li><code>[ERROR]</code> - Error messages</li>
+                    <li><code>[SQL]</code> - SQL operations</li>
+                    <li><code>[||FieldNames||]</code> - Field name definitions</li>
+                </ul>
+
+                <h3>Clear Command</h3>
+                <p>Send "DBGVIEWCLEAR" to clear the debug window:</p>
+                <pre><code>MyDebug.Debug('DBGVIEWCLEAR')  ! Or use MyDebug.ClearDebugView()</code></pre>
+
+                <h3>New View Command</h3>
+                <p>Send "@@NEWDEBUGVIEW@@" to create a new filtered view:</p>
+                <pre><code>MyDebug.UseFilteredView()  ! Creates new view tab</code></pre>
+            </section>
+        </main>
+
+        <footer>
+            <p>&copy; 2024 UltimateDebugView++ - Clarion API Reference</p>
+            <p>For more information, see the <a href="ultimatedebugviewpp_help.html">UltimateDebugView++ User Guide</a></p>
+        </footer>
+    </div>
+</body>
+</html>

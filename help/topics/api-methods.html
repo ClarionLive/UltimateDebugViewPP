@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Method Reference - UltimateDebugView++</title>
+    <link rel="stylesheet" href="../css/topic-styles.css">
+</head>
+<body>
+    <h1>API Method Reference</h1>
+    <p class="lead">Complete reference of all UltimateDebug API methods.</p>
+
+    <h2>Core Methods</h2>
+    <table>
+        <tr><th>Method</th><th>Description</th></tr>
+        <tr><td>Debug(STRING pDebugString, &lt;STRING pCustomPrefix&gt;, BYTE pNoClip=0, BYTE pForce=0, &lt;STRING pID&gt;)</td><td>Output debug message with optional prefix and control flags</td></tr>
+        <tr><td>Init(&lt;STRING pProcedure&gt;, &lt;STRING pModuleName&gt;, &lt;STRING pAppName&gt;, &lt;STRING pModified&gt;)</td><td>Initialize procedure tracking, returns LONG procedure ID</td></tr>
+        <tr><td>EndOfProcedure(LONG pID)</td><td>Mark procedure exit using ID from Init()</td></tr>
+        <tr><td>ClearDebugView()</td><td>Clear output window (sends DBGVIEWCLEAR)</td></tr>
+        <tr><td>NewFilteredView()</td><td>Create a new filtered view tab</td></tr>
+    </table>
+
+    <h2>Data Methods</h2>
+    <table>
+        <tr><th>Method</th><th>Description</th></tr>
+        <tr><td>DebugQueue(*QUEUE pQueue, &lt;STRING pMsg&gt;, &lt;BYTE pNoTouch&gt;, BYTE pSendToDebugView=0, LONG pMaximumRecords=30)</td><td>Display queue contents</td></tr>
+        <tr><td>DebugGroup(*GROUP pGroup, &lt;STRING pMsg&gt;, &lt;STRING pStructureType&gt;, BYTE pSendToDebugView=0)</td><td>Display group structure</td></tr>
+        <tr><td>DebugRecord(*FILE pFile, &lt;STRING pMsg&gt;)</td><td>Display current record from file</td></tr>
+    </table>
+
+    <h2>Event Methods</h2>
+    <table>
+        <tr><th>Method</th><th>Description</th></tr>
+        <tr><td>DebugEvent(&lt;STRING pDebugProcedure&gt;)</td><td>Log Windows event information</td></tr>
+        <tr><td>IgnoreEvent(SIGNED Event)</td><td>Add event to ignore list</td></tr>
+        <tr><td>TakeEvent()</td><td>Process current event</td></tr>
+        <tr><td>LogEvent()</td><td>Log event to queue</td></tr>
+    </table>
+
+    <h2>Configuration Methods</h2>
+    <table>
+        <tr><th>Method</th><th>Description</th></tr>
+        <tr><td>SetPrefix(STRING pPrefix)</td><td>Set default message prefix</td></tr>
+        <tr><td>BeginTemporaryPrefix(STRING pPrefix)</td><td>Push temporary prefix onto stack</td></tr>
+        <tr><td>EndTemporaryPrefix()</td><td>Pop temporary prefix from stack</td></tr>
+        <tr><td>SetApplicationName(STRING pApplicationName, STRING pProgramExtension)</td><td>Set application name</td></tr>
+        <tr><td>SetShortApplicationName(STRING pApplicationName, STRING pProgramExtension)</td><td>Set short application name</td></tr>
+        <tr><td>Enable()</td><td>Enable debug output</td></tr>
+        <tr><td>Disable()</td><td>Disable debug output</td></tr>
+        <tr><td>AddCategoryToDebug(STRING pCategory)</td><td>Add debug category</td></tr>
+        <tr><td>AddProcedureException(STRING pProcedureName)</td><td>Exclude procedure from output</td></tr>
+        <tr><td>RemoveProcedureException(STRING pProcedureName)</td><td>Remove procedure exclusion</td></tr>
+        <tr><td>EmptyProcedureExceptions()</td><td>Clear all procedure exclusions</td></tr>
+    </table>
+
+    <h2>Tracing Methods</h2>
+    <table>
+        <tr><th>Method</th><th>Description</th></tr>
+        <tr><td>TurnOnTracing(FILE pFile)</td><td>Enable SQL tracing for file</td></tr>
+        <tr><td>TurnoffTracing(FILE pFile)</td><td>Disable SQL tracing for file (note: lowercase 'off')</td></tr>
+        <tr><td>GetFieldNames(FILE pFile)</td><td>Get field names from file structure</td></tr>
+    </table>
+
+    <h2>Error Handling Methods</h2>
+    <table>
+        <tr><th>Method</th><th>Description</th></tr>
+        <tr><td>Error(&lt;STRING pMessage&gt;)</td><td>Log error with ERRORCODE() info, returns BYTE</td></tr>
+        <tr><td>ErrorCode(&lt;STRING pMessage&gt;)</td><td>Log error code information, returns BYTE</td></tr>
+        <tr><td>InitAssertHook()</td><td>Initialize assertion hook handler</td></tr>
+    </table>
+
+    <h2>Utility Methods</h2>
+    <table>
+        <tr><th>Method</th><th>Description</th></tr>
+        <tr><td>DecToHex(LONG pNumber)</td><td>Convert decimal to hexadecimal string</td></tr>
+        <tr><td>Message(STRING pDebugString)</td><td>Display message dialog</td></tr>
+        <tr><td>ShowProcedureInfo(STRING pProcedure, STRING pApplication, STRING pHelpID, STRING pCreated, STRING pModified, STRING pCompiled)</td><td>Display procedure information</td></tr>
+        <tr><td>FormatMessageList(STRING pMsg, *QUEUE pMsgQueue)</td><td>Format message into queue</td></tr>
+    </table>
+
+    <div class="topic-nav">
+        <a href="faq.html" class="nav-prev">Previous: FAQ</a>
+        <a href="api-properties.html" class="nav-next">Next: Properties Reference</a>
+    </div>
+</body>
+</html>

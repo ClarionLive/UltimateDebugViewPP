@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Views & Tabs - UltimateDebugView++</title>
+    <link rel="stylesheet" href="../css/topic-styles.css">
+</head>
+<body>
+    <h1>Views & Tabs</h1>
+    <p class="lead">Create and manage multiple views to organize and filter debug output effectively.</p>
+
+    <h2>Understanding Views</h2>
+    <p>Views are filtered representations of your debug message stream. Each tab represents a different view, allowing you to:</p>
+    <ul>
+        <li>Focus on specific processes or components</li>
+        <li>Apply different filter sets to the same data</li>
+        <li>Compare messages from different sources</li>
+        <li>Organize debugging workflows</li>
+    </ul>
+
+    <h2>Creating New Views</h2>
+
+    <h3>Method 1: New Tab Button</h3>
+    <ol>
+        <li>Click the <strong>New Tab</strong> button (+) on the tab bar</li>
+        <li>Configure filters for the new view</li>
+        <li>Optionally rename the tab for clarity</li>
+    </ol>
+
+    <h3>Method 2: Duplicate Existing View</h3>
+    <ol>
+        <li>Right-click an existing tab</li>
+        <li>Select <strong>Duplicate View</strong></li>
+        <li>Modify filters as needed</li>
+    </ol>
+
+    <h3>Method 3: Quick Filter</h3>
+    <ol>
+        <li>Select text in a message</li>
+        <li>Right-click and choose <strong>Filter in New Tab</strong></li>
+        <li>A new tab is created with that filter applied</li>
+    </ol>
+
+    <h2>Tab Management</h2>
+
+    <h3>Renaming Tabs</h3>
+    <ul>
+        <li>Double-click the tab name to edit</li>
+        <li>Right-click → Rename Tab</li>
+        <li>Use descriptive names like "SQL Queries" or "Error Messages"</li>
+    </ul>
+
+    <h3>Reordering Tabs</h3>
+    <ul>
+        <li>Drag and drop tabs to reorder</li>
+        <li>Ctrl+Shift+Left/Right to move current tab</li>
+    </ul>
+
+    <h3>Closing Tabs</h3>
+    <ul>
+        <li>Click the X button on the tab</li>
+        <li>Middle-click the tab</li>
+        <li>Ctrl+W to close current tab</li>
+        <li>Right-click → Close Other Tabs</li>
+    </ul>
+
+    <h2>View Types</h2>
+
+    <h3>1. All Messages View</h3>
+    <p>The default view showing all captured messages without filtering. Useful for:</p>
+    <ul>
+        <li>Initial exploration</li>
+        <li>Discovering patterns</li>
+        <li>Full context debugging</li>
+    </ul>
+
+    <h3>2. Filtered Views</h3>
+    <p>Views with specific filters applied:</p>
+    <ul>
+        <li><strong>Process-specific:</strong> Shows messages from one application</li>
+        <li><strong>Error-only:</strong> Filters for error patterns</li>
+        <li><strong>Component-based:</strong> Focus on specific modules</li>
+        <li><strong>Time-range:</strong> Messages within a time window</li>
+    </ul>
+
+    <h3>3. Highlight Views</h3>
+    <p>Views that emphasize certain messages:</p>
+    <ul>
+        <li>Color-coded by severity</li>
+        <li>Pattern-based highlighting</li>
+        <li>Multi-level priority marking</li>
+    </ul>
+
+    <h2>View Settings</h2>
+    <p>Each view maintains independent settings for:</p>
+    <ul>
+        <li>Include/exclude filters</li>
+        <li>Highlight rules</li>
+        <li>Column visibility and widths</li>
+        <li>Sort order</li>
+        <li>Auto-scroll state</li>
+    </ul>
+
+    <h2>Saving View Configurations</h2>
+
+    <h3>Save Current Layout</h3>
+    <ol>
+        <li>Arrange tabs and configure filters</li>
+        <li>File → Save View Layout</li>
+        <li>Name your configuration</li>
+    </ol>
+
+    <h3>Load Saved Layout</h3>
+    <ol>
+        <li>File → Load View Layout</li>
+        <li>Select saved configuration</li>
+        <li>All tabs and filters are restored</li>
+    </ol>
+
+    <h2>Advanced Features</h2>
+
+    <h3>Linked Views</h3>
+    <p>Link tabs to synchronize scrolling and selection:</p>
+    <ol>
+        <li>Right-click tab → Link to...</li>
+        <li>Select target tab</li>
+        <li>Navigation in one affects the other</li>
+    </ol>
+
+    <h3>View Templates</h3>
+    <p>Create reusable view templates:</p>
+    <ol>
+        <li>Configure a view with filters</li>
+        <li>Right-click → Save as Template</li>
+        <li>Apply template to new tabs</li>
+    </ol>
+
+    <h3>Auto-create Rules</h3>
+    <p>Automatically create new tabs based on:</p>
+    <ul>
+        <li>New process detection</li>
+        <li>Specific message patterns</li>
+        <li>Error threshold exceeded</li>
+    </ul>
+
+    <h2>Best Practices</h2>
+    <ul>
+        <li>Limit active tabs to improve performance</li>
+        <li>Use descriptive tab names</li>
+        <li>Save frequently used layouts</li>
+        <li>Close unnecessary views to reduce memory usage</li>
+        <li>Group related tabs together</li>
+    </ul>
+
+    <div class="note">
+        <strong>Tip:</strong> Use Ctrl+1 through Ctrl+9 to quickly switch to the first nine tabs.
+    </div>
+
+    <div class="topic-nav">
+        <a href="main-window.html" class="nav-prev">Previous: Main Window</a>
+        <a href="detail-pane.html" class="nav-next">Next: Detail Pane</a>
+    </div>
+</body>
+</html>

@@ -110,6 +110,20 @@ cmake --build build --config Release
 - **Process Tracking**: Monitor specific processes
 - **Tabbed Interface**: Multiple filtered views of the same data
 
+## AI Assistants (MCP Server)
+
+UltimateDebugViewPP has a built-in [Model Context Protocol](https://modelcontextprotocol.io) server so an AI coding assistant (Claude Code, Codex, ...) can read, wait for and filter debug output while it builds and tests your app.
+
+- **Enable:** Preferences > **AI / MCP** > *Enable MCP server* (off by default). Default port `7777`, optional bearer token, password masking on by default.
+- **Endpoint:** `http://127.0.0.1:7777/mcp` (Streamable HTTP, loopback only; non-local `Host`/`Origin` headers are rejected).
+- **Connect Claude Code:** use *Copy .mcp.json entry* on the AI / MCP tab, or see [`docs/mcp.sample.json`](docs/mcp.sample.json), or run
+  `claude mcp add --transport http ultimate-debugview http://127.0.0.1:7777/mcp`.
+- **Tools:** `get_status`, `read_messages`, `wait_for_messages`, `search_messages`, `list_processes`, `insert_marker`, `clear_log`, `pause_capture`, `resume_capture`, `list_tabs`, `create_tab`, `close_tab`, `switch_tab`, `rename_tab`, `get_filters`, `set_filters`, `add_filter`, `remove_filter`, `enable_filter`.
+- **Cursors:** every line has a `line` number that only increases (also across clears). Pass `nextLine` back as `since_line` to read only new output.
+- **Your tabs are protected:** tabs the AI creates are named `AI: ...`; changing other tabs needs `allow_user_tab: true`.
+
+Full guide: in-app Help > Advanced Features > *AI Assistants (MCP)* (`help/topics/ai-mcp.html`). Code: `application/DebugViewpp/McpServer.*`, `McpTools.*`.
+
 ## Troubleshooting
 
 ### Missing Dependencies

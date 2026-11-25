@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Filtering Basics - UltimateDebugView++</title>
+    <link rel="stylesheet" href="../css/topic-styles.css">
+</head>
+<body>
+    <h1>Filtering Basics</h1>
+    <p class="lead">Master message filtering to focus on what matters most in your debug output.</p>
+
+    <h2>Understanding Filters</h2>
+    <p>Filters are the heart of effective debugging with UltimateDebugView++. They help you:</p>
+    <ul>
+        <li>Focus on specific problems by showing only relevant messages</li>
+        <li>Remove noise from verbose applications</li>
+        <li>Highlight important events with colors</li>
+        <li>Automate debugging workflows with actions</li>
+        <li>Track patterns and anomalies over time</li>
+    </ul>
+
+    <h2>The Filter System</h2>
+    <p>UltimateDebugView++ uses a three-tier filtering system:</p>
+    <ol>
+        <li><strong>Message Filters:</strong> Filter based on message content</li>
+        <li><strong>Process Filters:</strong> Filter based on process name or ID</li>
+        <li><strong>Prefix Filters:</strong> Quick filters for common prefixes like [ERROR]</li>
+    </ol>
+
+    <h2>Filter Types</h2>
+    <p>UltimateDebugView++ provides 11 different filter types, each with specific behavior:</p>
+
+    <h3>Basic Filters</h3>
+    <ul>
+        <li><strong>Include:</strong> Show ONLY messages that match this pattern. Multiple include filters are OR'ed together.</li>
+        <li><strong>Exclude:</strong> Hide messages that match this pattern. Applied before Include filters.</li>
+        <li><strong>Highlight:</strong> Apply custom colors to matching messages without filtering.</li>
+    </ul>
+
+    <h3>Advanced Filters</h3>
+    <ul>
+        <li><strong>Token:</strong> Extract and display only specific parts of messages using regex groups</li>
+        <li><strong>Track:</strong> Monitor specific patterns and track their frequency over time</li>
+        <li><strong>Once:</strong> Show only the first occurrence of matching messages, suppress repeats</li>
+        <li><strong>MatchColor:</strong> Legacy color matching (use Highlight instead)</li>
+    </ul>
+
+    <h3>Action Filters</h3>
+    <ul>
+        <li><strong>Stop:</strong> Stop capturing when this pattern is matched (useful for breakpoints)</li>
+        <li><strong>Clear:</strong> Clear the view when this pattern is matched</li>
+        <li><strong>Beep:</strong> Play a sound alert when this pattern is matched</li>
+        <li><strong>Bookmark:</strong> Automatically bookmark lines that match this pattern</li>
+    </ul>
+
+    <h2>Match Types</h2>
+    <p>Each filter can use different matching algorithms:</p>
+
+    <h3>Simple (Substring)</h3>
+    <ul>
+        <li>Basic case-insensitive substring matching</li>
+        <li>Fastest performance</li>
+        <li>Example: "error" matches "Error", "ERROR", "An error occurred"</li>
+    </ul>
+
+    <h3>Wildcard</h3>
+    <ul>
+        <li>Uses * (any characters) and ? (single character)</li>
+        <li>Good balance of power and simplicity</li>
+        <li>Example: "*[ERROR]*" matches any line containing [ERROR]</li>
+        <li>Example: "Thread-?" matches "Thread-1", "Thread-A"</li>
+    </ul>
+
+    <h3>Regular Expression</h3>
+    <ul>
+        <li>Full regex support with capture groups</li>
+        <li>Most powerful but slower</li>
+        <li>Case sensitivity optional</li>
+        <li>Example: "^\\[\\d{2}:\\d{2}:\\d{2}\\]" matches timestamps</li>
+    </ul>
+
+    <h2>Creating Filters</h2>
+
+    <h3>Using the Filter Dialog</h3>
+    <ol>
+        <li>Click the <strong>Filter</strong> button on toolbar or press Ctrl+L</li>
+        <li>Select the appropriate tab (Messages, Processes, or Prefixes)</li>
+        <li>Click <strong>Add</strong> to create a new filter</li>
+        <li>Configure the filter:
+            <ul>
+                <li><strong>Text:</strong> The pattern to match</li>
+                <li><strong>Type:</strong> Include, Exclude, Highlight, etc.</li>
+                <li><strong>Match:</strong> Simple, Wildcard, or Regex</li>
+                <li><strong>Colors:</strong> For Highlight filters</li>
+                <li><strong>Enable:</strong> Toggle filter on/off</li>
+            </ul>
+        </li>
+        <li>Click OK to apply</li>
+    </ol>
+
+    <h3>Quick Filter Methods</h3>
+    <ul>
+        <li><strong>Right-click a message:</strong> Quick menu with common filter actions</li>
+        <li><strong>Select text + right-click:</strong> Create filter from selection</li>
+        <li><strong>Ctrl+I:</strong> Quick Include filter from selected text</li>
+        <li><strong>Ctrl+E:</strong> Quick Exclude filter from selected text</li>
+        <li><strong>Ctrl+H:</strong> Quick Highlight filter from selected text</li>
+    </ul>
+
+    <h2>Filter Processing Order</h2>
+    <p>Understanding filter order is crucial for complex filtering:</p>
+    <ol>
+        <li><strong>Process Exclude:</strong> Remove unwanted processes first</li>
+        <li><strong>Process Include:</strong> Keep only wanted processes</li>
+        <li><strong>Message Exclude:</strong> Remove unwanted messages</li>
+        <li><strong>Message Include:</strong> Keep only wanted messages</li>
+        <li><strong>Once filters:</strong> Check for duplicates</li>
+        <li><strong>Highlight filters:</strong> Apply colors</li>
+        <li><strong>Action filters:</strong> Execute actions (Bookmark, Beep, etc.)</li>
+    </ol>
+
+    <h2>Practical Examples</h2>
+
+    <h3>Example 1: Focus on Errors</h3>
+    <pre><code>Filter 1:
+Type: Include
+Pattern: error|exception|fail|fatal|critical
+Match: Regex (case insensitive)
+Result: Shows only error-related messages
+
+Filter 2:
+Type: Highlight
+Pattern: FATAL|CRITICAL
+Match: Simple
+Color: Red background
+Result: Critical errors stand out</code></pre>
+
+    <h3>Example 2: Clean Database Debugging</h3>
+    <pre><code>Filter 1:
+Type: Exclude
+Pattern: keepalive|ping|heartbeat
+Match: Simple
+Result: Remove noise
+
+Filter 2:
+Type: Include
+Pattern: (SELECT|INSERT|UPDATE|DELETE|CREATE|DROP)
+Match: Regex
+Result: Show only SQL operations
+
+Filter 3:
+Type: Highlight
+Pattern: ERROR.*SQL
+Match: Regex
+Color: Red text
+Result: Highlight SQL errors</code></pre>
+
+    <h3>Example 3: Performance Monitoring</h3>
+    <pre><code>Filter 1:
+Type: Include
+Pattern: Duration: (\d+)ms
+Match: Regex
+Result: Show timing messages
+
+Filter 2:
+Type: Highlight
+Pattern: Duration: ([5-9]\d{2}|\d{4,})ms
+Match: Regex
+Color: Yellow (slow: 500-999ms)
+
+Filter 3:
+Type: Highlight
+Pattern: Duration: \d{4,}ms
+Match: Regex
+Color: Red (very slow: 1000+ms)</code></pre>
+
+    <h3>Example 4: Multi-Process Debugging</h3>
+    <pre><code>Process Filter:
+Type: Include
+Pattern: MyApp.exe|MyService.exe
+Match: Wildcard
+
+Message Filter:
+Type: Exclude
+Pattern: TRACE|VERBOSE
+Match: Simple
+Result: Show only important messages from specific processes</code></pre>
+
+    <h2>Prefix Filters</h2>
+    <p>Prefix filters provide quick filtering for common message prefixes:</p>
+
+    <h3>Default Prefixes</h3>
+    <ul>
+        <li><strong>[ERROR]</strong> - Red highlight</li>
+        <li><strong>[WARNING]</strong> - Yellow highlight</li>
+        <li><strong>[INFO]</strong> - Blue highlight</li>
+        <li><strong>[DEBUG]</strong> - Gray highlight</li>
+        <li><strong>[SQL]</strong> - Triggers SQL formatting</li>
+        <li><strong>[TRACE]</strong> - Light gray</li>
+    </ul>
+
+    <h3>Custom Prefixes</h3>
+    <p>Add your own in Preferences → Prefix Filters:</p>
+    <ul>
+        <li>[SECURITY] - For security events</li>
+        <li>[PERF] - For performance metrics</li>
+        <li>[AUDIT] - For audit trail</li>
+        <li>[CUSTOM] - Your application-specific prefixes</li>
+    </ul>
+
+    <h2>Filter Management</h2>
+
+    <h3>Filter Sets</h3>
+    <ul>
+        <li><strong>Save:</strong> Save current filters to a .dvf file</li>
+        <li><strong>Load:</strong> Load previously saved filter set</li>
+        <li><strong>Clear All:</strong> Remove all filters</li>
+        <li><strong>Reset Prefixes:</strong> Restore default prefix filters</li>
+    </ul>
+
+    <h3>Enable/Disable</h3>
+    <ul>
+        <li>Temporarily disable filters without deleting</li>
+        <li>Checkbox next to each filter in the list</li>
+        <li>Useful for comparing filtered vs. unfiltered views</li>
+    </ul>
+
+    <h2>Performance Tips</h2>
+
+    <h3>Filter Optimization</h3>
+    <ul>
+        <li><strong>Use Exclude first:</strong> Reduce message volume early</li>
+        <li><strong>Simple over Regex:</strong> Use Simple match when possible</li>
+        <li><strong>Specific patterns:</strong> More specific = faster matching</li>
+        <li><strong>Process filters:</strong> Filter by process before message content</li>
+    </ul>
+
+    <h3>High-Volume Scenarios</h3>
+    <ul>
+        <li>Start with aggressive Exclude filters</li>
+        <li>Use Process filters to limit sources</li>
+        <li>Avoid complex regex in Include filters</li>
+        <li>Consider using multiple views with different filters</li>
+    </ul>
+
+    <h2>Advanced Techniques</h2>
+
+    <h3>Token Extraction</h3>
+    <p>Use Token filter with regex groups to extract data:</p>
+    <pre><code>Pattern: User \[([^\]]+)\] logged in from ([0-9.]+)
+Type: Token
+Result: Extracts username and IP address</code></pre>
+
+    <h3>Duplicate Suppression</h3>
+    <p>Use Once filter to see unique messages only:</p>
+    <pre><code>Pattern: .*
+Type: Once
+Result: Each unique message shown only once</code></pre>
+
+    <h3>Conditional Actions</h3>
+    <p>Combine filters for complex behavior:</p>
+    <pre><code>Filter 1: Include "Starting process"
+Filter 2: Beep "ERROR"
+Filter 3: Stop "FATAL"
+Result: Monitor startup, alert on errors, stop on fatal</code></pre>
+
+    <h2>Troubleshooting Filters</h2>
+
+    <h3>No Messages Showing</h3>
+    <ul>
+        <li>Check if Include filter is too restrictive</li>
+        <li>Verify Exclude isn't removing everything</li>
+        <li>Ensure filters are enabled (checkbox)</li>
+        <li>Check filter order (Exclude before Include)</li>
+    </ul>
+
+    <h3>Wrong Messages Highlighted</h3>
+    <ul>
+        <li>Regex may be matching more than intended</li>
+        <li>Check case sensitivity settings</li>
+        <li>Verify wildcard patterns</li>
+        <li>Test regex in Regex Helper (Ctrl+R)</li>
+    </ul>
+
+    <h3>Performance Issues</h3>
+    <ul>
+        <li>Too many complex regex filters</li>
+        <li>Move Exclude filters to top of list</li>
+        <li>Use Process filters to pre-filter</li>
+        <li>Consider simpler match types</li>
+    </ul>
+
+    <div class="note">
+        <strong>Pro Tip:</strong> Create different filter sets for different debugging scenarios. Save them as .dvf files and quickly switch between them using Load Filter.
+    </div>
+
+    <h2>Best Practices</h2>
+    <ul>
+        <li>Start simple, add complexity as needed</li>
+        <li>Document complex regex patterns</li>
+        <li>Save useful filter sets for reuse</li>
+        <li>Use color coding consistently</li>
+        <li>Test filters on sample data first</li>
+        <li>Combine multiple filter types for precision</li>
+        <li>Review and clean up old filters periodically</li>
+    </ul>
+
+    <h2>Related Topics</h2>
+    <ul>
+        <li><a href="include-exclude.html">Include/Exclude Filters in Detail</a></li>
+        <li><a href="regex-patterns.html">Regular Expression Patterns</a></li>
+        <li><a href="highlight-filters.html">Highlight and Color Filters</a></li>
+        <li><a href="process-filters.html">Process Filtering</a></li>
+    </ul>
+
+    <div class="topic-nav">
+        <a href="network-sources.html" class="nav-prev">Previous: Network Sources</a>
+        <a href="include-exclude.html" class="nav-next">Next: Include/Exclude Filters</a>
+    </div>
+</body>
+</html>
