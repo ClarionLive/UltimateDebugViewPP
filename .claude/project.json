@@ -1,0 +1,18 @@
+{
+  "id": "bb57491a",
+  "name": "Ultimate DebugView ++",
+  "description": "Enhanced DebugView++ with Ribbon UI, SQL formatting, syntax highlighting and Clarion debug support.",
+  "changeLog": null,
+  "currentVersion": "0.1.0",
+  "createdAt": "2026-11-24T16:37:54.4080165-08:00",
+  "lastOpenedAt": "2026-11-24T16:37:54.4080182-08:00",
+  "isPinned": false,
+  "defaultTerminal": "claude-code",
+  "prompts": [
+  ],
+  "team": {
+    "agents": [
+      { "name": "Diana", "role": "project-manager" }
+    ]
+  }
+}
