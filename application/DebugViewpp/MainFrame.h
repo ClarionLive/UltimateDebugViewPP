@@ -41,12 +41,15 @@ using ATL::CString;
 #include "RunDlg.h"
 #include "LogView.h"
 #include "PreferencesDlg.h"
+#include "McpSettings.h"
 
 namespace fusion {
 namespace debugviewpp {
 
 struct SelectionInfo;
 class DbgviewReader;
+class McpServer;
+class McpToolRegistry;
 
 using SelectedTabItem = CLogViewTabItem2;
 
@@ -130,12 +133,24 @@ public:
     // Public getter for splitter position
     int GetProcedureStatsSplitterPos() const { return m_procedureStatsSplitterPos; }
 
+    // MCP server (lets an AI client drive the viewer)
+    const McpSettings& GetMcpSettings() const { return m_mcpSettings; }
+    void ApplyMcpSettings(const McpSettings& settings);
+    std::wstring GetMcpStatusText() const;
+
 private:
+    friend class McpBridge;
+
     enum
     {
         WM_FIRST = WM_APP,
         WM_SYSTEMTRAYICON,
+        WM_MCP_CALL,
     };
+
+    void StartMcpServer();
+    void StopMcpServer();
+    LRESULT OnMcpCall(UINT uMsg, WPARAM wParam, LPARAM lParam);
 
     DECLARE_MSG_MAP()
 
@@ -331,7 +346,16 @@ private:
         std::wstring tabName;
     };
     std::vector<FloatingMainTabInfo> m_floatingMainTabs;
-    
+
+    // MCP server. The registry is declared before the server so the server
+    // (whose threads use the registry) is destroyed first.
+    McpSettings m_mcpSettings;
+    std::unique_ptr<McpToolRegistry> m_mcpTools;
+    std::unique_ptr<McpServer> m_mcpServer;
+    std::wstring m_mcpError;
+    long long m_seqBase = 0;     // lines removed by earlier clears; cursor = m_seqBase + log index
+    int m_clearGeneration = 0;   // bumped by every ClearLog
+
     // Helper methods for floating main tabs
     void PopOutMainTab(int index);
     void ReattachMainTab(CFloatingMainTabWindow* floatingWindow);

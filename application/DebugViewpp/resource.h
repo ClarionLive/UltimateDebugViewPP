@@ -188,6 +188,15 @@
 #define IDD_PREFERENCES_NEWVIEW 401
 #define IDD_PREFERENCES_PREFIX 402
 #define IDD_PREFERENCES_SQL 403
+#define IDD_PREFERENCES_MCP          470
+#define IDC_MCP_ENABLE               900
+#define IDC_MCP_PORT                 901
+#define IDC_MCP_TOKEN                902
+#define IDC_MCP_GENERATE_TOKEN       903
+#define IDC_MCP_MASK_SECRETS         904
+#define IDC_MCP_STATUS               905
+#define IDC_MCP_COPY_CONFIG          906
+#define IDC_MCP_URL                  907
 #define IDC_PREFERENCES_TAB 404
 #define IDC_SHOW_DETAIL_PANE 410
 #define IDC_DETAIL_SPLITTER_POS 411

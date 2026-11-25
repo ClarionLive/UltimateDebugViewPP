@@ -597,6 +597,27 @@ BEGIN
     EDITTEXT        IDC_SQL_PREVIEW_NEW,17,201,446,105,ES_MULTILINE | ES_READONLY | ES_WANTRETURN | WS_VSCROLL
 END
 
+IDD_PREFERENCES_MCP DIALOGEX 0, 0, 480, 320
+STYLE DS_SETFONT | DS_FIXEDSYS | WS_CHILD | WS_SYSMENU
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    LTEXT           "Let an AI assistant (Claude Code, Codex, ...) read and filter debug output through the Model Context Protocol. The server only listens on this computer (127.0.0.1).",IDC_STATIC,7,7,466,20
+    CONTROL         "Enable MCP server",IDC_MCP_ENABLE,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,7,34,150,10
+    LTEXT           "Port:",IDC_STATIC,7,54,60,8
+    EDITTEXT        IDC_MCP_PORT,70,52,50,14,ES_NUMBER | ES_AUTOHSCROLL
+    LTEXT           "Access token:",IDC_STATIC,7,74,60,8
+    EDITTEXT        IDC_MCP_TOKEN,70,72,300,14,ES_AUTOHSCROLL
+    PUSHBUTTON      "Generate",IDC_MCP_GENERATE_TOKEN,376,72,60,14
+    LTEXT           "Optional. When set, clients must send it as a Bearer token.",IDC_STATIC,70,89,366,8
+    CONTROL         "Mask passwords (PWD=, Password=, Pwd=, Passwd=) in what the AI receives",IDC_MCP_MASK_SECRETS,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,7,106,400,10
+    GROUPBOX        "Connect",IDC_STATIC,7,124,466,92
+    LTEXT           "",IDC_MCP_URL,17,138,446,8
+    LTEXT           "",IDC_MCP_STATUS,17,152,446,8
+    LTEXT           "Copy a ready-made entry for Claude Code's .mcp.json (with the current port and token) to the clipboard:",IDC_STATIC,17,170,446,8
+    PUSHBUTTON      "Copy .mcp.json entry",IDC_MCP_COPY_CONFIG,17,184,100,14
+    LTEXT           "Tabs the AI creates are named ""AI: ..."". It cannot change your own tabs unless you ask it to.",IDC_STATIC,7,226,466,8
+END
+
 /////////////////////////////////////////////////////////////////////////////
 //
 // DESIGNINFO

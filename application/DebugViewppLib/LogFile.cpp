@@ -333,6 +333,13 @@ Message LogFile::operator[](int i) const
     return result;
 }
 
+Message LogFile::GetUnparsed(int i) const
+{
+    auto& msg = m_messages[i];
+    auto props = m_processInfo.GetProcessProperties(msg.uid);
+    return Message(msg.time, msg.systemTime, props.pid, Str(props.name).str(), m_storage[i], props.color);
+}
+
 std::string LogFile::GetRawMessage(int i) const
 {
     if (i < 0 || i >= Count())

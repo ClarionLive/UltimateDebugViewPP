@@ -239,6 +239,7 @@ public:
     std::vector<std::wstring> GetUniqueProcedures() const;
 
 private:
+    friend class McpBridge;  // MCP tools read the filtered line list
     DECLARE_MSG_MAP()
 
     void OnException() const;

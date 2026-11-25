@@ -13,6 +13,7 @@
 #include "DebugViewppLib/SqlFormatter.h"
 #include "PropertyColorItem.h"
 #include "Grid.h"
+#include "McpSettings.h"
 
 namespace fusion {
 namespace debugviewpp {
@@ -49,9 +50,10 @@ class CPreferencesDlg : public CDialogImpl<CPreferencesDlg>,
                         public CDialogResize<CPreferencesDlg>
 {
 public:
-    explicit CPreferencesDlg(const NewViewDefaults& defaults);
+    explicit CPreferencesDlg(const NewViewDefaults& defaults, const McpSettings& mcpSettings = McpSettings(), std::wstring mcpStatus = L"");
 
     NewViewDefaults GetDefaults() const;
+    McpSettings GetMcpSettings() const { return m_mcpSettings; }
 
     enum { IDD = IDD_PREFERENCES };
 
@@ -199,6 +201,33 @@ private:
         CEdit m_previewEdit;
     };
 
+    // Tab page for the MCP (AI assistant) server
+    class CMcpPage : public CDialogImpl<CMcpPage>
+    {
+    public:
+        enum { IDD = IDD_PREFERENCES_MCP };
+        explicit CMcpPage(CPreferencesDlg& parent);
+
+        BEGIN_MSG_MAP(CMcpPage)
+            MESSAGE_HANDLER(WM_INITDIALOG, OnInitDialog)
+            COMMAND_ID_HANDLER_EX(IDC_MCP_GENERATE_TOKEN, OnGenerateToken)
+            COMMAND_ID_HANDLER_EX(IDC_MCP_COPY_CONFIG, OnCopyConfig)
+            COMMAND_HANDLER_EX(IDC_MCP_PORT, EN_CHANGE, OnChange)
+            COMMAND_HANDLER_EX(IDC_MCP_TOKEN, EN_CHANGE, OnChange)
+        END_MSG_MAP()
+
+        LRESULT OnInitDialog(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled);
+        void Load(const McpSettings& settings, const std::wstring& status);
+        bool Save(McpSettings& settings);
+        void OnGenerateToken(UINT uNotifyCode, int nID, CWindow wndCtl);
+        void OnCopyConfig(UINT uNotifyCode, int nID, CWindow wndCtl);
+        void OnChange(UINT uNotifyCode, int nID, CWindow wndCtl);
+        void UpdateUrl();
+
+    private:
+        CPreferencesDlg& m_parent;
+    };
+
     void CreateTabPages();
     void LoadControlsFromDefaults();
     void SaveControlsToDefaults();
@@ -209,7 +238,10 @@ private:
     CNewViewDefaultsPage m_newViewDefaultsPage;
     CPrefixDefaultsPage m_prefixDefaultsPage;
     CSqlOptionsPage m_sqlOptionsPage;
+    CMcpPage m_mcpPage;
     NewViewDefaults m_defaults;
+    McpSettings m_mcpSettings;
+    std::wstring m_mcpStatus;
     SIZE m_border;
 };
 

@@ -88,6 +88,7 @@ public:
     int EndIndex() const;
     int Count() const;
     Message operator[](int i) const;
+    Message GetUnparsed(int i) const;        // Like operator[] but skips Clarion parsing (cheap scans)
     std::string GetRawMessage(int i) const;  // Get unparsed message text
     int GetHistorySize() const;
     void SetHistorySize(int size);
