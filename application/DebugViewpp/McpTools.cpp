@@ -1389,6 +1389,10 @@ public:
             name.pop_back();
         while (!name.empty() && name.front() == L'.')
             name.erase(name.begin());
+        if (name.size() > 60)
+            name.resize(60);
+        if (IsReservedWindowsName(name))
+            name = L"_" + name;  // e.g. a program called CON.exe gets the folder _CON
         return IsPlainMcpName(name) ? name : std::wstring(L"app");
     }
 

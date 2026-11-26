@@ -45,10 +45,24 @@ struct McpSettings
 
 constexpr size_t McpMinTokenLength = 16;
 
-// A plain file or folder name: letters, digits, space, . _ - ; no leading dot, no trailing dot/space, max 120.
+// CON, PRN, AUX, NUL, COM1-9, LPT1-9 (with or without an extension) name devices, not files.
+inline bool IsReservedWindowsName(const std::wstring& name)
+{
+    std::wstring stem = name.substr(0, name.find(L'.'));
+    while (!stem.empty() && stem.back() == L' ')
+        stem.pop_back();
+    for (auto& c : stem)
+        c = static_cast<wchar_t>(::towupper(c));
+    if (stem == L"CON" || stem == L"PRN" || stem == L"AUX" || stem == L"NUL")
+        return true;
+    return stem.size() == 4 && (stem.compare(0, 3, L"COM") == 0 || stem.compare(0, 3, L"LPT") == 0) && stem[3] >= L'1' && stem[3] <= L'9';
+}
+
+// A plain file or folder name: letters, digits, space, . _ - ; no leading dot, no trailing dot/space,
+// max 120, and not a reserved device name.
 inline bool IsPlainMcpName(const std::wstring& name)
 {
-    if (name.empty() || name.size() > 120 || name.front() == L'.' || name.back() == L'.' || name.back() == L' ')
+    if (name.empty() || name.size() > 120 || name.front() == L'.' || name.back() == L'.' || name.back() == L' ' || IsReservedWindowsName(name))
         return false;
     for (wchar_t c : name)
     {
