@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Preferences - UltimateDebugView++</title>
+    <link rel="stylesheet" href="../css/topic-styles.css">
+</head>
+<body>
+    <h1>Preferences</h1>
+    <p class="lead">Configure default settings for new views and customize UltimateDebugView++ behavior.</p>
+
+    <h2>Overview</h2>
+    <p>The Preferences dialog (File → Preferences) provides comprehensive configuration options that apply to all new views you create. These settings define the default behavior and appearance of UltimateDebugView++.</p>
+
+    <h2>Accessing Preferences</h2>
+    <ul>
+        <li>Select <strong>File → Preferences...</strong> from the menu</li>
+        <li>Or use the keyboard shortcut (if configured)</li>
+        <li>The Preferences dialog opens with multiple tabs</li>
+    </ul>
+
+    <h2>Preferences Tabs</h2>
+
+    <h3>1. New View Defaults</h3>
+    <p>Configure default settings for newly created view tabs:</p>
+
+    <h4>View Options</h4>
+    <ul>
+        <li><strong>Show detail pane by default:</strong> Automatically display the detail pane in new views</li>
+        <li><strong>Default splitter position (%):</strong> Set the initial size ratio between message list and detail pane (e.g., 75% for messages, 25% for details)</li>
+        <li><strong>Word wrap:</strong> Enable text wrapping in the detail pane</li>
+        <li><strong>Syntax highlighting:</strong> Automatically highlight code syntax in messages</li>
+        <li><strong>Format content:</strong> Auto-format SQL and other structured content</li>
+        <li><strong>Show line numbers:</strong> Display line numbers in the detail pane</li>
+    </ul>
+
+    <h4>Font Settings</h4>
+    <ul>
+        <li><strong>Select Font button:</strong> Choose the default font for detail panes</li>
+        <li><strong>Font Preview:</strong> See how your selected font will appear</li>
+        <li>Font settings include family, size, and style</li>
+    </ul>
+
+    <h4>Theme Selection</h4>
+    <ul>
+        <li><strong>System Default:</strong> Follow Windows theme settings</li>
+        <li><strong>Light:</strong> Force light theme regardless of system</li>
+        <li><strong>Dark:</strong> Force dark theme for reduced eye strain</li>
+    </ul>
+
+    <h3>2. Prefix Filters</h3>
+    <p>Manage default message prefix filters:</p>
+
+    <h4>System Prefix Filters</h4>
+    <p>Built-in filters for common message prefixes:</p>
+    <ul>
+        <li>[ERROR] - Error messages (typically highlighted in red)</li>
+        <li>[WARNING] - Warning messages (typically in yellow)</li>
+        <li>[INFO] - Informational messages (typically in blue)</li>
+        <li>[DEBUG] - Debug output (typically in gray)</li>
+        <li>[SQL] - SQL queries (triggers formatting)</li>
+        <li>[TRACE] - Detailed trace information</li>
+    </ul>
+
+    <h4>Custom Prefix Filters</h4>
+    <p>Add your own prefix filters:</p>
+    <ul>
+        <li>Define custom prefixes for your applications</li>
+        <li>Set default colors and highlighting</li>
+        <li>Configure default filter actions</li>
+        <li>Create project-specific prefix patterns</li>
+    </ul>
+
+    <h4>Filter Management</h4>
+    <ul>
+        <li><strong>Add:</strong> Create new custom prefix filter</li>
+        <li><strong>Edit:</strong> Modify existing filters</li>
+        <li><strong>Delete:</strong> Remove custom filters</li>
+        <li><strong>Reset to Defaults:</strong> Restore system prefix filters</li>
+    </ul>
+
+    <h3>3. SQL Formatting</h3>
+    <p>Configure how SQL queries are automatically formatted when detected in debug messages:</p>
+
+    <h4>Keyword Case</h4>
+    <ul>
+        <li><strong>UPPERCASE:</strong> SELECT, FROM, WHERE</li>
+        <li><strong>lowercase:</strong> select, from, where</li>
+        <li><strong>Capitalize:</strong> Select, From, Where</li>
+    </ul>
+
+    <h4>Indentation</h4>
+    <ul>
+        <li><strong>Number of spaces:</strong> Set the number of spaces for each indent level (typically 2, 4, or 8)</li>
+        <li>Uses spaces for indentation (tabs not configurable in UI)</li>
+        <li>Affects nested queries, joins, and subqueries</li>
+    </ul>
+
+    <h4>Comma Alignment</h4>
+    <ul>
+        <li><strong>Inline:</strong> Commas immediately after items</li>
+        <li><strong>Trailing:</strong> Commas at end of line</li>
+        <li><strong>Leading:</strong> Commas at start of next line</li>
+    </ul>
+
+    <h4>Format Style</h4>
+    <ul>
+        <li><strong>Compact:</strong> Minimal line breaks, dense formatting</li>
+        <li><strong>Normal:</strong> Balanced readability and space</li>
+        <li><strong>Expanded:</strong> Maximum readability with more line breaks</li>
+    </ul>
+
+    <h4>Subquery Parentheses</h4>
+    <ul>
+        <li><strong>Same line:</strong> Opening parenthesis on same line</li>
+        <li><strong>New line:</strong> Opening parenthesis on new line</li>
+        <li><strong>Indent content:</strong> Indent subquery content</li>
+    </ul>
+
+    <h4>Additional Options</h4>
+    <ul>
+        <li><strong>New line before keywords:</strong> Add line breaks before major SQL keywords</li>
+        <li><strong>Preview pane:</strong> See formatting changes in real-time with sample SQL</li>
+    </ul>
+
+    <h2>Applying Settings</h2>
+
+    <h3>Dialog Buttons</h3>
+    <ul>
+        <li><strong>OK:</strong> Save changes and close dialog</li>
+        <li><strong>Cancel:</strong> Discard changes and close</li>
+        <li><strong>Apply:</strong> Save changes without closing</li>
+    </ul>
+
+    <h3>Scope of Settings</h3>
+    <ul>
+        <li>Settings apply to all <strong>new</strong> views created after saving</li>
+        <li>Existing views retain their current settings</li>
+        <li>Individual views can override defaults</li>
+        <li>Settings persist between application sessions</li>
+    </ul>
+
+    <h2>Best Practices</h2>
+    <ul>
+        <li>Configure preferences before starting a debugging session</li>
+        <li>Set up custom prefix filters for your application's conventions</li>
+        <li>Choose SQL formatting that matches your coding standards</li>
+        <li>Select a theme that's comfortable for extended use</li>
+        <li>Adjust splitter position based on typical message length</li>
+    </ul>
+
+    <h2>Tips</h2>
+    <ul>
+        <li>Use the Preview pane in SQL Formatting to test settings</li>
+        <li>Export preferences to share with team members</li>
+        <li>Create different configurations for different projects</li>
+        <li>Dark theme is recommended for long debugging sessions</li>
+        <li>Enable syntax highlighting for better code readability</li>
+    </ul>
+
+    <div class="note">
+        <strong>Important:</strong> Preferences affect only new views. To update existing views, close and recreate them, or adjust their settings individually through the View menu.
+    </div>
+
+    <h2>Related Topics</h2>
+    <ul>
+        <li><a href="toolbar.html">Toolbar and Menus</a> - Access Preferences from File menu</li>
+        <li><a href="sql-formatting.html">SQL Formatting</a> - Detailed SQL formatting options</li>
+        <li><a href="filtering-basics.html">Filtering Basics</a> - Using prefix filters</li>
+        <li><a href="detail-pane.html">Detail Pane</a> - Detail pane configuration</li>
+    </ul>
+
+    <div class="topic-nav">
+        <a href="detail-pane.html" class="nav-prev">Previous: Detail Pane</a>
+        <a href="message-sources.html" class="nav-next">Next: Message Sources</a>
+    </div>
+</body>
+</html>

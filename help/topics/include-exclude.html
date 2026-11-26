@@ -1,0 +1,84 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Include/Exclude Filters - UltimateDebugView++</title>
+    <link rel="stylesheet" href="../css/topic-styles.css">
+</head>
+<body>
+    <h1>Include/Exclude Filters</h1>
+    <p class="lead">Fine-tune message visibility with include and exclude filters.</p>
+
+    <h2>Include Filters</h2>
+    <p>Show only messages that match specified patterns:</p>
+    <ul>
+        <li>Focus on specific components</li>
+        <li>Monitor particular error types</li>
+        <li>Track specific processes</li>
+        <li>Filter by message content</li>
+    </ul>
+
+    <h3>Include Filter Examples</h3>
+    <pre><code>// Show only SQL queries
+Pattern: "SELECT|INSERT|UPDATE|DELETE"
+Type: Regex
+
+// Show specific process
+Pattern: "MyApp.exe"
+Type: Simple
+
+// Show error levels
+Pattern: "ERROR|CRITICAL|FATAL"
+Type: Regex</code></pre>
+
+    <h2>Exclude Filters</h2>
+    <p>Hide messages matching patterns:</p>
+    <ul>
+        <li>Remove noise and clutter</li>
+        <li>Hide verbose logging</li>
+        <li>Filter out known issues</li>
+        <li>Suppress repetitive messages</li>
+    </ul>
+
+    <h3>Exclude Filter Examples</h3>
+    <pre><code>// Hide trace logging
+Pattern: "[TRACE]"
+Type: Simple
+
+// Hide heartbeat messages
+Pattern: "keepalive|ping|heartbeat"
+Type: Regex
+
+// Hide specific DLLs
+Pattern: "*.dll"
+Type: Wildcard</code></pre>
+
+    <h2>Combining Filters</h2>
+    <p>Use both include and exclude for precise control:</p>
+    <ol>
+        <li>Exclude filters run first (remove unwanted)</li>
+        <li>Include filters run second (keep wanted)</li>
+        <li>Result: Only desired messages shown</li>
+    </ol>
+
+    <h3>Example Combination</h3>
+    <pre><code>Exclude: "TRACE|DEBUG"  // Remove verbose
+Include: "MyComponent"   // Show only my component
+Result: MyComponent messages without TRACE/DEBUG</code></pre>
+
+    <h2>Filter Management</h2>
+    <ul>
+        <li><strong>Enable/Disable:</strong> Toggle filters without deleting</li>
+        <li><strong>Reorder:</strong> Drag filters to change priority</li>
+        <li><strong>Edit:</strong> Double-click to modify</li>
+        <li><strong>Groups:</strong> Organize filters into sets</li>
+    </ul>
+
+    <div class="topic-nav">
+        <a href="filtering-basics.html" class="nav-prev">Previous: Filtering Basics</a>
+        <a href="highlighting.html" class="nav-next">Next: Message Highlighting</a>
+    </div>
+</body>
+</html>
+

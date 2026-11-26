@@ -22,3 +22,6 @@ out/
 build_output.txt
 sql_formatter_called.txt
 C:Dev*
+
+# Laptop build tree kept for reference
+/build.laptop/

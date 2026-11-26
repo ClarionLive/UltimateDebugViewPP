@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UltimateDebugView++ User Guide</title>
+    <link rel="stylesheet" href="css/help.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>UltimateDebugView++ User Guide</h1>
+            <p class="subtitle">Enhanced Debug Output Viewer with Ribbon UI</p>
+        </header>
+
+        <nav class="toc">
+            <h2>Table of Contents</h2>
+            <ul>
+                <li><a href="#introduction">Introduction</a></li>
+                <li><a href="#getting-started">Getting Started</a></li>
+                <li><a href="#ribbon-interface">Ribbon Interface</a></li>
+                <li><a href="#capturing-messages">Capturing Debug Messages</a></li>
+                <li><a href="#filtering">Filtering and Highlighting</a></li>
+                <li><a href="#sql-formatting">SQL Formatting</a></li>
+                <li><a href="#syntax-highlighting">Syntax Highlighting</a></li>
+                <li><a href="#views-tabs">Managing Views and Tabs</a></li>
+                <li><a href="#clarion-features">Clarion-Specific Features</a></li>
+                <li><a href="#keyboard-shortcuts">Keyboard Shortcuts</a></li>
+                <li><a href="#advanced-features">Advanced Features</a></li>
+                <li><a href="#troubleshooting">Troubleshooting</a></li>
+            </ul>
+        </nav>
+
+        <main>
+            <section id="introduction">
+                <h2>Introduction</h2>
+                <p>UltimateDebugView++ is an enhanced version of DebugView++ specifically designed for Clarion programmers and advanced debugging scenarios. It features:</p>
+                <ul>
+                    <li>Modern Ribbon UI for easy access to all features</li>
+                    <li>SQL query formatting and beautification</li>
+                    <li>Syntax highlighting with Scintilla editor</li>
+                    <li>Advanced filtering and message categorization</li>
+                    <li>Support for Clarion debug messages with structured data</li>
+                    <li>Queue and Group visualization</li>
+                    <li>Multi-tab interface for organizing debug sessions</li>
+                    <li>High-performance message handling (50,000+ messages/second)</li>
+                </ul>
+            </section>
+
+            <section id="getting-started">
+                <h2>Getting Started</h2>
+
+                <h3>System Requirements</h3>
+                <ul>
+                    <li>Windows 7 or later (64-bit recommended)</li>
+                    <li>Visual C++ 2022 Runtime</li>
+                    <li>.NET Framework 4.7.2 or later (for some features)</li>
+                    <li>Administrator privileges (optional, for kernel message capture)</li>
+                </ul>
+
+                <h3>Installation</h3>
+                <ol>
+                    <li>Download UltimateDebugViewpp.exe</li>
+                    <li>Extract to your preferred directory</li>
+                    <li>Run UltimateDebugViewpp.exe</li>
+                    <li>Optional: Run as Administrator to capture kernel messages</li>
+                </ol>
+
+                <h3>First Run</h3>
+                <p>On first run, UltimateDebugView++ will:</p>
+                <ol>
+                    <li>Create a default configuration in %APPDATA%\UltimateDebugView++</li>
+                    <li>Start capturing Win32 OutputDebugString messages automatically</li>
+                    <li>Display the main window with the Ribbon interface</li>
+                </ol>
+            </section>
+
+            <section id="ribbon-interface">
+                <h2>Ribbon Interface</h2>
+
+                <p>The Ribbon interface provides organized access to all features:</p>
+
+                <h3>Home Tab</h3>
+                <ul>
+                    <li><strong>File Operations</strong>
+                        <ul>
+                            <li>Open - Load saved log files</li>
+                            <li>Save - Save current view</li>
+                            <li>Save Selection - Save selected messages only</li>
+                        </ul>
+                    </li>
+                    <li><strong>View Controls</strong>
+                        <ul>
+                            <li>Clear - Clear current view</li>
+                            <li>Auto Scroll - Toggle automatic scrolling</li>
+                            <li>Time Display - Show/hide timestamps</li>
+                        </ul>
+                    </li>
+                    <li><strong>Filtering</strong>
+                        <ul>
+                            <li>Filter Dialog - Open filter configuration</li>
+                            <li>Quick Filter - Apply quick text filter</li>
+                        </ul>
+                    </li>
+                </ul>
+
+                <h3>Format Tab</h3>
+                <ul>
+                    <li><strong>SQL Formatting</strong>
+                        <ul>
+                            <li>Format SQL - Beautify SQL queries in messages</li>
+                            <li>SQL Options - Configure formatting preferences</li>
+                        </ul>
+                    </li>
+                    <li><strong>Display Options</strong>
+                        <ul>
+                            <li>Font - Change display font</li>
+                            <li>Colors - Configure color scheme</li>
+                            <li>Line Numbers - Toggle line numbers</li>
+                        </ul>
+                    </li>
+                </ul>
+
+                <h3>Log Menu</h3>
+                <ul>
+                    <li><strong>Sources Management</strong>
+                        <ul>
+                            <li>Sources... - Configure and manage all input sources (Files, TCP/UDP, DebugView Agent)</li>
+                            <li>Connect DebugView Agent - Connect to remote debugging agent</li>
+                            <li>History Size... - Configure message buffer size</li>
+                        </ul>
+                    </li>
+                    <li><strong>Capture Options</strong>
+                        <ul>
+                            <li>Capture Win32 - Toggle Win32 OutputDebugString capture</li>
+                            <li>Capture Kernel Messages - Capture kernel debug output (requires admin)</li>
+                            <li>Verbose Kernel Messages - Include verbose kernel messages</li>
+                            <li>Pass-Through mode - Pass messages to other debuggers</li>
+                        </ul>
+                    </li>
+                </ul>
+
+                <h3>Options Menu</h3>
+                <ul>
+                    <li><strong>Display Settings</strong>
+                        <ul>
+                            <li>Font... - Change display font and size</li>
+                            <li>Always on Top - Keep window above others</li>
+                            <li>Expanded Toolbar - Toggle toolbar display mode</li>
+                        </ul>
+                    </li>
+                    <li><strong>Behavior</strong>
+                        <ul>
+                            <li>Link Views - Synchronize scrolling between views</li>
+                            <li>Auto Newline - Automatic line wrapping</li>
+                            <li>Process Prefix - Show process name in messages</li>
+                        </ul>
+                    </li>
+                </ul>
+            </section>
+
+            <section id="capturing-messages">
+                <h2>Capturing Debug Messages</h2>
+
+                <h3>Message Sources</h3>
+                <p>UltimateDebugView++ can capture messages from multiple sources:</p>
+
+                <h4>1. Win32 OutputDebugString</h4>
+                <p>Automatically captures all OutputDebugString API calls. This is the primary source for Clarion debug messages.</p>
+
+                <h4>2. Log Files</h4>
+                <p>Monitor and "tail" log files in real-time. <strong>What is tailing?</strong> Tailing means continuously watching a file for new content that gets added to the end. As your application writes new lines to the log file, UltimateDebugView++ automatically displays them immediately - just like watching a live stream of your log file. This is especially useful for monitoring active applications that are continuously writing to their log files.</p>
+                <p>To monitor a log file:</p>
+                <ol>
+                    <li>Click File → Open... (Ctrl+O)</li>
+                    <li>Browse to the log file you want to monitor</li>
+                    <li>Select the file</li>
+                    <li>UltimateDebugView++ will display the existing contents and automatically show any new lines as they're written to the file</li>
+                </ol>
+                <p>Alternative method using Sources dialog:</p>
+                <ol>
+                    <li>Click Log → Sources...</li>
+                    <li>Click "Add" button</li>
+                    <li>Enter a descriptive name (e.g., "MyApp Error Log")</li>
+                    <li>Choose "File" from the Type dropdown</li>
+                    <li>Enter or browse to the file path</li>
+                    <li>Click OK and enable the source with the checkbox</li>
+                </ol>
+                <p><strong>Note:</strong> The file monitoring continues even if the file is deleted and recreated (common with rotating log files). UltimateDebugView++ will automatically detect and follow the new file.</p>
+
+                <h4>3. Network Sources (TCP/UDP)</h4>
+                <p>Receive debug messages over TCP or UDP:</p>
+                <ol>
+                    <li>Click Log → Sources...</li>
+                    <li>Click "Add" button</li>
+                    <li>Enter a descriptive name</li>
+                    <li>Choose TCP Socket or UDP Socket from the Type dropdown</li>
+                    <li>Enter IP address (for listening, use 0.0.0.0 for all interfaces)</li>
+                    <li>Enter port number</li>
+                    <li>Click OK</li>
+                    <li>Enable the source by checking the checkbox</li>
+                </ol>
+
+                <h4>4. DebugView Agent</h4>
+                <p>Connect to remote DebugView Agent for debugging remote machines:</p>
+                <ol>
+                    <li>Click Log → Connect DebugView Agent</li>
+                    <li>Or use Log → Sources... and add a DebugView Agent source</li>
+                </ol>
+
+                <h4>5. Named Pipes</h4>
+                <p>Named pipes are handled automatically when data is piped to DebugView++ from the command line.</p>
+
+                <h3>Message Format</h3>
+                <p>Messages are displayed with:</p>
+                <ul>
+                    <li><strong>Index</strong> - Sequential message number</li>
+                    <li><strong>Time</strong> - Timestamp (optional)</li>
+                    <li><strong>Process</strong> - Source process name and ID</li>
+                    <li><strong>Message</strong> - The debug message content</li>
+                </ul>
+            </section>
+
+            <section id="filtering">
+                <h2>Filtering and Highlighting</h2>
+
+                <h3>Filter Types</h3>
+
+                <h4>Include Filters</h4>
+                <p>Show only messages matching the filter:</p>
+                <ol>
+                    <li>Press F5 or click Filter button</li>
+                    <li>Add Include filter</li>
+                    <li>Enter text or regex pattern</li>
+                    <li>Apply filter</li>
+                </ol>
+
+                <h4>Exclude Filters</h4>
+                <p>Hide messages matching the filter:</p>
+                <ul>
+                    <li>Right-click on a message → Exclude</li>
+                    <li>Or use Filter dialog → Add Exclude filter</li>
+                </ul>
+
+                <h4>Highlight Filters</h4>
+                <p>Color-code messages for easy identification:</p>
+                <ol>
+                    <li>Select text in a message</li>
+                    <li>Press Ctrl+H or right-click → Highlight</li>
+                    <li>Choose highlight color</li>
+                </ol>
+
+                <h4>Token Filters</h4>
+                <p>Extract and display only specific parts of messages using regex groups.</p>
+
+                <h3>Filter Syntax</h3>
+                <ul>
+                    <li><strong>Simple Text</strong>: Matches anywhere in message</li>
+                    <li><strong>Wildcards</strong>: Use * and ? for pattern matching</li>
+                    <li><strong>Regular Expressions</strong>: Full regex support with capture groups</li>
+                    <li><strong>Process Filters</strong>: Filter by process name or ID</li>
+                </ul>
+
+                <h3>Quick Filters</h3>
+                <p>Apply temporary filters without opening the dialog:</p>
+                <ul>
+                    <li>Ctrl+I - Include selected text</li>
+                    <li>Ctrl+E - Exclude selected text</li>
+                    <li>Ctrl+H - Highlight selected text</li>
+                    <li>Ctrl+K - Create token from selection</li>
+                </ul>
+
+                <h3>Saving and Loading Filters</h3>
+                <ol>
+                    <li>Configure your filters</li>
+                    <li>Click Save in Filter dialog</li>
+                    <li>Name your filter set</li>
+                    <li>Load saved filters from the dropdown</li>
+                </ol>
+            </section>
+
+            <section id="sql-formatting">
+                <h2>SQL Formatting</h2>
+
+                <p>UltimateDebugView++ includes powerful SQL formatting capabilities:</p>
+
+                <h3>Automatic SQL Detection</h3>
+                <p>Automatically detects and formats SQL queries in debug messages when they contain SQL keywords.</p>
+
+                <h3>Manual Formatting</h3>
+                <ol>
+                    <li>Select a message containing SQL</li>
+                    <li>Click Format → Format SQL</li>
+                    <li>View the beautified query in the detail pane</li>
+                </ol>
+
+                <h3>Formatting Options</h3>
+                <ul>
+                    <li><strong>Indentation</strong>: Configure spaces or tabs</li>
+                    <li><strong>Keyword Case</strong>: UPPERCASE, lowercase, or Capitalize</li>
+                    <li><strong>Line Breaks</strong>: Before/after keywords</li>
+                    <li><strong>Alignment</strong>: Align operators and commas</li>
+                </ul>
+
+                <h3>Supported SQL Dialects</h3>
+                <ul>
+                    <li>Standard SQL</li>
+                    <li>Microsoft SQL Server</li>
+                    <li>MySQL</li>
+                    <li>PostgreSQL</li>
+                    <li>SQLite</li>
+                </ul>
+            </section>
+
+            <section id="syntax-highlighting">
+                <h2>Syntax Highlighting</h2>
+
+                <p>The Scintilla editor provides syntax highlighting for various formats:</p>
+
+                <h3>Supported Languages</h3>
+                <ul>
+                    <li>SQL - Automatic for SQL queries</li>
+                    <li>XML/HTML - For structured data</li>
+                    <li>JSON - For JSON debug output</li>
+                    <li>C/C++ - For code snippets</li>
+                    <li>Clarion - For Clarion code</li>
+                </ul>
+
+                <h3>Customization</h3>
+                <ol>
+                    <li>Right-click in detail view</li>
+                    <li>Select "Syntax Highlighting"</li>
+                    <li>Choose language or "Auto-detect"</li>
+                </ol>
+
+                <h3>Color Schemes</h3>
+                <ul>
+                    <li>Default - Light background</li>
+                    <li>Dark - Dark theme</li>
+                    <li>Custom - Define your own colors</li>
+                </ul>
+            </section>
+
+            <section id="views-tabs">
+                <h2>Managing Views and Tabs</h2>
+
+                <h3>Creating New Views</h3>
+                <ol>
+                    <li>Press Ctrl+N or File → New View</li>
+                    <li>Each view has independent filters</li>
+                    <li>Name tabs for easy identification</li>
+                </ol>
+
+                <h3>Tab Operations</h3>
+                <ul>
+                    <li><strong>Rename</strong>: Right-click tab → Rename</li>
+                    <li><strong>Duplicate</strong>: Right-click → Duplicate View</li>
+                    <li><strong>Close</strong>: Click X or middle-click tab</li>
+                    <li><strong>Reorder</strong>: Drag tabs to reorder</li>
+                </ul>
+
+                <h3>Linked Views</h3>
+                <p>Link views to synchronize scrolling:</p>
+                <ol>
+                    <li>Select multiple tabs (Ctrl+Click)</li>
+                    <li>Right-click → Link Views</li>
+                    <li>Linked views scroll together</li>
+                </ol>
+
+                <h3>View Persistence</h3>
+                <p>Views are automatically saved and restored between sessions, including:</p>
+                <ul>
+                    <li>Tab names and order</li>
+                    <li>Active filters</li>
+                    <li>Column widths</li>
+                    <li>Scroll positions</li>
+                </ul>
+            </section>
+
+            <section id="clarion-features">
+                <h2>Clarion-Specific Features</h2>
+
+                <p>UltimateDebugView++ includes special support for Clarion debugging:</p>
+
+                <h3>Structured Message Recognition</h3>
+                <p>Automatically parses Clarion debug messages with the format:</p>
+                <pre><code>[||]X,T:&lt;thread&gt;,P:&lt;procedure&gt;,M:&lt;module&gt;,A:&lt;app&gt;,PRE:&lt;prefix&gt;,MSG:&lt;message&gt;</code></pre>
+
+                <h3>Queue Display</h3>
+                <p>When receiving queue data from Clarion:</p>
+                <ul>
+                    <li>Automatically formats as a table</li>
+                    <li>Column headers from field names</li>
+                    <li>Sortable columns</li>
+                    <li>Export to CSV</li>
+                </ul>
+
+                <h3>Procedure Tracking</h3>
+                <p>Track procedure entry/exit with [Open] and [Close] messages:</p>
+                <ul>
+                    <li>Collapsible procedure blocks</li>
+                    <li>Execution time calculation</li>
+                    <li>Call stack visualization</li>
+                </ul>
+
+                <h3>SQL Trace Integration</h3>
+                <p>For Clarion SQL operations:</p>
+                <ul>
+                    <li>Automatic SQL extraction</li>
+                    <li>Parameter substitution display</li>
+                    <li>Execution time tracking</li>
+                    <li>Error highlighting</li>
+                </ul>
+
+                <h3>Field Name Mapping</h3>
+                <p>Maps Clarion field prefixes to readable names when [||FieldNames||] messages are received.</p>
+            </section>
+
+            <section id="keyboard-shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <table class="shortcuts-table">
+                    <thead>
+                        <tr>
+                            <th>Action</th>
+                            <th>Shortcut</th>
+                            <th>Description</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr class="category">
+                            <td colspan="3"><strong>File Operations</strong></td>
+                        </tr>
+                        <tr>
+                            <td>New View</td>
+                            <td>Ctrl+N</td>
+                            <td>Create new view tab</td>
+                        </tr>
+                        <tr>
+                            <td>Open File</td>
+                            <td>Ctrl+O</td>
+                            <td>Open log file</td>
+                        </tr>
+                        <tr>
+                            <td>Save View</td>
+                            <td>Ctrl+S</td>
+                            <td>Save current view</td>
+                        </tr>
+                        <tr>
+                            <td>Save Selection</td>
+                            <td>Alt+S</td>
+                            <td>Save selected messages</td>
+                        </tr>
+                        <tr class="category">
+                            <td colspan="3"><strong>View Control</strong></td>
+                        </tr>
+                        <tr>
+                            <td>Clear View</td>
+                            <td>Ctrl+X</td>
+                            <td>Clear current view</td>
+                        </tr>
+                        <tr>
+                            <td>Select All</td>
+                            <td>Ctrl+A</td>
+                            <td>Select all messages</td>
+                        </tr>
+                        <tr>
+                            <td>Copy</td>
+                            <td>Ctrl+C</td>
+                            <td>Copy selected messages</td>
+                        </tr>
+                        <tr>
+                            <td>Copy Messages</td>
+                            <td>Ctrl+Shift+C</td>
+                            <td>Copy message text only</td>
+                        </tr>
+                        <tr>
+                            <td>Find</td>
+                            <td>Ctrl+F</td>
+                            <td>Open find dialog</td>
+                        </tr>
+                        <tr>
+                            <td>Find Next</td>
+                            <td>F3</td>
+                            <td>Find next occurrence</td>
+                        </tr>
+                        <tr>
+                            <td>Find Previous</td>
+                            <td>Shift+F3</td>
+                            <td>Find previous occurrence</td>
+                        </tr>
+                        <tr class="category">
+                            <td colspan="3"><strong>Filtering</strong></td>
+                        </tr>
+                        <tr>
+                            <td>Filter Dialog</td>
+                            <td>F5</td>
+                            <td>Open filter configuration</td>
+                        </tr>
+                        <tr>
+                            <td>Include</td>
+                            <td>Ctrl+I</td>
+                            <td>Include selected text</td>
+                        </tr>
+                        <tr>
+                            <td>Exclude</td>
+                            <td>Ctrl+E</td>
+                            <td>Exclude selected text</td>
+                        </tr>
+                        <tr>
+                            <td>Highlight</td>
+                            <td>Ctrl+H</td>
+                            <td>Highlight selected text</td>
+                        </tr>
+                        <tr>
+                            <td>Token</td>
+                            <td>Ctrl+K</td>
+                            <td>Create token filter</td>
+                        </tr>
+                        <tr class="category">
+                            <td colspan="3"><strong>Bookmarks</strong></td>
+                        </tr>
+                        <tr>
+                            <td>Toggle Bookmark</td>
+                            <td>Ctrl+F2</td>
+                            <td>Set/clear bookmark</td>
+                        </tr>
+                        <tr>
+                            <td>Next Bookmark</td>
+                            <td>F2</td>
+                            <td>Go to next bookmark</td>
+                        </tr>
+                        <tr>
+                            <td>Previous Bookmark</td>
+                            <td>Shift+F2</td>
+                            <td>Go to previous bookmark</td>
+                        </tr>
+                        <tr>
+                            <td>Clear Bookmarks</td>
+                            <td>Ctrl+Shift+F2</td>
+                            <td>Clear all bookmarks</td>
+                        </tr>
+                        <tr class="category">
+                            <td colspan="3"><strong>Display</strong></td>
+                        </tr>
+                        <tr>
+                            <td>Auto Scroll</td>
+                            <td>Scroll Lock</td>
+                            <td>Toggle auto-scroll</td>
+                        </tr>
+                        <tr>
+                            <td>Pause</td>
+                            <td>Space</td>
+                            <td>Pause message capture</td>
+                        </tr>
+                        <tr>
+                            <td>Font Dialog</td>
+                            <td>Ctrl+Alt+F</td>
+                            <td>Change display font</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <section id="advanced-features">
+                <h2>Advanced Features</h2>
+
+                <h3>Regular Expression Support</h3>
+                <p>Use regular expressions for powerful filtering:</p>
+                <ul>
+                    <li>Pattern matching with capture groups</li>
+                    <li>Case-sensitive/insensitive options</li>
+                    <li>Multiline matching</li>
+                    <li>Named groups for token extraction</li>
+                </ul>
+
+                <h4>Example Patterns:</h4>
+                <pre><code>Error:\s*(\d+)          # Match error codes
+\[SQL\].*SELECT.*       # Match SQL SELECT statements
+^Process:\s*(.+)$       # Extract process names
+(?i)warning|error       # Case-insensitive warnings or errors</code></pre>
+
+                <h3>Message Statistics</h3>
+                <p>View detailed statistics about captured messages:</p>
+                <ul>
+                    <li>Messages per second</li>
+                    <li>Total message count</li>
+                    <li>Process breakdown</li>
+                    <li>Category distribution</li>
+                    <li>Peak message rates</li>
+                </ul>
+
+                <h3>Export Options</h3>
+                <p>Export debug data in various formats:</p>
+                <ul>
+                    <li><strong>Plain Text</strong> - Simple text file</li>
+                    <li><strong>CSV</strong> - For spreadsheet analysis</li>
+                    <li><strong>XML</strong> - Structured data export</li>
+                    <li><strong>JSON</strong> - For programmatic processing</li>
+                    <li><strong>HTML</strong> - Formatted report with highlighting</li>
+                </ul>
+
+                <h3>Command Line Options</h3>
+                <pre><code>UltimateDebugviewpp.exe [options]
+
+Options:
+  /f &lt;file&gt;     Load filter file
+  /o &lt;file&gt;     Log output to file
+  /c            Clear buffer at startup
+  /s            Start minimized
+  /t            Stay on top
+  /m            Monitor mode (auto-save)
+  /l &lt;file&gt;     Load saved session</code></pre>
+
+                <h3>Performance Optimization</h3>
+                <p>For high-volume debugging:</p>
+                <ul>
+                    <li><strong>Buffer Size</strong>: Adjust in Options → Performance</li>
+                    <li><strong>Update Frequency</strong>: Reduce for better performance</li>
+                    <li><strong>Filters</strong>: Use exclude filters to reduce noise</li>
+                    <li><strong>Virtual Mode</strong>: Enable for millions of messages</li>
+                </ul>
+
+                <h3>Remote Debugging</h3>
+                <p>Debug applications on remote machines:</p>
+                <ol>
+                    <li>Set up TCP/UDP listener</li>
+                    <li>Configure remote app to send to your IP:Port</li>
+                    <li>Use encryption for sensitive data (optional)</li>
+                    <li>Apply filters to handle network latency</li>
+                </ol>
+            </section>
+
+            <section id="troubleshooting">
+                <h2>Troubleshooting</h2>
+
+                <h3>Common Issues</h3>
+
+                <h4>No messages appearing</h4>
+                <ul>
+                    <li>Check if capture is paused (Space key)</li>
+                    <li>Verify no exclude filters are blocking messages</li>
+                    <li>Ensure source application is running</li>
+                    <li>Run as Administrator for kernel messages</li>
+                </ul>
+
+                <h4>Performance problems</h4>
+                <ul>
+                    <li>Reduce buffer size in Options</li>
+                    <li>Clear old messages regularly</li>
+                    <li>Use exclude filters for noise</li>
+                    <li>Disable syntax highlighting for high volume</li>
+                </ul>
+
+                <h4>SQL formatting not working</h4>
+                <ul>
+                    <li>Check SQL dialect setting</li>
+                    <li>Ensure fsqlf_dll.dll is present</li>
+                    <li>Verify SQL syntax is valid</li>
+                </ul>
+
+                <h4>Clarion messages not structured</h4>
+                <ul>
+                    <li>Verify UltimateDebug class is configured correctly</li>
+                    <li>Check UsePlainFormat property is FALSE</li>
+                    <li>Ensure messages use [||]X format</li>
+                </ul>
+
+                <h3>Log Files</h3>
+                <p>Debug logs are stored in:</p>
+                <pre><code>%APPDATA%\UltimateDebugView++\Logs\</code></pre>
+
+                <h3>Reset Configuration</h3>
+                <p>To reset all settings:</p>
+                <ol>
+                    <li>Close UltimateDebugView++</li>
+                    <li>Delete %APPDATA%\UltimateDebugView++</li>
+                    <li>Restart application</li>
+                </ol>
+
+                <h3>Getting Help</h3>
+                <ul>
+                    <li>Check this user guide</li>
+                    <li>View the <a href="clarion_api_help.html">Clarion API Reference</a></li>
+                    <li>Visit the project repository on GitHub</li>
+                    <li>Report issues on the issue tracker</li>
+                </ul>
+            </section>
+        </main>
+
+        <footer>
+            <p>&copy; 2024 UltimateDebugView++ User Guide</p>
+            <p>Version 2.0 - Enhanced with Ribbon UI and SQL Formatting</p>
+        </footer>
+    </div>
+</body>
+</html>

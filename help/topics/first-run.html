@@ -1,0 +1,83 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>First Run - UltimateDebugView++</title>
+    <link rel="stylesheet" href="../css/topic-styles.css">
+</head>
+<body>
+    <h1>First Run</h1>
+    <p class="lead">Get started with UltimateDebugView++ and configure it for your debugging needs.</p>
+
+    <h2>Initial Setup</h2>
+    <p>When you first launch UltimateDebugView++, the application automatically begins capturing Win32 OutputDebugString messages from all processes on your system.</p>
+
+    <h3>Default Configuration</h3>
+    <ul>
+        <li><strong>Auto-capture:</strong> Enabled for Win32 debug messages</li>
+        <li><strong>Buffer size:</strong> 100,000 messages (configurable)</li>
+        <li><strong>Timestamp format:</strong> HH:MM:SS.mmm</li>
+        <li><strong>Line wrapping:</strong> Disabled</li>
+        <li><strong>Auto-scroll:</strong> Enabled</li>
+    </ul>
+
+    <h2>Essential First Steps</h2>
+
+    <h3>1. Configure Message Sources</h3>
+    <p>Use the toolbar buttons or <strong>Log</strong> menu to:</p>
+    <ul>
+        <li>Enable/disable Win32 capture</li>
+        <li>Add file monitoring sources</li>
+        <li>Configure network listeners (TCP/UDP)</li>
+        <li>Set up DebugView Agent connections</li>
+    </ul>
+
+    <h3>2. Set Up Filters</h3>
+    <p>Use the <strong>Filter</strong> button on the toolbar to:</p>
+    <ul>
+        <li>Create include filters to show only relevant messages</li>
+        <li>Add exclude filters to hide noise</li>
+        <li>Configure highlighting for important patterns</li>
+        <li>Save filter sets for different debugging scenarios</li>
+    </ul>
+
+    <h3>3. Customize the View</h3>
+    <p>Adjust the display to your preferences:</p>
+    <ul>
+        <li>Toggle column visibility (Time, Process, Message)</li>
+        <li>Adjust column widths</li>
+        <li>Configure font and colors</li>
+        <li>Enable syntax highlighting for code snippets</li>
+    </ul>
+
+    <h2>Performance Considerations</h2>
+    <p>For optimal performance on first run:</p>
+    <ul>
+        <li>Limit buffer size if capturing high-volume output</li>
+        <li>Use filters to reduce displayed messages</li>
+        <li>Disable auto-scroll when reviewing past messages</li>
+        <li>Consider process-specific capture for targeted debugging</li>
+    </ul>
+
+    <h2>Saving Your Configuration</h2>
+    <p>Your settings are automatically saved and restored between sessions. Configuration is stored in:</p>
+    <p><code>%APPDATA%\UltimateDebugViewPP\settings.xml</code></p>
+
+    <div class="note">
+        <strong>Tip:</strong> Create multiple configuration profiles for different debugging scenarios using File â†’ Save Configuration As.
+    </div>
+
+    <h2>Next Steps</h2>
+    <ul>
+        <li>Explore the <a href="toolbar.html">Toolbar and Menus</a> for all available features</li>
+        <li>Learn about <a href="filtering-basics.html">Filtering Basics</a> to manage message flow</li>
+        <li>Set up <a href="keyboard-shortcuts.html">Keyboard Shortcuts</a> for efficient operation</li>
+    </ul>
+
+    <div class="topic-nav">
+        <a href="installation.html" class="nav-prev">Previous: Installation</a>
+        <a href="toolbar.html" class="nav-next">Next: Toolbar and Menus</a>
+    </div>
+</body>
+</html>

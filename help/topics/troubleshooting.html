@@ -1,0 +1,81 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Troubleshooting - UltimateDebugView++</title>
+    <link rel="stylesheet" href="../css/topic-styles.css">
+</head>
+<body>
+    <h1>Troubleshooting</h1>
+    <p class="lead">Solutions to common issues and problems.</p>
+
+    <h2>No Messages Appearing</h2>
+    <ul>
+        <li>Verify capture is enabled (check status bar)</li>
+        <li>Ensure no other debugger is attached</li>
+        <li>Check filters aren''t hiding all messages</li>
+        <li>Run as administrator for global capture</li>
+        <li>Verify application is using OutputDebugString</li>
+    </ul>
+
+    <h2>Missing Messages</h2>
+    <ul>
+        <li>Check exclude filters</li>
+        <li>Verify buffer isn''t full</li>
+        <li>Look for process filters</li>
+        <li>Check time range filters</li>
+        <li>Ensure high message rate isn''t causing drops</li>
+    </ul>
+
+    <h2>High CPU Usage</h2>
+    <ul>
+        <li>Reduce message volume with filters</li>
+        <li>Increase update interval</li>
+        <li>Disable syntax highlighting</li>
+        <li>Close unused tabs</li>
+        <li>Reduce buffer size</li>
+    </ul>
+
+    <h2>Connection Issues</h2>
+    <ul>
+        <li>Check firewall settings</li>
+        <li>Verify network connectivity</li>
+        <li>Ensure correct port numbers</li>
+        <li>Check agent is running</li>
+        <li>Test with telnet/nc first</li>
+    </ul>
+
+    <h2>File Access Errors</h2>
+    <ul>
+        <li>Check file permissions</li>
+        <li>Ensure file isn''t locked</li>
+        <li>Verify path is correct</li>
+        <li>Try running as administrator</li>
+        <li>Check antivirus isn''t blocking</li>
+    </ul>
+
+    <h2>Display Issues</h2>
+    <ul>
+        <li>Reset window layout (View â†’ Reset)</li>
+        <li>Clear corrupted settings</li>
+        <li>Update graphics drivers</li>
+        <li>Try different theme</li>
+        <li>Disable hardware acceleration</li>
+    </ul>
+
+    <h2>Getting Help</h2>
+    <ul>
+        <li>Check this documentation</li>
+        <li>Visit GitHub issues page</li>
+        <li>Enable debug logging</li>
+        <li>Collect system information</li>
+        <li>Provide reproduction steps</li>
+    </ul>
+
+    <div class="topic-nav">
+        <a href="configuration.html" class="nav-prev">Previous: Configuration</a>
+        <a href="faq.html" class="nav-next">Next: FAQ</a>
+    </div>
+</body>
+</html>

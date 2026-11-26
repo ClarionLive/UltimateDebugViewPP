@@ -9,6 +9,10 @@
 #include <string>
 #include <exception>
 #include <commctrl.h>
+#include <bcrypt.h>
+#include <algorithm>
+#include <iterator>
+#include <shobjidl.h>
 
 namespace fusion {
 namespace debugviewpp {
@@ -40,11 +44,14 @@ NewViewDefaults::NewViewDefaults()
 }
 
 // CPreferencesDlg implementation
-CPreferencesDlg::CPreferencesDlg(const NewViewDefaults& defaults)
+CPreferencesDlg::CPreferencesDlg(const NewViewDefaults& defaults, const McpSettings& mcpSettings, std::wstring mcpStatus)
     : m_defaults(defaults)
     , m_newViewDefaultsPage(*this)
     , m_prefixDefaultsPage(*this)
     , m_sqlOptionsPage(*this)
+    , m_mcpPage(*this)
+    , m_mcpSettings(mcpSettings)
+    , m_mcpStatus(std::move(mcpStatus))
 {
     m_hWnd = NULL;  // Ensure dialog window handle is NULL
     m_border = { 0, 0 };
@@ -98,6 +105,9 @@ LRESULT CPreferencesDlg::OnInitDialog(UINT uMsg, WPARAM wParam, LPARAM lParam, B
     tci.pszText = const_cast<LPWSTR>(L"SQL Options");
     m_tabCtrl.InsertItem(2, &tci);
 
+    tci.pszText = const_cast<LPWSTR>(L"AI / MCP");
+    m_tabCtrl.InsertItem(3, &tci);
+
     // Create tab pages
     CreateTabPages();
 
@@ -127,6 +137,8 @@ LRESULT CPreferencesDlg::OnDestroy(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL
         m_prefixDefaultsPage.DestroyWindow();
     if (m_sqlOptionsPage.IsWindow())
         m_sqlOptionsPage.DestroyWindow();
+    if (m_mcpPage.IsWindow())
+        m_mcpPage.DestroyWindow();
     return 0;
 }
 
@@ -158,6 +170,11 @@ LRESULT CPreferencesDlg::OnSize(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& b
         if (m_sqlOptionsPage.IsWindow())
         {
             m_sqlOptionsPage.MoveWindow(&tabRect);
+        }
+
+        if (m_mcpPage.IsWindow())
+        {
+            m_mcpPage.MoveWindow(&tabRect);
         }
     }
     return 0;
@@ -223,6 +240,11 @@ LRESULT CPreferencesDlg::OnTabSelChange(int idCtrl, LPNMHDR pnmh, BOOL& bHandled
         m_sqlOptionsPage.ShowWindow(selected == 2 ? SW_SHOW : SW_HIDE);
     }
 
+    if (m_mcpPage.IsWindow())
+    {
+        m_mcpPage.ShowWindow(selected == 3 ? SW_SHOW : SW_HIDE);
+    }
+
     return 0;
 }
 
@@ -267,6 +289,15 @@ void CPreferencesDlg::CreateTabPages()
     }
     m_sqlOptionsPage.MoveWindow(&tabRect);
     m_sqlOptionsPage.ShowWindow(SW_HIDE);
+
+    // Create the AI / MCP page
+    m_mcpPage.Create(m_tabCtrl, tabRect);
+    if (m_mcpPage.IsWindow())
+    {
+        m_mcpPage.MoveWindow(&tabRect);
+        m_mcpPage.ShowWindow(SW_HIDE);
+        m_mcpPage.Load(m_mcpSettings, m_mcpStatus);
+    }
 }
 
 void CPreferencesDlg::LoadControlsFromDefaults()
@@ -303,6 +334,13 @@ void CPreferencesDlg::SaveControlsToDefaults()
 
 bool CPreferencesDlg::ApplyChanges()
 {
+    if (m_mcpPage.IsWindow() && !m_mcpPage.Save(m_mcpSettings))
+    {
+        m_tabCtrl.SetCurSel(3);
+        BOOL handled = TRUE;
+        OnTabSelChange(0, nullptr, handled);
+        return false;
+    }
     SaveControlsToDefaults();
     return true;
 }
@@ -1127,6 +1165,204 @@ LRESULT CPreferencesDlg::CSqlOptionsPage::OnCtlColorStatic(UINT uMsg, WPARAM wPa
     UNREFERENCED_PARAMETER(lParam);
     bHandled = FALSE;
     return 0;
+}
+
+// CMcpPage implementation
+CPreferencesDlg::CMcpPage::CMcpPage(CPreferencesDlg& parent)
+    : m_parent(parent)
+{
+    m_hWnd = NULL;
+}
+
+LRESULT CPreferencesDlg::CMcpPage::OnInitDialog(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
+{
+    UNREFERENCED_PARAMETER(uMsg);
+    UNREFERENCED_PARAMETER(wParam);
+    UNREFERENCED_PARAMETER(lParam);
+    UNREFERENCED_PARAMETER(bHandled);
+    CEdit(GetDlgItem(IDC_MCP_PORT)).SetLimitText(5);
+    CEdit(GetDlgItem(IDC_MCP_TOKEN)).SetLimitText(128);
+    return TRUE;
+}
+
+void CPreferencesDlg::CMcpPage::Load(const McpSettings& settings, const std::wstring& status)
+{
+    CheckDlgButton(IDC_MCP_ENABLE, settings.enabled ? BST_CHECKED : BST_UNCHECKED);
+    SetDlgItemInt(IDC_MCP_PORT, static_cast<UINT>(settings.port), FALSE);
+    SetDlgItemText(IDC_MCP_TOKEN, settings.token.c_str());
+    CheckDlgButton(IDC_MCP_MASK_SECRETS, settings.maskSecrets ? BST_CHECKED : BST_UNCHECKED);
+    CheckRadioButton(IDC_MCP_EXPORT_DOCS, IDC_MCP_EXPORT_CUSTOM, settings.exportMode == McpExportMode::Folder ? IDC_MCP_EXPORT_CUSTOM : IDC_MCP_EXPORT_DOCS);
+    SetDlgItemText(IDC_MCP_EXPORT_FOLDER, settings.exportFolder.c_str());
+    SetDlgItemText(IDC_MCP_EXPORT_SUBFOLDER, settings.exportSubfolder.c_str());
+    CheckDlgButton(IDC_MCP_EXPORT_PERAPP, settings.exportPerApp ? BST_CHECKED : BST_UNCHECKED);
+    UpdateExportControls();
+    std::wstring text = L"Status: " + (status.empty() ? std::wstring(L"not running") : status) + L"   (changes take effect when you press OK)";
+    SetDlgItemText(IDC_MCP_STATUS, text.c_str());
+    UpdateUrl();
+}
+
+void CPreferencesDlg::CMcpPage::UpdateExportControls()
+{
+    bool custom = IsDlgButtonChecked(IDC_MCP_EXPORT_CUSTOM) == BST_CHECKED;
+    GetDlgItem(IDC_MCP_EXPORT_FOLDER).EnableWindow(custom);
+    GetDlgItem(IDC_MCP_EXPORT_BROWSE).EnableWindow(custom);
+}
+
+void CPreferencesDlg::CMcpPage::OnExportModeChange(UINT /*uNotifyCode*/, int /*nID*/, CWindow /*wndCtl*/)
+{
+    UpdateExportControls();
+}
+
+void CPreferencesDlg::CMcpPage::OnBrowseExport(UINT /*uNotifyCode*/, int /*nID*/, CWindow /*wndCtl*/)
+{
+    CComPtr<IFileOpenDialog> dialog;
+    if (FAILED(dialog.CoCreateInstance(CLSID_FileOpenDialog)))
+        return;
+    DWORD options = 0;
+    dialog->GetOptions(&options);
+    dialog->SetOptions(options | FOS_PICKFOLDERS | FOS_FORCEFILESYSTEM | FOS_PATHMUSTEXIST);
+    dialog->SetTitle(L"Folder for logs the AI saves");
+    if (FAILED(dialog->Show(m_hWnd)))
+        return;
+    CComPtr<IShellItem> item;
+    PWSTR path = nullptr;
+    if (SUCCEEDED(dialog->GetResult(&item)) && SUCCEEDED(item->GetDisplayName(SIGDN_FILESYSPATH, &path)) && path != nullptr)
+    {
+        SetDlgItemText(IDC_MCP_EXPORT_FOLDER, path);
+        ::CoTaskMemFree(path);
+    }
+}
+
+bool CPreferencesDlg::CMcpPage::Save(McpSettings& settings)
+{
+    BOOL ok = FALSE;
+    UINT port = GetDlgItemInt(IDC_MCP_PORT, &ok, FALSE);
+    if (!ok || port < 1 || port > 65535)
+    {
+        MessageBox(L"The MCP port must be a number from 1 to 65535.", L"Preferences", MB_OK | MB_ICONWARNING);
+        GetDlgItem(IDC_MCP_PORT).SetFocus();
+        return false;
+    }
+
+    wchar_t buffer[160] = {};
+    GetDlgItemText(IDC_MCP_TOKEN, buffer, 159);
+    std::wstring token(buffer);
+    token.erase(0, token.find_first_not_of(L" \t"));
+    token.erase(token.find_last_not_of(L" \t") + 1);
+    bool printable = std::all_of(token.begin(), token.end(), [](wchar_t c) { return c > L' ' && c < 127 && c != L'"' && c != L'\\'; });
+    if (!printable)
+    {
+        MessageBox(L"The access token may only contain letters, digits and plain punctuation (no spaces, quotes or backslashes).", L"Preferences", MB_OK | MB_ICONWARNING);
+        GetDlgItem(IDC_MCP_TOKEN).SetFocus();
+        return false;
+    }
+
+    bool enabled = IsDlgButtonChecked(IDC_MCP_ENABLE) == BST_CHECKED;
+    if (token.empty())
+    {
+        // A token is always required; create one so enabling the server is one click.
+        token = GenerateMcpToken();
+        SetDlgItemText(IDC_MCP_TOKEN, token.c_str());
+    }
+    else if (token.size() < McpMinTokenLength)
+    {
+        MessageBox(L"The access token must be at least 16 characters. Press Generate for a random one.", L"Preferences", MB_OK | MB_ICONWARNING);
+        GetDlgItem(IDC_MCP_TOKEN).SetFocus();
+        return false;
+    }
+
+    auto exportMode = IsDlgButtonChecked(IDC_MCP_EXPORT_CUSTOM) == BST_CHECKED ? McpExportMode::Folder : McpExportMode::Documents;
+    wchar_t folderBuffer[MAX_PATH * 2] = {};
+    GetDlgItemText(IDC_MCP_EXPORT_FOLDER, folderBuffer, static_cast<int>(std::size(folderBuffer)) - 1);
+    std::wstring exportFolder(folderBuffer);
+    wchar_t subBuffer[160] = {};
+    GetDlgItemText(IDC_MCP_EXPORT_SUBFOLDER, subBuffer, 159);
+    std::wstring exportSubfolder(subBuffer);
+    for (auto* text : {&exportFolder, &exportSubfolder})
+    {
+        text->erase(0, text->find_first_not_of(L" \t"));
+        text->erase(text->find_last_not_of(L" \t") + 1);
+    }
+    if (exportMode == McpExportMode::Folder)
+    {
+        DWORD attributes = ::GetFileAttributesW(exportFolder.c_str());
+        if (exportFolder.empty() || attributes == INVALID_FILE_ATTRIBUTES || (attributes & FILE_ATTRIBUTE_DIRECTORY) == 0)
+        {
+            MessageBox(L"Choose an existing folder for the logs the AI saves (or pick another option).", L"Preferences", MB_OK | MB_ICONWARNING);
+            GetDlgItem(IDC_MCP_EXPORT_FOLDER).SetFocus();
+            return false;
+        }
+    }
+    if (!exportSubfolder.empty() && !IsPlainMcpName(exportSubfolder))
+    {
+        MessageBox(L"The sub-folder must be a single plain folder name such as DebugLogs (letters, digits, space, . _ -).", L"Preferences", MB_OK | MB_ICONWARNING);
+        GetDlgItem(IDC_MCP_EXPORT_SUBFOLDER).SetFocus();
+        return false;
+    }
+
+    settings.enabled = enabled;
+    settings.port = static_cast<int>(port);
+    settings.token = token;
+    settings.maskSecrets = IsDlgButtonChecked(IDC_MCP_MASK_SECRETS) == BST_CHECKED;
+    settings.exportMode = exportMode;
+    settings.exportFolder = exportFolder;
+    settings.exportSubfolder = exportSubfolder;
+    settings.exportPerApp = IsDlgButtonChecked(IDC_MCP_EXPORT_PERAPP) == BST_CHECKED;
+    return true;
+}
+
+void CPreferencesDlg::CMcpPage::OnGenerateToken(UINT /*uNotifyCode*/, int /*nID*/, CWindow /*wndCtl*/)
+{
+    auto token = GenerateMcpToken();
+    if (token.empty())
+    {
+        MessageBox(L"Could not generate a random token.", L"Preferences", MB_OK | MB_ICONERROR);
+        return;
+    }
+    SetDlgItemText(IDC_MCP_TOKEN, token.c_str());
+}
+
+void CPreferencesDlg::CMcpPage::OnChange(UINT /*uNotifyCode*/, int /*nID*/, CWindow /*wndCtl*/)
+{
+    UpdateUrl();
+}
+
+void CPreferencesDlg::CMcpPage::UpdateUrl()
+{
+    BOOL ok = FALSE;
+    UINT port = GetDlgItemInt(IDC_MCP_PORT, &ok, FALSE);
+    std::wstring text = L"Endpoint: http://127.0.0.1:" + (ok ? std::to_wstring(port) : std::wstring(L"?")) + L"/mcp";
+    SetDlgItemText(IDC_MCP_URL, text.c_str());
+}
+
+void CPreferencesDlg::CMcpPage::OnCopyConfig(UINT /*uNotifyCode*/, int /*nID*/, CWindow /*wndCtl*/)
+{
+    McpSettings settings;
+    if (!Save(settings))
+        return;
+
+    std::wstring json = L"{\r\n  \"mcpServers\": {\r\n    \"ultimate-debugview\": {\r\n      \"type\": \"http\",\r\n      \"url\": \"http://127.0.0.1:" +
+                        std::to_wstring(settings.port) + L"/mcp\"";
+    if (!settings.token.empty())
+    {
+        json += L",\r\n      \"headers\": { \"Authorization\": \"Bearer " + settings.token + L"\" }";
+    }
+    json += L"\r\n    }\r\n  }\r\n}\r\n";
+
+    if (!OpenClipboard())
+        return;
+    EmptyClipboard();
+    size_t bytes = (json.size() + 1) * sizeof(wchar_t);
+    HGLOBAL hMem = ::GlobalAlloc(GMEM_MOVEABLE, bytes);
+    if (hMem != nullptr)
+    {
+        memcpy(::GlobalLock(hMem), json.c_str(), bytes);
+        ::GlobalUnlock(hMem);
+        if (::SetClipboardData(CF_UNICODETEXT, hMem) == nullptr)
+            ::GlobalFree(hMem);
+    }
+    CloseClipboard();
+    SetDlgItemText(IDC_MCP_STATUS, L"Copied. Paste it into .mcp.json in your project (or merge the \"ultimate-debugview\" entry).");
 }
 
 } // namespace debugviewpp

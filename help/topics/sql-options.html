@@ -1,0 +1,95 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SQL Formatting Options - UltimateDebugView++</title>
+    <link rel="stylesheet" href="../css/topic-styles.css">
+</head>
+<body>
+    <h1>SQL Formatting Options</h1>
+    <p class="lead">Comprehensive SQL formatting preferences powered by fsqlf.</p>
+
+    <h2>Available Options</h2>
+
+    <h3>Keyword Formatting</h3>
+    <ul>
+        <li><strong>Case:</strong> Upper, Lower, Capitalize</li>
+        <li><strong>Line breaks:</strong> Before/After keywords</li>
+        <li><strong>Alignment:</strong> Left, Right</li>
+    </ul>
+
+    <h3>Indentation Settings</h3>
+    <ul>
+        <li><strong>Type:</strong> Spaces or Tabs</li>
+        <li><strong>Size:</strong> 2, 4, 8 characters</li>
+        <li><strong>Nested queries:</strong> Additional indent</li>
+        <li><strong>Join clauses:</strong> Indent level</li>
+    </ul>
+
+    <h3>Comma Positioning</h3>
+    <ul>
+        <li><strong>Trailing:</strong> item1, item2, item3</li>
+        <li><strong>Leading:</strong> item1 ,item2 ,item3</li>
+        <li><strong>Aligned:</strong> Column alignment</li>
+    </ul>
+
+    <h3>Parentheses Style</h3>
+    <ul>
+        <li><strong>Same line:</strong> WHERE (condition)</li>
+        <li><strong>New line:</strong> WHERE<br>    (condition)</li>
+        <li><strong>Indent content:</strong> Internal indentation</li>
+    </ul>
+
+    <h3>Function Formatting</h3>
+    <ul>
+        <li><strong>Compact:</strong> COUNT(*)</li>
+        <li><strong>Expanded:</strong> COUNT( * )</li>
+        <li><strong>Multi-line:</strong> Complex functions</li>
+    </ul>
+
+    <h2>Style Presets</h2>
+
+    <h3>Compact</h3>
+    <pre><code>SELECT id, name FROM users WHERE active = 1 ORDER BY name</code></pre>
+
+    <h3>Standard</h3>
+    <pre><code>SELECT id, name
+FROM users
+WHERE active = 1
+ORDER BY name</code></pre>
+
+    <h3>Expanded</h3>
+    <pre><code>SELECT
+    id,
+    name
+FROM
+    users
+WHERE
+    active = 1
+ORDER BY
+    name</code></pre>
+
+    <h2>Configuring Options</h2>
+    <ol>
+        <li>Tools â†’ Settings â†’ SQL Formatting</li>
+        <li>Choose preset or customize</li>
+        <li>Preview with sample SQL</li>
+        <li>Save as custom preset</li>
+        <li>Apply to all SQL formatting</li>
+    </ol>
+
+    <h2>Advanced Settings</h2>
+    <ul>
+        <li><strong>Alias alignment:</strong> Table and column aliases</li>
+        <li><strong>Comment preservation:</strong> Keep SQL comments</li>
+        <li><strong>Case preservation:</strong> Maintain identifier case</li>
+        <li><strong>Max line length:</strong> Auto-wrap long lines</li>
+    </ul>
+
+    <div class="topic-nav">
+        <a href="sql-detection.html" class="nav-prev">Previous: SQL Detection</a>
+        <a href="clarion-overview.html" class="nav-next">Next: Clarion Overview</a>
+    </div>
+</body>
+</html>

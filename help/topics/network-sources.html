@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Network Sources - UltimateDebugView++</title>
+    <link rel="stylesheet" href="../css/topic-styles.css">
+</head>
+<body>
+    <h1>Network Sources</h1>
+    <p class="lead">Receive debug messages from remote applications and services over the network using UDP sockets.</p>
+
+    <h2>Overview</h2>
+    <p>UltimateDebugView++ can receive debug messages over the network, allowing you to monitor applications running on remote machines or collect debug output from distributed systems. This is particularly useful for:</p>
+    <ul>
+        <li>Debugging applications on servers or remote machines</li>
+        <li>Collecting logs from multiple systems in one place</li>
+        <li>Monitoring embedded systems and IoT devices</li>
+        <li>Debugging containerized applications</li>
+        <li>Creating centralized logging for distributed systems</li>
+    </ul>
+
+    <h2>UDP Socket Listener</h2>
+    <p>The primary network source is the UDP socket listener, which provides:</p>
+    <ul>
+        <li><strong>Low overhead:</strong> No connection establishment required</li>
+        <li><strong>Fire-and-forget:</strong> Applications can send messages without blocking</li>
+        <li><strong>Multiple sources:</strong> Many applications can send to the same port</li>
+        <li><strong>Network efficiency:</strong> Minimal protocol overhead</li>
+        <li><strong>Real-time delivery:</strong> Messages arrive immediately</li>
+    </ul>
+
+    <h3>Default Configuration</h3>
+    <ul>
+        <li><strong>Default port:</strong> 9999 (configurable)</li>
+        <li><strong>Protocol:</strong> UDP/IP (SOCK_DGRAM)</li>
+        <li><strong>Binding:</strong> INADDR_ANY (all network interfaces)</li>
+        <li><strong>Buffer size:</strong> 2000 bytes per message</li>
+        <li><strong>Threading:</strong> Overlapped I/O for efficiency</li>
+    </ul>
+
+    <h2>Setting Up UDP Listener</h2>
+
+    <h3>Adding a UDP Source</h3>
+    <ol>
+        <li>Open <strong>Log → Sources...</strong></li>
+        <li>Click <strong>Add</strong> button</li>
+        <li>Select <strong>UDP Socket</strong> as source type</li>
+        <li>Configure the listener:
+            <ul>
+                <li><strong>Port:</strong> Enter port number (default: 9999)</li>
+                <li><strong>Description:</strong> Optional name for this source</li>
+            </ul>
+        </li>
+        <li>Click OK to start listening</li>
+    </ol>
+
+    <h3>Status Indicators</h3>
+    <p>In the Sources dialog, the UDP listener shows:</p>
+    <ul>
+        <li><strong>Description:</strong> "Listening at UDP port [port]"</li>
+        <li><strong>Status icon:</strong> Green when active and receiving</li>
+        <li><strong>Message count:</strong> Total messages received</li>
+        <li><strong>Source identifier:</strong> [UDP ip:port] for each message</li>
+    </ul>
+
+    <h2>Sending Messages to UltimateDebugView++</h2>
+
+    <h3>Message Format</h3>
+    <p>UDP messages are simple text strings. Each UDP packet becomes one debug message. The sender's IP and port are automatically added as a prefix.</p>
+
+    <h3>C/C++ Example</h3>
+    <pre><code>#include &lt;winsock2.h&gt;
+#include &lt;ws2tcpip.h&gt;
+#pragma comment(lib, "ws2_32.lib")
+
+void SendDebugMessage(const char* message)
+{
+    WSADATA wsaData;
+    WSAStartup(MAKEWORD(2, 2), &wsaData);
+
+    SOCKET sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+
+    sockaddr_in dest;
+    dest.sin_family = AF_INET;
+    dest.sin_port = htons(9999);
+    inet_pton(AF_INET, "127.0.0.1", &dest.sin_addr);
+
+    sendto(sock, message, strlen(message), 0,
+           (sockaddr*)&dest, sizeof(dest));
+
+    closesocket(sock);
+    WSACleanup();
+}</code></pre>
+
+    <h3>C# / .NET Example</h3>
+    <pre><code>using System.Net;
+using System.Net.Sockets;
+using System.Text;
+
+public static class RemoteDebug
+{
+    private static UdpClient udpClient = new UdpClient();
+    private static IPEndPoint endpoint =
+        new IPEndPoint(IPAddress.Parse("127.0.0.1"), 9999);
+
+    public static void WriteLine(string message)
+    {
+        byte[] data = Encoding.UTF8.GetBytes(message);
+        udpClient.Send(data, data.Length, endpoint);
+    }
+}</code></pre>
+
+    <h3>Python Example</h3>
+    <pre><code>import socket
+
+def send_debug(message, host='127.0.0.1', port=9999):
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.sendto(message.encode('utf-8'), (host, port))
+    sock.close()
+
+# Usage
+send_debug("Application started")
+send_debug(f"Processing item {item_id}")
+send_debug(f"Error: {error_message}")</code></pre>
+
+    <h3>PowerShell Example</h3>
+    <pre><code>function Send-DebugMessage {
+    param(
+        [string]$Message,
+        [string]$Host = "127.0.0.1",
+        [int]$Port = 9999
+    )
+
+    $endpoint = New-Object System.Net.IPEndPoint(
+        [System.Net.IPAddress]::Parse($Host), $Port)
+    $udpClient = New-Object System.Net.Sockets.UdpClient
+    $bytes = [Text.Encoding]::UTF8.GetBytes($Message)
+    $udpClient.Send($bytes, $bytes.Length, $endpoint)
+    $udpClient.Close()
+}
+
+# Usage
+Send-DebugMessage "Script started"
+Send-DebugMessage "Processing: $fileName"</code></pre>
+
+    <h3>Bash/Linux Example</h3>
+    <pre><code>#!/bin/bash
+# Using netcat (nc)
+echo "Debug message" | nc -u -w1 192.168.1.100 9999
+
+# Using socat
+echo "Debug message" | socat - UDP:192.168.1.100:9999
+
+# Function for repeated use
+debug_log() {
+    echo "$1" | nc -u -w1 127.0.0.1 9999
+}
+
+debug_log "Application started"
+debug_log "Processing file: $filename"</code></pre>
+
+    <h2>Network Configuration</h2>
+
+    <h3>Firewall Rules</h3>
+    <p>To receive UDP messages, configure Windows Firewall:</p>
+    <ol>
+        <li>Open Windows Defender Firewall with Advanced Security</li>
+        <li>Create new Inbound Rule</li>
+        <li>Rule Type: Port</li>
+        <li>Protocol: UDP</li>
+        <li>Specific local ports: 9999 (or your chosen port)</li>
+        <li>Action: Allow the connection</li>
+        <li>Profile: Select appropriate networks</li>
+        <li>Name: "UltimateDebugView++ UDP"</li>
+    </ol>
+
+    <h3>PowerShell Firewall Configuration</h3>
+    <pre><code># Add firewall rule (run as administrator)
+New-NetFirewallRule -DisplayName "UltimateDebugView++ UDP" `
+    -Direction Inbound -Protocol UDP -LocalPort 9999 `
+    -Action Allow -Profile Any</code></pre>
+
+    <h2>Multiple UDP Listeners</h2>
+    <p>You can create multiple UDP listeners on different ports to:</p>
+    <ul>
+        <li>Separate debug streams by application</li>
+        <li>Organize messages by environment (dev, test, prod)</li>
+        <li>Group messages by severity or component</li>
+        <li>Create dedicated channels for specific debugging</li>
+    </ul>
+
+    <h3>Example Port Organization</h3>
+    <ul>
+        <li><strong>9999:</strong> General debug messages</li>
+        <li><strong>9998:</strong> Error messages only</li>
+        <li><strong>9997:</strong> Performance metrics</li>
+        <li><strong>9996:</strong> Database queries</li>
+        <li><strong>9995:</strong> Security events</li>
+    </ul>
+
+    <h2>Message Display</h2>
+    <p>UDP messages appear in UltimateDebugView++ with:</p>
+    <ul>
+        <li><strong>Process column:</strong> [UDP sender_ip:sender_port]</li>
+        <li><strong>Message column:</strong> The received text</li>
+        <li><strong>Time column:</strong> Local receive time</li>
+        <li><strong>Automatic coloring:</strong> Different colors per source IP</li>
+    </ul>
+
+    <h2>Performance Characteristics</h2>
+    <ul>
+        <li><strong>Throughput:</strong> Handles thousands of messages per second</li>
+        <li><strong>Latency:</strong> Sub-millisecond on local network</li>
+        <li><strong>Buffer:</strong> 2KB per message maximum</li>
+        <li><strong>Threading:</strong> Non-blocking overlapped I/O</li>
+        <li><strong>Memory:</strong> Efficient circular buffer management</li>
+    </ul>
+
+    <h2>Use Cases</h2>
+
+    <h3>Microservices Debugging</h3>
+    <p>Collect debug output from multiple services:</p>
+    <pre><code>// Service A (port 9999)
+udpDebug.Send("OrderService: Processing order " + orderId);
+
+// Service B (port 9998)
+udpDebug.Send("PaymentService: Charging card " + last4);
+
+// Service C (port 9997)
+udpDebug.Send("ShippingService: Creating label " + trackingId);</code></pre>
+
+    <h3>IoT Device Monitoring</h3>
+    <p>Receive status from embedded devices:</p>
+    <pre><code>// Arduino/ESP32 example
+udp.beginPacket(debugHost, debugPort);
+udp.printf("Sensor: temp=%.1f humidity=%.1f", temp, humidity);
+udp.endPacket();</code></pre>
+
+    <h3>Docker Container Logging</h3>
+    <p>Forward container logs to host:</p>
+    <pre><code># In container application
+logger = UdpLogger(host='host.docker.internal', port=9999)
+logger.debug(f"Container {hostname}: Starting application")</code></pre>
+
+    <h2>Security Considerations</h2>
+
+    <h3>Network Security</h3>
+    <ul>
+        <li><strong>Local only:</strong> Bind to 127.0.0.1 for local-only access</li>
+        <li><strong>VPN/Tunnel:</strong> Use VPN for remote debugging</li>
+        <li><strong>Encryption:</strong> UDP doesn't encrypt - avoid sensitive data</li>
+        <li><strong>Authentication:</strong> No built-in auth - use application-level tokens</li>
+    </ul>
+
+    <h3>Best Practices</h3>
+    <ul>
+        <li>Never send passwords, keys, or PII via UDP</li>
+        <li>Use dedicated debug network interfaces when possible</li>
+        <li>Implement rate limiting in sending applications</li>
+        <li>Monitor for UDP flood attacks</li>
+        <li>Disable network sources in production environments</li>
+    </ul>
+
+    <h2>Troubleshooting</h2>
+
+    <h3>No Messages Received</h3>
+    <table>
+        <tr><th>Check</th><th>Solution</th></tr>
+        <tr><td>Firewall blocking?</td><td>Add inbound UDP rule for port</td></tr>
+        <tr><td>Port already in use?</td><td>Check with: netstat -an | findstr :9999</td></tr>
+        <tr><td>Correct IP address?</td><td>Verify sender targets correct host</td></tr>
+        <tr><td>Network connectivity?</td><td>Test with ping between machines</td></tr>
+        <tr><td>UDP listener active?</td><td>Check green status in Sources dialog</td></tr>
+    </table>
+
+    <h3>Messages Truncated</h3>
+    <ul>
+        <li>UDP buffer limited to 2000 bytes per message</li>
+        <li>Split long messages into multiple packets</li>
+        <li>Consider TCP for large data transfers</li>
+    </ul>
+
+    <h3>Performance Issues</h3>
+    <ul>
+        <li>Reduce message frequency in sending application</li>
+        <li>Apply filters to reduce displayed messages</li>
+        <li>Use multiple ports to distribute load</li>
+        <li>Check network bandwidth and latency</li>
+    </ul>
+
+    <h2>Advanced Techniques</h2>
+
+    <h3>Structured Messages</h3>
+    <p>Send JSON or structured data:</p>
+    <pre><code>// Send JSON
+var debug = new {
+    timestamp = DateTime.UtcNow,
+    level = "ERROR",
+    component = "AuthService",
+    message = "Login failed",
+    userId = userId
+};
+SendUdp(JsonSerializer.Serialize(debug));</code></pre>
+
+    <h3>Message Routing</h3>
+    <p>Create a debug message router:</p>
+    <pre><code>class DebugRouter:
+    def __init__(self):
+        self.targets = {
+            'error': ('debugserver', 9998),
+            'info': ('debugserver', 9999),
+            'perf': ('debugserver', 9997)
+        }
+
+    def send(self, level, message):
+        host, port = self.targets.get(level, ('localhost', 9999))
+        # Send to appropriate port based on level</code></pre>
+
+    <h3>Multicast Support</h3>
+    <p>For broadcasting to multiple receivers:</p>
+    <pre><code>// Join multicast group (future feature)
+// Currently: send to multiple unicast addresses
+for (auto& debugHost : debugHosts) {
+    sendto(sock, message, len, 0, &debugHost, sizeof(debugHost));
+}</code></pre>
+
+    <div class="note">
+        <strong>Tip:</strong> Create wrapper libraries in your applications to standardize UDP debug message format and make it easy to enable/disable remote debugging.
+    </div>
+
+    <h2>Related Topics</h2>
+    <ul>
+        <li><a href="message-sources.html">Message Sources Overview</a></li>
+        <li><a href="filtering-basics.html">Filtering Network Messages</a></li>
+        <li><a href="performance.html">Performance Optimization</a></li>
+        <li><a href="security.html">Security Considerations</a></li>
+    </ul>
+
+    <div class="topic-nav">
+        <a href="file-monitoring.html" class="nav-prev">Previous: File Monitoring</a>
+        <a href="filtering-basics.html" class="nav-next">Next: Filtering Basics</a>
+    </div>
+</body>
+</html>

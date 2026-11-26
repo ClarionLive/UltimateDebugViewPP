@@ -1,0 +1,124 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UltimateDebug Class API - UltimateDebugView++</title>
+    <link rel="stylesheet" href="../css/topic-styles.css">
+</head>
+<body>
+    <h1>UltimateDebug Class API</h1>
+    <p class="lead">Complete API reference for the Clarion UltimateDebug class.</p>
+
+    <h2>Core Methods</h2>
+
+    <h3>Debug(string Message)</h3>
+    <p>Output a debug message:</p>
+    <pre><code>ud.Debug(''Customer ID: '' & CUS:ID)</code></pre>
+
+    <h3>Init(string ProcedureName)</h3>
+    <p>Initialize procedure tracking:</p>
+    <pre><code>ud.Init(''UpdateCustomer'')
+! Procedure code
+ud.EndOfProcedure()</code></pre>
+
+    <h3>EndOfProcedure()</h3>
+    <p>Mark procedure exit (pairs with Init).</p>
+
+    <h2>Data Structure Methods</h2>
+
+    <h3>DebugQueue(*QUEUE Q)</h3>
+    <p>Display queue contents:</p>
+    <pre><code>ud.DebugQueue(CustomerQueue)</code></pre>
+
+    <h3>DebugGroup(*GROUP G)</h3>
+    <p>Display group structure:</p>
+    <pre><code>ud.DebugGroup(CustomerRecord)</code></pre>
+
+    <h3>DebugRecord()</h3>
+    <p>Display current file record:</p>
+    <pre><code>GET(Customer, CUS:ID)
+ud.DebugRecord()</code></pre>
+
+    <h2>Event Methods</h2>
+
+    <h3>DebugEvent()</h3>
+    <p>Log Windows event:</p>
+    <pre><code>CASE EVENT()
+OF EVENT:Accepted
+    ud.DebugEvent()
+END</code></pre>
+
+    <h3>SetEventsToDebug(string Events)</h3>
+    <p>Filter events to log:</p>
+    <pre><code>ud.SetEventsToDebug(''EVENT:Accepted|EVENT:Selected'')</code></pre>
+
+    <h2>Configuration Methods</h2>
+
+    <h3>SetPrefix(string Prefix)</h3>
+    <p>Set message prefix:</p>
+    <pre><code>ud.SetPrefix(''[MODULE]'')</code></pre>
+
+    <h3>SetApplicationName(string Name)</h3>
+    <p>Set application identifier:</p>
+    <pre><code>ud.SetApplicationName(''CustomerManager'')</code></pre>
+
+    <h3>SetModuleName(string Name)</h3>
+    <p>Set module identifier:</p>
+    <pre><code>ud.SetModuleName(''Billing'')</code></pre>
+
+    <h2>SQL Methods</h2>
+
+    <h3>SQL(string Query)</h3>
+    <p>Log formatted SQL:</p>
+    <pre><code>ud.SQL(''SELECT * FROM Customers WHERE Active = 1'')</code></pre>
+
+    <h3>EnableSQLTrace()</h3>
+    <p>Enable automatic SQL logging.</p>
+
+    <h2>Utility Methods</h2>
+
+    <h3>ClearDebugView()</h3>
+    <p>Clear debug output window:</p>
+    <pre><code>ud.ClearDebugView()</code></pre>
+
+    <h3>Error(string Message)</h3>
+    <p>Log error with [ERROR] prefix:</p>
+    <pre><code>ud.Error(''Failed to save: '' & ERROR())</code></pre>
+
+    <h3>Assert(BYTE Condition, string Message)</h3>
+    <p>Conditional assertion:</p>
+    <pre><code>ud.Assert(CUS:ID > 0, ''Invalid customer ID'')</code></pre>
+
+    <h2>Properties</h2>
+
+    <h3>Enabled</h3>
+    <p>Enable/disable all output:</p>
+    <pre><code>ud.Enabled = TRUE  ! Enable debugging
+ud.Enabled = FALSE ! Disable for production</code></pre>
+
+    <h3>ShowThreadID</h3>
+    <p>Include thread ID in messages:</p>
+    <pre><code>ud.ShowThreadID = TRUE</code></pre>
+
+    <h3>ShowTimestamp</h3>
+    <p>Include timestamps:</p>
+    <pre><code>ud.ShowTimestamp = TRUE</code></pre>
+
+    <h2>Advanced Features</h2>
+
+    <h3>Conditional Debugging</h3>
+    <pre><code>ud.AddCategoryToDebug(''CustomerUpdate'')
+ud.DebugIf(''CustomerUpdate'', ''Updating ID: '' & CUS:ID)</code></pre>
+
+    <h3>Performance Timing</h3>
+    <pre><code>ud.StartTimer(''QueryExecution'')
+! Execute query
+ud.StopTimer(''QueryExecution'')</code></pre>
+
+    <div class="topic-nav">
+        <a href="clarion-overview.html" class="nav-prev">Previous: Clarion Overview</a>
+        <a href="clarion-messages.html" class="nav-next">Next: Message Format</a>
+    </div>
+</body>
+</html>

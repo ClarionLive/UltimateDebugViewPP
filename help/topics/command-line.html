@@ -1,0 +1,50 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Command Line Options - UltimateDebugView++</title>
+    <link rel="stylesheet" href="../css/topic-styles.css">
+</head>
+<body>
+    <h1>Command Line Options</h1>
+    <p class="lead">Launch UltimateDebugView++ with specific configurations.</p>
+
+    <h2>Basic Usage</h2>
+    <pre><code>UltimateDebugviewpp.exe [options] [filename]</code></pre>
+
+    <h2>Available Options</h2>
+    <ul>
+        <li><strong>/min:</strong> Start minimized</li>
+        <li><strong>/max:</strong> Start maximized</li>
+        <li><strong>/config:file:</strong> Load configuration</li>
+        <li><strong>/filter:file:</strong> Load filter set</li>
+        <li><strong>/log:file:</strong> Start logging to file</li>
+        <li><strong>/udp:port:</strong> Start UDP listener</li>
+        <li><strong>/tcp:host:port:</strong> Connect to TCP agent</li>
+    </ul>
+
+    <h2>File Loading</h2>
+    <p>Load saved debug logs:</p>
+    <pre><code>UltimateDebugviewpp.exe "C:\Logs\debug.log"</code></pre>
+
+    <h2>Multiple Files</h2>
+    <p>Open multiple files:</p>
+    <pre><code>UltimateDebugviewpp.exe file1.log file2.log file3.log</code></pre>
+
+    <h2>Automation Examples</h2>
+    <pre><code># Start with UDP listener
+UltimateDebugviewpp.exe /udp:9999
+
+# Load configuration and filter
+UltimateDebugviewpp.exe /config:production.xml /filter:errors.filter
+
+# Start minimized with logging
+UltimateDebugviewpp.exe /min /log:output.txt</code></pre>
+
+    <div class="topic-nav">
+        <a href="keyboard-shortcuts.html" class="nav-prev">Previous: Keyboard Shortcuts</a>
+        <a href="configuration.html" class="nav-next">Next: Configuration</a>
+    </div>
+</body>
+</html>

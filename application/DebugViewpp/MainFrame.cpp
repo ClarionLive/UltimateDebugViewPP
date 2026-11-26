@@ -51,6 +51,9 @@
 #include "HelpTabView.h"
 #include "ProcedureStatsSplitter.h"
 #include "NewTabItem.h"
+#include "McpServer.h"
+#include "McpTools.h"
+#include "version.h"
 
 namespace fusion {
 namespace debugviewpp {
@@ -136,6 +139,7 @@ BEGIN_MSG_MAP2(CMainFrame)
     MSG_WM_CONTEXTMENU(OnContextMenu)
     MSG_WM_SYSCOMMAND(OnSysCommand)
     MESSAGE_HANDLER_EX(WM_SYSTEMTRAYICON, OnSystemTrayIcon)
+    MESSAGE_HANDLER_EX(WM_MCP_CALL, OnMcpCall)
     MESSAGE_HANDLER(WM_ERASEBKGND, OnEraseBkgnd)
     NOTIFY_CODE_HANDLER(NM_CUSTOMDRAW, OnCustomDraw)
     COMMAND_ID_HANDLER_EX(SC_RESTORE, OnScRestore)
@@ -232,7 +236,141 @@ CMainFrame::CMainFrame() :
 
 CMainFrame::~CMainFrame()
 {
+    StopMcpServer();
     RemoveDriver();
+}
+
+void CMainFrame::StartMcpServer()
+{
+    StopMcpServer();
+    m_mcpError.clear();
+    if (!m_mcpSettings.enabled)
+    {
+        return;
+    }
+
+    // The server never runs without a token; create one the first time it is needed.
+    if (m_mcpSettings.token.size() < McpMinTokenLength)
+    {
+        m_mcpSettings.token = GenerateMcpToken();
+        CRegKey reg;
+        if (reg.Create(HKEY_CURRENT_USER, RegistryPath) == ERROR_SUCCESS)
+        {
+            reg.SetStringValue(L"McpToken", m_mcpSettings.token.c_str());
+        }
+    }
+
+    if (!m_mcpTools)
+    {
+        m_mcpTools = std::make_unique<McpToolRegistry>();
+        RegisterDebugViewTools(*m_mcpTools, *this);
+    }
+    if (!m_mcpServer)
+    {
+        m_mcpServer = std::make_unique<McpServer>(*m_mcpTools);
+    }
+
+    McpServerConfig config;
+    config.port = static_cast<unsigned short>(m_mcpSettings.port);
+    config.token = WideToUtf8(m_mcpSettings.token);
+    config.serverVersion = VERSION_STR;
+    HWND hwnd = m_hWnd;
+    config.postToUi = [hwnd](std::function<void()> fn) {
+        auto pFn = new std::function<void()>(std::move(fn));
+        if (::PostMessage(hwnd, WM_MCP_CALL, 0, reinterpret_cast<LPARAM>(pFn)) == FALSE)
+        {
+            delete pFn;
+            return false;
+        }
+        return true;
+    };
+
+    std::string error;
+    if (!m_mcpServer->Start(config, error))
+    {
+        m_mcpError = Utf8ToWide(error);
+    }
+}
+
+void CMainFrame::StopMcpServer()
+{
+    if (m_mcpServer)
+    {
+        m_mcpServer->Stop();
+    }
+}
+
+LRESULT CMainFrame::OnMcpCall(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM lParam)
+{
+    std::unique_ptr<std::function<void()>> pFn(reinterpret_cast<std::function<void()>*>(lParam));
+    if (!pFn || !*pFn)
+    {
+        return 0;
+    }
+
+    // A modal dialog (Filter, Preferences, a message box) disables the frame and may hold pointers
+    // into the log and views. Posted calls still arrive through its message loop, so hold them until
+    // the frame is enabled again. A call still held after 15 s is cancelled by the MCP server and
+    // then does nothing when it finally runs.
+    if (!IsWindowEnabled() || !m_deferredMcpCalls.empty() || m_runningDeferredMcpCalls)
+    {
+        m_deferredMcpCalls.push_back(std::move(*pFn));
+        ::SetTimer(m_hWnd, McpDeferTimerId, 100, nullptr);
+        return 0;
+    }
+
+    (*pFn)();  // exceptions are caught inside and handed back to the waiting MCP request
+    return 0;
+}
+
+void CMainFrame::RunDeferredMcpCalls()
+{
+    if (m_runningDeferredMcpCalls)
+    {
+        return;  // re-entered from a nested message loop; the outer loop continues
+    }
+    m_runningDeferredMcpCalls = true;
+    // Take calls one at a time from the front and re-check before each: a call may open a dialog
+    // (and pump messages), and calls posted meanwhile queue behind the ones already waiting.
+    while (!m_deferredMcpCalls.empty() && IsWindowEnabled())
+    {
+        auto call = std::move(m_deferredMcpCalls.front());
+        m_deferredMcpCalls.erase(m_deferredMcpCalls.begin());
+        try
+        {
+            call();  // calls catch their own errors; this only protects the flag below
+        }
+        catch (...)
+        {
+        }
+    }
+    m_runningDeferredMcpCalls = false;
+    if (m_deferredMcpCalls.empty())
+    {
+        ::KillTimer(m_hWnd, McpDeferTimerId);
+    }
+}
+
+void CMainFrame::ApplyMcpSettings(const McpSettings& settings)
+{
+    m_mcpSettings = settings;
+    m_mcpSettings.port = std::clamp(m_mcpSettings.port, 1, 65535);
+    StartMcpServer();
+    SaveSettings();
+    UpdateStatusBar();
+}
+
+std::wstring CMainFrame::GetMcpStatusText() const
+{
+    if (!m_mcpSettings.enabled)
+    {
+        return L"";
+    }
+    if (m_mcpServer && m_mcpServer->IsRunning())
+    {
+        return wstringbuilder() << L"MCP :" << m_mcpServer->Port();
+    }
+    return wstringbuilder() << L"MCP off: " << (m_mcpError.empty() ? L"not started" : m_mcpError);
 }
 
 void CMainFrame::SetLogging()
@@ -409,15 +547,18 @@ LRESULT CMainFrame::OnCreate(const CREATESTRUCT* /*pCreate*/)
     // Resume can throw if a second debugview is running
     // so do not rely on any commands executed afterwards
     Resume();
-    
+
     // Initialization is complete, allow AddFilterView to be called from "+" tab clicks
     m_bInitializing = false;
-    
+
+    StartMcpServer();
+
     return 0;
 }
 
 void CMainFrame::OnClose()
 {
+    StopMcpServer();
     SaveSettings();
     DestroyWindow();
 
@@ -610,7 +751,13 @@ void CMainFrame::UpdateStatusBar()
 {
     auto isearch = GetView().GetHighlightText();
     std::wstring search = wstringbuilder() << L"Searching: \"" << isearch << L"\"";
-    UISetText(ID_DEFAULT_PANE, isearch.empty() ? (m_pLocalReader != nullptr ? L"Ready" : L"Paused") : search.c_str());
+    std::wstring state = m_pLocalReader != nullptr ? L"Ready" : L"Paused";
+    auto mcpStatus = GetMcpStatusText();
+    if (!mcpStatus.empty())
+    {
+        state += L"  |  " + mcpStatus;
+    }
+    UISetText(ID_DEFAULT_PANE, isearch.empty() ? state.c_str() : search.c_str());
     UISetText(ID_SELECTION_PANE, GetSelectionInfoText(L"Selected", GetView().GetSelectedRange()).c_str());
     UISetText(ID_VIEW_PANE, GetSelectionInfoText(L"View", GetView().GetViewRange()).c_str());
     UISetText(ID_LOGFILE_PANE, GetSelectionInfoText(L"Log", GetLogFileRange()).c_str());
@@ -738,6 +885,10 @@ void CMainFrame::OnTimer(UINT_PTR nIDEvent)
         // Reset cursor after dialog closes
         ::SetCursor(::LoadCursor(nullptr, IDC_ARROW));
         ::KillTimer(m_hWnd, 1001);
+    }
+    else if (nIDEvent == McpDeferTimerId)
+    {
+        RunDeferredMcpCalls();
     }
 }
 
@@ -1250,6 +1401,16 @@ bool CMainFrame::LoadSettings()
     // Load new view defaults
     LoadNewViewDefaults();
 
+    // MCP server settings (server is started at the end of OnCreate)
+    m_mcpSettings.enabled = Win32::RegGetDWORDValue(reg, L"McpEnabled", 0) != 0;
+    m_mcpSettings.port = std::clamp(static_cast<int>(Win32::RegGetDWORDValue(reg, L"McpPort", 7777)), 1, 65535);
+    m_mcpSettings.token = Win32::RegGetStringValue(reg, L"McpToken", L"");
+    m_mcpSettings.maskSecrets = Win32::RegGetDWORDValue(reg, L"McpMaskSecrets", 1) != 0;
+    m_mcpSettings.exportMode = Win32::RegGetDWORDValue(reg, L"McpExportMode", 0) == 1 ? McpExportMode::Folder : McpExportMode::Documents;
+    m_mcpSettings.exportFolder = Win32::RegGetStringValue(reg, L"McpExportFolder", L"");
+    m_mcpSettings.exportSubfolder = Win32::RegGetStringValue(reg, L"McpExportSubfolder", L"");
+    m_mcpSettings.exportPerApp = Win32::RegGetDWORDValue(reg, L"McpExportPerApp", 0) != 0;
+
     return true;
 }
 
@@ -1278,6 +1439,14 @@ void CMainFrame::SaveSettings()
     reg.SetDWORDValue(L"AlwaysOnTop", static_cast<DWORD>(GetAlwaysOnTop()));
     reg.SetDWORDValue(L"Hide", static_cast<DWORD>(m_hide));
     reg.SetDWORDValue(L"ExpandedToolbar", static_cast<DWORD>(m_expandedToolbar));
+    reg.SetDWORDValue(L"McpEnabled", static_cast<DWORD>(m_mcpSettings.enabled));
+    reg.SetDWORDValue(L"McpPort", static_cast<DWORD>(m_mcpSettings.port));
+    reg.SetStringValue(L"McpToken", m_mcpSettings.token.c_str());
+    reg.SetDWORDValue(L"McpMaskSecrets", static_cast<DWORD>(m_mcpSettings.maskSecrets));
+    reg.SetDWORDValue(L"McpExportMode", static_cast<DWORD>(m_mcpSettings.exportMode));
+    reg.SetStringValue(L"McpExportFolder", m_mcpSettings.exportFolder.c_str());
+    reg.SetStringValue(L"McpExportSubfolder", m_mcpSettings.exportSubfolder.c_str());
+    reg.SetDWORDValue(L"McpExportPerApp", static_cast<DWORD>(m_mcpSettings.exportPerApp));
 
     reg.SetStringValue(L"FontName", m_logfont.lfFaceName);
     reg.SetDWORDValue(L"FontSize", LogFontSizeToPointSize(m_logfont.lfHeight));
@@ -2982,10 +3151,14 @@ void CMainFrame::OnFilePreferences(UINT /*uNotifyCode*/, int /*nID*/, CWindow /*
         fclose(log);
     }
 
-    CPreferencesDlg dlg(m_newViewDefaults);
+    CPreferencesDlg dlg(m_newViewDefaults, m_mcpSettings, GetMcpStatusText());
     if (dlg.DoModal(m_hWnd) == IDOK)
     {
         m_newViewDefaults = dlg.GetDefaults();
+        if (dlg.GetMcpSettings() != m_mcpSettings)
+        {
+            ApplyMcpSettings(dlg.GetMcpSettings());
+        }
         if (log = fopen("C:\\Dev\\UltimateDebugViewPP\\prefs_debug.log", "a")) {
             fprintf(log, "After OK, m_newViewDefaults.sqlKeywordCase: %d\n", (int)m_newViewDefaults.sqlKeywordCase);
             fclose(log);
@@ -3009,6 +3182,9 @@ void CMainFrame::OnFilePreferences(UINT /*uNotifyCode*/, int /*nID*/, CWindow /*
 
 void CMainFrame::ClearLog()
 {
+    // Keep MCP cursors monotonic across clears.
+    m_seqBase += m_logFile.Count();
+    ++m_clearGeneration;
     m_logFile.Clear();
     m_logSources.ResetTimer();
 
@@ -3061,6 +3237,9 @@ void CMainFrame::OnLogCrop(UINT /*uNotifyCode*/, int /*nID*/, CWindow /*wndCtl*/
 
     LogFile temp;
     temp.Append(m_logFile, selection.beginLine, selection.endLine);
+    // Cropping renumbers the log; keep MCP cursors monotonic like ClearLog does.
+    m_seqBase += m_logFile.Count();
+    ++m_clearGeneration;
     std::swap(temp, m_logFile);
 
     m_logSources.ResetTimer();
@@ -4236,6 +4415,7 @@ bool IsClearBufferMessage(const std::string& message)
 
 void CMainFrame::AddMessage(const Message& message)
 {
+
     // Check for special "NewDebugView" message
     if (message.text == "@@NEWDEBUGVIEW@@")
     {

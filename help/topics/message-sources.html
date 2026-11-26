@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Message Sources - UltimateDebugView++</title>
+    <link rel="stylesheet" href="../css/topic-styles.css">
+</head>
+<body>
+    <h1>Message Sources</h1>
+    <p class="lead">UltimateDebugView++ can capture debug messages from multiple sources simultaneously, providing a unified view of all debugging output.</p>
+
+    <h2>Overview</h2>
+    <p>Message sources are the various input mechanisms that feed debug messages into UltimateDebugView++. You can have multiple sources active at once, and each message is tagged with its origin for easy identification.</p>
+
+    <h2>Managing Sources</h2>
+    <p>Access source management through <strong>Log → Sources...</strong> to open the Input Sources dialog where you can:</p>
+    <ul>
+        <li>View all active sources and their status</li>
+        <li>Add new sources (files, network connections, etc.)</li>
+        <li>Remove or pause individual sources</li>
+        <li>Configure source-specific settings</li>
+        <li>Monitor connection status and message counts</li>
+    </ul>
+
+    <h2>Available Source Types</h2>
+
+    <h3>1. Win32 OutputDebugString</h3>
+    <p>The primary Windows debugging interface that captures messages from applications using the OutputDebugString API.</p>
+    <ul>
+        <li><strong>Local Capture:</strong> Default mode - captures from your user session</li>
+        <li><strong>Global Capture:</strong> Enable via <strong>Log → Capture Global Win32</strong> (requires admin rights)</li>
+        <li><strong>Automatic:</strong> Starts capturing immediately when UltimateDebugView++ launches</li>
+        <li><strong>Process Info:</strong> Each message includes process name and ID</li>
+    </ul>
+    <p><a href="win32-capture.html">Learn more about Win32 capture →</a></p>
+
+    <h3>2. File Monitoring</h3>
+    <p>Monitor text log files in real-time, similar to "tail -f" on Unix systems.</p>
+    <ul>
+        <li><strong>Real-time Updates:</strong> Automatically detects and displays new content</li>
+        <li><strong>Multiple Files:</strong> Monitor several log files simultaneously</li>
+        <li><strong>Network Paths:</strong> Support for UNC paths and mapped drives</li>
+        <li><strong>File Rotation:</strong> Handles log rotation automatically</li>
+    </ul>
+    <p><a href="file-monitoring.html">Learn more about file monitoring →</a></p>
+
+    <h3>3. Network Sources</h3>
+    <p>Receive debug messages over the network from remote applications or services.</p>
+
+    <h4>UDP Socket Listener</h4>
+    <ul>
+        <li>Listen on any port (default: 9999)</li>
+        <li>No connection overhead - ideal for high-volume logging</li>
+        <li>Support for broadcast and multicast</li>
+        <li>Multiple simultaneous listeners on different ports</li>
+    </ul>
+
+    <h4>TCP DebugView Agent</h4>
+    <ul>
+        <li>Connect to Sysinternals DebugView Agent (port 2020)</li>
+        <li>Reliable connection with error detection</li>
+        <li>Optional compression for bandwidth savings</li>
+        <li>Password protection support</li>
+    </ul>
+    <p>Access via <strong>Log → Connect DebugView Agent</strong></p>
+
+    <h3>4. Kernel Messages</h3>
+    <p>Capture system-level debug output from drivers and kernel components.</p>
+    <ul>
+        <li><strong>Enable:</strong> Log → Capture Kernel Messages</li>
+        <li><strong>Requirements:</strong> Administrator privileges</li>
+        <li><strong>Verbose Mode:</strong> Log → Verbose Kernel Messages for detailed output</li>
+        <li><strong>Pass-Through:</strong> Allow messages to reach other kernel debuggers</li>
+    </ul>
+
+    <h3>5. Named Pipes</h3>
+    <p>Inter-process communication through Windows named pipes.</p>
+    <ul>
+        <li>Create pipe servers or connect to existing pipes</li>
+        <li>Bidirectional communication support</li>
+        <li>Local and remote pipe connections</li>
+        <li>Automatic reconnection on disconnect</li>
+    </ul>
+
+    <h3>6. Process-Specific Sources</h3>
+    <p>Monitor specific processes for targeted debugging.</p>
+    <ul>
+        <li>Filter by process name or PID</li>
+        <li>Automatic child process tracking</li>
+        <li>Process start/stop notifications</li>
+        <li>Reduced noise from unrelated processes</li>
+    </ul>
+
+    <h2>Source Identification</h2>
+    <p>Messages from different sources are distinguished by:</p>
+    <ul>
+        <li><strong>Process Column:</strong> Shows source process name and PID</li>
+        <li><strong>Source Prefix:</strong> Optional prefix in message (e.g., [FILE], [NET])</li>
+        <li><strong>Color Coding:</strong> Different sources can use different colors</li>
+        <li><strong>Icons:</strong> Visual indicators for source type</li>
+    </ul>
+
+    <h2>Adding a New Source</h2>
+    <ol>
+        <li>Open <strong>Log → Sources...</strong></li>
+        <li>Click <strong>Add</strong> button</li>
+        <li>Select source type from dropdown</li>
+        <li>Configure source-specific settings:
+            <ul>
+                <li>File path for file sources</li>
+                <li>Port number for network sources</li>
+                <li>Process name for process filters</li>
+            </ul>
+        </li>
+        <li>Click OK to start monitoring</li>
+    </ol>
+
+    <h2>Source Status Indicators</h2>
+    <ul>
+        <li><strong>Green dot:</strong> Active and receiving messages</li>
+        <li><strong>Yellow dot:</strong> Connected but idle</li>
+        <li><strong>Red dot:</strong> Error or disconnected</li>
+        <li><strong>Gray dot:</strong> Paused or disabled</li>
+    </ul>
+
+    <h2>Performance Considerations</h2>
+
+    <h3>Multiple Sources</h3>
+    <ul>
+        <li>Each source runs in its own thread for optimal performance</li>
+        <li>Messages are queued and processed asynchronously</li>
+        <li>No blocking between different sources</li>
+        <li>Automatic load balancing for high-volume sources</li>
+    </ul>
+
+    <h3>Buffer Management</h3>
+    <ul>
+        <li>Separate buffers for each source prevent overflow</li>
+        <li>Configurable buffer sizes per source type</li>
+        <li>Automatic old message pruning when limits reached</li>
+        <li>Memory usage monitoring in status bar</li>
+    </ul>
+
+    <h2>Troubleshooting Sources</h2>
+
+    <h3>Source Not Connecting</h3>
+    <ul>
+        <li>Check firewall settings for network sources</li>
+        <li>Verify file permissions for file monitoring</li>
+        <li>Ensure admin rights for kernel/global capture</li>
+        <li>Check if port is already in use for listeners</li>
+    </ul>
+
+    <h3>Missing Messages</h3>
+    <ul>
+        <li>Verify source is active (green status)</li>
+        <li>Check filters aren't hiding messages</li>
+        <li>Ensure buffer size is adequate</li>
+        <li>Look for connection errors in status</li>
+    </ul>
+
+    <h3>High CPU Usage</h3>
+    <ul>
+        <li>Reduce number of active sources</li>
+        <li>Apply filters to reduce message volume</li>
+        <li>Increase polling intervals for file sources</li>
+        <li>Disable verbose modes when not needed</li>
+    </ul>
+
+    <h2>Best Practices</h2>
+    <ul>
+        <li>Start with minimal sources and add as needed</li>
+        <li>Use process filters to reduce noise</li>
+        <li>Name your sources descriptively</li>
+        <li>Disable unused sources to save resources</li>
+        <li>Use different tabs for different source groups</li>
+        <li>Configure appropriate buffer sizes for expected volume</li>
+    </ul>
+
+    <div class="note">
+        <strong>Tip:</strong> Create separate view tabs for different sources using the filter system. This helps organize complex debugging sessions with multiple active sources.
+    </div>
+
+    <h2>Related Topics</h2>
+    <ul>
+        <li><a href="win32-capture.html">Win32 OutputDebugString Capture</a></li>
+        <li><a href="file-monitoring.html">File Monitoring</a></li>
+        <li><a href="network-sources.html">Network Sources</a></li>
+        <li><a href="filtering-basics.html">Filtering Messages</a></li>
+    </ul>
+
+    <div class="topic-nav">
+        <a href="preferences.html" class="nav-prev">Previous: Preferences</a>
+        <a href="win32-capture.html" class="nav-next">Next: Win32 Capture</a>
+    </div>
+</body>
+</html>

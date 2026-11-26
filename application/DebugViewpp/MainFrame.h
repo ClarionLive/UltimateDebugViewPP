@@ -7,6 +7,9 @@
 
 #include <memory>
 #include <vector>
+#include <functional>
+#include <unordered_map>
+#include <unordered_set>
 
 #include "atleverything.h"
 #include <atlsplit.h>
@@ -41,12 +44,15 @@ using ATL::CString;
 #include "RunDlg.h"
 #include "LogView.h"
 #include "PreferencesDlg.h"
+#include "McpSettings.h"
 
 namespace fusion {
 namespace debugviewpp {
 
 struct SelectionInfo;
 class DbgviewReader;
+class McpServer;
+class McpToolRegistry;
 
 using SelectedTabItem = CLogViewTabItem2;
 
@@ -130,12 +136,26 @@ public:
     // Public getter for splitter position
     int GetProcedureStatsSplitterPos() const { return m_procedureStatsSplitterPos; }
 
+    // MCP server (lets an AI client drive the viewer)
+    const McpSettings& GetMcpSettings() const { return m_mcpSettings; }
+    void ApplyMcpSettings(const McpSettings& settings);
+    std::wstring GetMcpStatusText() const;
+
 private:
+    friend class McpBridge;
+
     enum
     {
         WM_FIRST = WM_APP,
         WM_SYSTEMTRAYICON,
+        WM_MCP_CALL,
     };
+
+    void StartMcpServer();
+    void StopMcpServer();
+    LRESULT OnMcpCall(UINT uMsg, WPARAM wParam, LPARAM lParam);
+    void RunDeferredMcpCalls();
+    static constexpr UINT_PTR McpDeferTimerId = 1002;
 
     DECLARE_MSG_MAP()
 
@@ -331,7 +351,18 @@ private:
         std::wstring tabName;
     };
     std::vector<FloatingMainTabInfo> m_floatingMainTabs;
-    
+
+    // MCP server. The registry is declared before the server so the server
+    // (whose threads use the registry) is destroyed first.
+    McpSettings m_mcpSettings;
+    std::unique_ptr<McpToolRegistry> m_mcpTools;
+    std::unique_ptr<McpServer> m_mcpServer;
+    std::wstring m_mcpError;
+    std::vector<std::function<void()>> m_deferredMcpCalls;  // held while a modal dialog disables the frame
+    long long m_seqBase = 0;     // lines removed by earlier clears; cursor = m_seqBase + log index
+    int m_clearGeneration = 0;   // bumped by every ClearLog
+    bool m_runningDeferredMcpCalls = false;
+
     // Helper methods for floating main tabs
     void PopOutMainTab(int index);
     void ReattachMainTab(CFloatingMainTabWindow* floatingWindow);

@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Properties Reference - UltimateDebugView++</title>
+    <link rel="stylesheet" href="../css/topic-styles.css">
+</head>
+<body>
+    <h1>API Properties Reference</h1>
+    <p class="lead">Complete reference of all UltimateDebug class properties.</p>
+
+    <h2>Output Control Properties</h2>
+    <table>
+        <tr><th>Property</th><th>Type</th><th>Default</th><th>Description</th></tr>
+        <tr><td>DebugOff</td><td>BYTE</td><td>FALSE</td><td>Set to TRUE to disable all debug output</td></tr>
+        <tr><td>DebugPrefix</td><td>STRING(60)</td><td>''</td><td>Default prefix for all debug messages</td></tr>
+        <tr><td>MessagePrefix</td><td>STRING(1000)</td><td>''</td><td>Extended message prefix (internal use)</td></tr>
+        <tr><td>UsePlainFormat</td><td>BYTE</td><td>FALSE</td><td>Use plain text format instead of structured format</td></tr>
+        <tr><td>DebugNoCR</td><td>BYTE</td><td>FALSE</td><td>Suppress carriage returns in output</td></tr>
+        <tr><td>LineWrap</td><td>BYTE</td><td>TRUE</td><td>Enable line wrapping for long messages</td></tr>
+    </table>
+
+    <h2>File Output Properties</h2>
+    <table>
+        <tr><th>Property</th><th>Type</th><th>Default</th><th>Description</th></tr>
+        <tr><td>SaveToFile</td><td>BYTE</td><td>FALSE</td><td>Save debug output to text file</td></tr>
+        <tr><td>ASCIIFileName</td><td>STRING</td><td>''</td><td>Filename for text output (e.g., 'DebugLog_*.txt')</td></tr>
+        <tr><td>SaveToJson</td><td>BYTE</td><td>FALSE</td><td>Save debug output in JSON format</td></tr>
+        <tr><td>JSONFileName</td><td>STRING</td><td>''</td><td>Filename for JSON output</td></tr>
+    </table>
+
+    <h2>Event Display Properties</h2>
+    <table>
+        <tr><th>Property</th><th>Type</th><th>Default</th><th>Description</th></tr>
+        <tr><td>ShowAll</td><td>Bool</td><td>TRUE</td><td>Show all event details</td></tr>
+        <tr><td>ShowField</td><td>Bool</td><td>FALSE</td><td>Show field information in events</td></tr>
+        <tr><td>ShowFocus</td><td>Bool</td><td>FALSE</td><td>Show focus information</td></tr>
+        <tr><td>ShowSelected</td><td>Bool</td><td>FALSE</td><td>Show selected state</td></tr>
+        <tr><td>ShowSelStart</td><td>Bool</td><td>FALSE</td><td>Show selection start position</td></tr>
+        <tr><td>ShowSelEnd</td><td>Bool</td><td>FALSE</td><td>Show selection end position</td></tr>
+        <tr><td>ShowKeyCode</td><td>Bool</td><td>FALSE</td><td>Show keyboard codes</td></tr>
+        <tr><td>ShowError</td><td>Bool</td><td>FALSE</td><td>Show error information</td></tr>
+        <tr><td>ShowThread</td><td>Bool</td><td>FALSE</td><td>Show thread ID in events</td></tr>
+        <tr><td>ShowContents</td><td>Bool</td><td>FALSE</td><td>Show control contents</td></tr>
+        <tr><td>ShowScreenText</td><td>Bool</td><td>FALSE</td><td>Show screen text</td></tr>
+        <tr><td>ShowAcceptAll</td><td>Bool</td><td>FALSE</td><td>Show all ACCEPT events</td></tr>
+    </table>
+
+    <h2>Application Information Properties</h2>
+    <table>
+        <tr><th>Property</th><th>Type</th><th>Default</th><th>Description</th></tr>
+        <tr><td>AppName</td><td>STRING(100)</td><td>''</td><td>Application name</td></tr>
+        <tr><td>ModuleName</td><td>STRING(100)</td><td>''</td><td>Module name</td></tr>
+        <tr><td>Modified</td><td>STRING(26)</td><td>''</td><td>Last modified date/time</td></tr>
+        <tr><td>ProcedureName</td><td>CSTRING(100)</td><td>''</td><td>Current procedure name</td></tr>
+        <tr><td>ProcedureThread</td><td>LONG</td><td>0</td><td>Current procedure thread</td></tr>
+        <tr><td>ProcedureID</td><td>LONG</td><td>0</td><td>Current procedure ID</td></tr>
+    </table>
+
+    <h2>Internal Properties</h2>
+    <table>
+        <tr><th>Property</th><th>Type</th><th>Description</th></tr>
+        <tr><td>ProcedureInfoToDebugView</td><td>BYTE</td><td>Send procedure info to debug view</td></tr>
+        <tr><td>DebugEvent</td><td>SIGNED</td><td>Current debug event</td></tr>
+        <tr><td>HotKey</td><td>UNSIGNED</td><td>Debug hotkey code</td></tr>
+        <tr><td>PurgeStarTime</td><td>REAL</td><td>Time for purging old events</td></tr>
+        <tr><td>EventOffset</td><td>LONG</td><td>Event offset for calculations</td></tr>
+        <tr><td>ProcAlertKey</td><td>LONG</td><td>Procedure alert key</td></tr>
+        <tr><td>TraceOn</td><td>LONG</td><td>SQL tracing state</td></tr>
+    </table>
+
+    <h2>Queue Properties (References)</h2>
+    <table>
+        <tr><th>Property</th><th>Type</th><th>Description</th></tr>
+        <tr><td>qProcedures</td><td>&amp;qProceduresQueueType</td><td>Procedure tracking queue</td></tr>
+        <tr><td>qThreadCounter</td><td>&amp;qThreadCounterQueueType</td><td>Thread counter queue</td></tr>
+        <tr><td>qCurrentProcedureOnThread</td><td>&amp;qCurrentProcedureOnThreadQueueType</td><td>Current procedure per thread</td></tr>
+        <tr><td>ExceptionQ</td><td>&amp;ExceptionQType</td><td>Exception procedures queue</td></tr>
+        <tr><td>EventQ</td><td>&amp;ST::DebugEventQueue</td><td>Event tracking queue</td></tr>
+        <tr><td>IgnoreEventQ</td><td>&amp;ST::DebugEventQueue</td><td>Ignored events queue</td></tr>
+        <tr><td>TemporaryPrefixQueue</td><td>&amp;TemporaryPrefixQueueType</td><td>Temporary prefix stack</td></tr>
+        <tr><td>CategoryQueue</td><td>&amp;DebugCategoryQueue</td><td>Debug categories queue</td></tr>
+        <tr><td>UserEventNameQ</td><td>&amp;qtUserEventName</td><td>User-defined event names</td></tr>
+    </table>
+
+    <h2>System Properties</h2>
+    <table>
+        <tr><th>Property</th><th>Type</th><th>Description</th></tr>
+        <tr><td>CriticalSection</td><td>&amp;ICriticalSection</td><td>Thread synchronization object</td></tr>
+        <tr><td>udb_Settings</td><td>GROUP(udb_SettingsType)</td><td>Settings group structure</td></tr>
+    </table>
+
+    <div class="topic-nav">
+        <a href="api-methods.html" class="nav-prev">Previous: Method Reference</a>
+        <a href="about.html" class="nav-next">Next: About</a>
+    </div>
+</body>
+</html>

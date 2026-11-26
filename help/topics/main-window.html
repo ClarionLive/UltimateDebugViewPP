@@ -1,0 +1,113 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Main Window - UltimateDebugView++</title>
+    <link rel="stylesheet" href="../css/topic-styles.css">
+</head>
+<body>
+    <h1>Main Window</h1>
+    <p class="lead">Understanding the main window layout and components of UltimateDebugView++.</p>
+
+    <h2>Window Layout</h2>
+    <p>The main window consists of several key areas:</p>
+
+    <h3>1. Toolbar and Menu Bar</h3>
+    <p>The toolbar at the top provides quick access to common functions:</p>
+    <ul>
+        <li><strong>Standard mode:</strong> Compact icons for space efficiency</li>
+        <li><strong>Expanded mode:</strong> Icons with text labels (Options → Expanded Toolbar)</li>
+        <li><strong>Menu bar:</strong> Full access to all features organized by category</li>
+        <li><strong>Customizable:</strong> Settings persist between sessions</li>
+    </ul>
+
+    <h3>2. Message List View</h3>
+    <p>The central area displays captured debug messages with columns for:</p>
+    <ul>
+        <li><strong>Line:</strong> Sequential message number</li>
+        <li><strong>Time:</strong> Message timestamp (customizable format)</li>
+        <li><strong>Process:</strong> Source process name and ID</li>
+        <li><strong>Message:</strong> The actual debug output text</li>
+    </ul>
+
+    <h3>3. Tab Bar</h3>
+    <p>Below the toolbar, tabs allow you to:</p>
+    <ul>
+        <li>Create multiple filtered views of the same data</li>
+        <li>Switch between different capture sessions</li>
+        <li>Organize messages by source or filter criteria</li>
+        <li>Right-click tabs for context menu options</li>
+    </ul>
+
+    <h3>4. Detail Pane</h3>
+    <p>The optional detail pane (toggle with F4) shows:</p>
+    <ul>
+        <li>Full message text with syntax highlighting</li>
+        <li>Formatted SQL queries when detected</li>
+        <li>JSON/XML structure visualization</li>
+        <li>Copy and export options</li>
+    </ul>
+
+    <h3>5. Status Bar</h3>
+    <p>The bottom status bar displays:</p>
+    <ul>
+        <li>Total message count</li>
+        <li>Filtered/visible message count</li>
+        <li>Capture status (running/paused)</li>
+        <li>Active filters indicator</li>
+        <li>Memory usage</li>
+    </ul>
+
+    <h2>Window Management</h2>
+
+    <h3>Resizing and Docking</h3>
+    <ul>
+        <li>Drag pane borders to resize</li>
+        <li>Double-click borders to auto-size</li>
+        <li>Toggle detail pane with F4</li>
+        <li>Maximize/restore with standard window controls</li>
+    </ul>
+
+    <h3>Always on Top</h3>
+    <p>Enable "Always on Top" from the View tab to keep the window above other applications during debugging sessions.</p>
+
+    <h3>Transparency</h3>
+    <p>Adjust window transparency (View tab) to see through to underlying applications while monitoring debug output.</p>
+
+    <h2>Column Customization</h2>
+    <p>Right-click column headers to:</p>
+    <ul>
+        <li>Show/hide columns</li>
+        <li>Auto-size columns</li>
+        <li>Reset to default widths</li>
+        <li>Save column layout</li>
+    </ul>
+
+    <h2>Context Menus</h2>
+    <p>Right-click in different areas for context-sensitive options:</p>
+    <ul>
+        <li><strong>Message list:</strong> Copy, filter, highlight, bookmark</li>
+        <li><strong>Tab bar:</strong> New tab, rename, close, duplicate</li>
+        <li><strong>Detail pane:</strong> Copy, format, export</li>
+    </ul>
+
+    <h2>Keyboard Focus</h2>
+    <p>Use these keys to navigate:</p>
+    <ul>
+        <li><strong>Tab:</strong> Move between panes</li>
+        <li><strong>Arrow keys:</strong> Navigate messages</li>
+        <li><strong>Page Up/Down:</strong> Scroll message list</li>
+        <li><strong>Ctrl+Tab:</strong> Switch between tabs</li>
+    </ul>
+
+    <div class="note">
+        <strong>Tip:</strong> Use Ctrl+L to quickly jump to the latest message when auto-scroll is disabled.
+    </div>
+
+    <div class="topic-nav">
+        <a href="toolbar.html" class="nav-prev">Previous: Toolbar and Menus</a>
+        <a href="views-tabs.html" class="nav-next">Next: Views & Tabs</a>
+    </div>
+</body>
+</html>

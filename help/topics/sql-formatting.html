@@ -1,0 +1,121 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SQL Formatting - UltimateDebugView++</title>
+    <link rel="stylesheet" href="../css/topic-styles.css">
+</head>
+<body>
+    <h1>SQL Formatting</h1>
+    <p class="lead">Automatic SQL query beautification powered by the fsqlf formatter.</p>
+
+    <h2>Features</h2>
+    <ul>
+        <li>Automatic SQL detection in messages</li>
+        <li>Real-time query formatting</li>
+        <li>Syntax highlighting</li>
+        <li>Multiple formatting styles</li>
+        <li>Customizable formatting options</li>
+    </ul>
+
+    <h2>Automatic Detection</h2>
+    <p>SQL queries are detected when messages contain:</p>
+    <ul>
+        <li>SQL keywords (SELECT, INSERT, UPDATE, DELETE)</li>
+        <li>[SQL] prefix in message</li>
+        <li>Common SQL patterns</li>
+        <li>Database error messages with queries</li>
+    </ul>
+
+    <h2>Formatting Options</h2>
+
+    <h3>Keyword Case</h3>
+    <ul>
+        <li><strong>Upper:</strong> SELECT, FROM, WHERE</li>
+        <li><strong>Lower:</strong> select, from, where</li>
+        <li><strong>Capitalize:</strong> Select, From, Where</li>
+    </ul>
+
+    <h3>Indentation</h3>
+    <ul>
+        <li><strong>Type:</strong> Spaces or Tabs</li>
+        <li><strong>Size:</strong> 2, 4, or 8 spaces</li>
+        <li><strong>Nested:</strong> Indent subqueries</li>
+    </ul>
+
+    <h3>Line Breaks</h3>
+    <ul>
+        <li>Before/after keywords</li>
+        <li>Comma positioning</li>
+        <li>Parentheses style</li>
+        <li>Join clause formatting</li>
+    </ul>
+
+    <h2>Formatting Examples</h2>
+
+    <h3>Compact Style</h3>
+    <pre><code>SELECT id, name FROM users WHERE active = 1</code></pre>
+
+    <h3>Expanded Style</h3>
+    <pre><code>SELECT
+    id,
+    name
+FROM
+    users
+WHERE
+    active = 1</code></pre>
+
+    <h3>Standard Style</h3>
+    <pre><code>SELECT id, name
+FROM users
+WHERE active = 1</code></pre>
+
+    <h2>Using SQL Formatting</h2>
+
+    <h3>Automatic Formatting</h3>
+    <ol>
+        <li>SQL queries are auto-detected</li>
+        <li>Formatted in detail pane</li>
+        <li>Syntax highlighting applied</li>
+    </ol>
+
+    <h3>Manual Formatting</h3>
+    <ol>
+        <li>Select message with SQL</li>
+        <li>Press F4 for detail pane</li>
+        <li>Click <strong>Format SQL</strong> button</li>
+        <li>Copy formatted result</li>
+    </ol>
+
+    <h2>Configuration</h2>
+    <p>Configure SQL formatting in Settings:</p>
+    <ol>
+        <li>Go to <strong>Tools â†’ Settings</strong></li>
+        <li>Select <strong>SQL Formatting</strong> tab</li>
+        <li>Adjust formatting options</li>
+        <li>Preview with sample SQL</li>
+        <li>Click Apply</li>
+    </ol>
+
+    <h2>Supported SQL Features</h2>
+    <ul>
+        <li>Standard SQL (SELECT, INSERT, UPDATE, DELETE)</li>
+        <li>DDL statements (CREATE, ALTER, DROP)</li>
+        <li>Joins (INNER, LEFT, RIGHT, FULL)</li>
+        <li>Subqueries and CTEs</li>
+        <li>Functions and expressions</li>
+        <li>Comments (-- and /* */)</li>
+    </ul>
+
+    <div class="note">
+        <strong>Tip:</strong> Use the [SQL] prefix in your debug messages to ensure automatic SQL detection and formatting.
+    </div>
+
+    <div class="topic-nav">
+        <a href="saved-filters.html" class="nav-prev">Previous: Saved Filters</a>
+        <a href="sql-detection.html" class="nav-next">Next: SQL Detection</a>
+    </div>
+</body>
+</html>
+

@@ -1,0 +1,75 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Message Highlighting - UltimateDebugView++</title>
+    <link rel="stylesheet" href="../css/topic-styles.css">
+</head>
+<body>
+    <h1>Message Highlighting</h1>
+    <p class="lead">Use colors and styles to make important messages stand out.</p>
+
+    <h2>Highlight Features</h2>
+    <ul>
+        <li>16 predefined colors</li>
+        <li>Custom RGB color selection</li>
+        <li>Background and foreground colors</li>
+        <li>Bold and italic text styles</li>
+        <li>Multiple highlight rules</li>
+    </ul>
+
+    <h2>Creating Highlight Rules</h2>
+    <ol>
+        <li>Go to <strong>Filter</strong> tab</li>
+        <li>Click <strong>Add Highlight</strong></li>
+        <li>Enter pattern to match</li>
+        <li>Choose colors and style</li>
+        <li>Set priority (higher = more important)</li>
+        <li>Click OK</li>
+    </ol>
+
+    <h2>Common Highlighting Patterns</h2>
+
+    <h3>Error Levels</h3>
+    <pre><code>ERROR    â†’ Red background
+WARNING  â†’ Yellow background
+INFO     â†’ Blue text
+DEBUG    â†’ Gray text
+SUCCESS  â†’ Green background</code></pre>
+
+    <h3>Component Highlighting</h3>
+    <pre><code>[Database]  â†’ Blue
+[Network]   â†’ Purple
+[Security]  â†’ Red
+[UI]        â†’ Green</code></pre>
+
+    <h3>Performance Indicators</h3>
+    <pre><code>SLOW|TIMEOUT      â†’ Orange
+FAST|OPTIMIZED    â†’ Green
+BLOCKED|WAITING   â†’ Red</code></pre>
+
+    <h2>Highlight Priority</h2>
+    <p>When multiple rules match:</p>
+    <ul>
+        <li>Higher priority rules win</li>
+        <li>Last matching rule applies</li>
+        <li>Drag to reorder rules</li>
+        <li>Number indicates priority</li>
+    </ul>
+
+    <h2>Tips for Effective Highlighting</h2>
+    <ul>
+        <li>Use contrasting colors for clarity</li>
+        <li>Limit number of colors to avoid confusion</li>
+        <li>Reserve red for critical issues</li>
+        <li>Use subtle colors for common messages</li>
+        <li>Test visibility in both light/dark themes</li>
+    </ul>
+
+    <div class="topic-nav">
+        <a href="include-exclude.html" class="nav-prev">Previous: Include/Exclude</a>
+        <a href="regex-patterns.html" class="nav-next">Next: Regular Expressions</a>
+    </div>
+</body>
+</html>

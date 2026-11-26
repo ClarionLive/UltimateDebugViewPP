@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Win32 OutputDebugString Capture - UltimateDebugView++</title>
+    <link rel="stylesheet" href="../css/topic-styles.css">
+</head>
+<body>
+    <h1>Win32 OutputDebugString Capture</h1>
+    <p class="lead">Capture debug messages from Windows applications using the OutputDebugString API - the standard Windows debugging interface.</p>
+
+    <h2>Understanding OutputDebugString</h2>
+    <p>OutputDebugString is a Windows API function that allows applications to send debug messages to any attached debugger. UltimateDebugView++ acts as a system-wide debugger to capture these messages without interfering with application execution.</p>
+
+    <h3>How It Works</h3>
+    <p>The capture mechanism uses Windows shared memory and event objects:</p>
+    <ul>
+        <li><strong>DBWIN_BUFFER:</strong> A 4KB shared memory region for message data</li>
+        <li><strong>DBWIN_BUFFER_READY:</strong> Event signaling the buffer is ready for new data</li>
+        <li><strong>DBWIN_DATA_READY:</strong> Event signaling new data is available</li>
+        <li><strong>Process ID:</strong> Included with each message for identification</li>
+    </ul>
+
+    <h2>Capture Modes</h2>
+
+    <h3>Local Capture (Default)</h3>
+    <p>Captures messages from processes in your current Windows session:</p>
+    <ul>
+        <li>Automatically starts when UltimateDebugView++ launches</li>
+        <li>No special privileges required</li>
+        <li>Captures from all processes in your user session</li>
+        <li>Ideal for application development and testing</li>
+        <li>Lower system overhead than global capture</li>
+    </ul>
+
+    <h3>Global Capture</h3>
+    <p>Captures messages from all Windows sessions system-wide:</p>
+    <ul>
+        <li>Enable: <strong>Log → Capture Global Win32</strong></li>
+        <li>Requires administrator privileges</li>
+        <li>Includes system services and other user sessions</li>
+        <li>Essential for debugging services and system components</li>
+        <li>Higher message volume and system overhead</li>
+    </ul>
+
+    <div class="note">
+        <strong>Important:</strong> Only one application can capture OutputDebugString at a time. If another debugger is running, UltimateDebugView++ won't receive messages.
+    </div>
+
+    <h2>Starting and Stopping Capture</h2>
+
+    <h3>Automatic Start</h3>
+    <p>By default, local Win32 capture starts automatically when you launch UltimateDebugView++. No configuration needed.</p>
+
+    <h3>Manual Control</h3>
+    <ul>
+        <li><strong>Pause/Resume:</strong> Press Pause key or Log → Pause</li>
+        <li><strong>Global Mode:</strong> Log → Capture Global Win32 (toggle)</li>
+        <li><strong>Status Check:</strong> Look for "Win32: Active" in status bar</li>
+    </ul>
+
+    <h2>Using OutputDebugString in Your Code</h2>
+
+    <h3>C/C++ Example</h3>
+    <pre><code>#include &lt;windows.h&gt;
+
+// Simple message
+OutputDebugString(L"Application started");
+
+// Formatted message
+wchar_t buffer[256];
+swprintf_s(buffer, L"Processing item %d of %d", current, total);
+OutputDebugString(buffer);
+
+// ANSI version
+OutputDebugStringA("Debug message");</code></pre>
+
+    <h3>C# / .NET Example</h3>
+    <pre><code>using System.Diagnostics;
+
+// Debug class (only in debug builds)
+Debug.WriteLine("Debug message");
+Debug.WriteLine($"Value: {myVariable}");
+
+// Trace class (always available)
+Trace.WriteLine("Trace message");
+Trace.TraceError("Error occurred: " + exception.Message);</code></pre>
+
+    <h3>Clarion Example</h3>
+    <pre><code>! Using UltimateDebug class
+ud.Debug('Processing customer: ' & CUS:Name)
+
+! Direct API call
+OutputDebugString('Direct debug message')</code></pre>
+
+    <h3>Python Example</h3>
+    <pre><code>import ctypes
+
+# Direct Windows API call
+ctypes.windll.kernel32.OutputDebugStringW("Python debug message")
+
+# Or use a wrapper
+def debug_print(msg):
+    ctypes.windll.kernel32.OutputDebugStringW(str(msg))</code></pre>
+
+    <h3>PowerShell Example</h3>
+    <pre><code># Using .NET Framework
+[System.Diagnostics.Debug]::WriteLine("PowerShell debug")
+
+# Or using Windows API
+Add-Type @"
+    using System.Runtime.InteropServices;
+    public class Win32 {
+        [DllImport("kernel32.dll", CharSet=CharSet.Auto)]
+        public static extern void OutputDebugString(string message);
+    }
+"@
+[Win32]::OutputDebugString("Direct API call")</code></pre>
+
+    <h2>Message Format</h2>
+    <p>Each captured message includes:</p>
+    <ul>
+        <li><strong>Timestamp:</strong> Precise time with millisecond resolution</li>
+        <li><strong>Process Name:</strong> Executable name (e.g., "MyApp.exe")</li>
+        <li><strong>Process ID:</strong> Numeric process identifier</li>
+        <li><strong>Message Text:</strong> The actual debug string (up to 4KB)</li>
+    </ul>
+
+    <h2>Performance Characteristics</h2>
+    <ul>
+        <li><strong>Throughput:</strong> Handles 50,000+ messages per second</li>
+        <li><strong>Latency:</strong> Near-zero delay from send to display</li>
+        <li><strong>Buffer Size:</strong> 4KB per message (Windows limitation)</li>
+        <li><strong>Threading:</strong> Dedicated capture thread prevents UI blocking</li>
+        <li><strong>Memory:</strong> Efficient circular buffer management</li>
+    </ul>
+
+    <h2>Common Issues and Solutions</h2>
+
+    <h3>No Messages Appearing</h3>
+    <table>
+        <tr><th>Check</th><th>Solution</th></tr>
+        <tr><td>Another debugger attached?</td><td>Close Visual Studio, WinDbg, or other debuggers</td></tr>
+        <tr><td>Capture enabled?</td><td>Verify "Win32: Active" in status bar</td></tr>
+        <tr><td>Admin rights for global?</td><td>Run as administrator for global capture</td></tr>
+        <tr><td>Process filters active?</td><td>Check Log menu for process filters</td></tr>
+        <tr><td>Messages filtered out?</td><td>Review include/exclude filters</td></tr>
+    </table>
+
+    <h3>Missing Some Messages</h3>
+    <ul>
+        <li><strong>Buffer Overflow:</strong> Very rapid message bursts may overflow the 4KB buffer</li>
+        <li><strong>Process Filters:</strong> Check if specific processes are excluded</li>
+        <li><strong>Message Filters:</strong> Verify filter rules aren't too restrictive</li>
+        <li><strong>Timing:</strong> Messages sent before capture starts are lost</li>
+    </ul>
+
+    <h3>Access Denied Errors</h3>
+    <ul>
+        <li>Global capture requires administrator privileges</li>
+        <li>Some system processes require elevation even for local capture</li>
+        <li>Anti-virus may block debug message capture - add exception</li>
+        <li>Windows Defender may need exception for UltimateDebugView++</li>
+    </ul>
+
+    <h2>Advanced Features</h2>
+
+    <h3>Process Filtering</h3>
+    <p>Focus on specific applications:</p>
+    <ul>
+        <li>Include only certain process names</li>
+        <li>Exclude noisy applications</li>
+        <li>Use wildcards for process matching</li>
+        <li>Filter by process ID ranges</li>
+    </ul>
+
+    <h3>Message Prefixes</h3>
+    <p>UltimateDebugView++ recognizes special prefixes:</p>
+    <ul>
+        <li><strong>[ERROR]:</strong> Highlighted in red</li>
+        <li><strong>[WARNING]:</strong> Highlighted in yellow</li>
+        <li><strong>[INFO]:</strong> Highlighted in blue</li>
+        <li><strong>[SQL]:</strong> Triggers SQL formatting</li>
+        <li><strong>Custom:</strong> Define your own in Preferences</li>
+    </ul>
+
+    <h3>Integration with Clarion</h3>
+    <p>Enhanced support for Clarion applications:</p>
+    <ul>
+        <li>Automatic procedure tracking</li>
+        <li>Structured message parsing</li>
+        <li>Thread identification</li>
+        <li>Performance profiling</li>
+    </ul>
+
+    <h2>Best Practices</h2>
+    <ul>
+        <li><strong>Use Prefixes:</strong> Add [ERROR], [INFO] etc. for easy filtering</li>
+        <li><strong>Include Context:</strong> Add thread ID, module name for complex apps</li>
+        <li><strong>Avoid Flooding:</strong> Don't output in tight loops</li>
+        <li><strong>Clean Up:</strong> Remove or disable debug output in production</li>
+        <li><strong>Use Conditionals:</strong> Wrap in #ifdef DEBUG or similar</li>
+        <li><strong>Message Length:</strong> Keep under 4KB to avoid truncation</li>
+    </ul>
+
+    <h2>Security Considerations</h2>
+    <ul>
+        <li>Debug messages are visible to any user with debugger privileges</li>
+        <li>Never output sensitive data (passwords, keys, PII)</li>
+        <li>Disable debug output in production builds</li>
+        <li>Be aware that debug strings consume system resources</li>
+    </ul>
+
+    <div class="note">
+        <strong>Tip:</strong> Create a debug output wrapper class in your application to centrally control debug output, add automatic prefixes, and easily disable in production.
+    </div>
+
+    <h2>Related Topics</h2>
+    <ul>
+        <li><a href="message-sources.html">Message Sources Overview</a></li>
+        <li><a href="filtering-basics.html">Filtering Messages</a></li>
+        <li><a href="clarion-overview.html">Clarion Integration</a></li>
+        <li><a href="performance.html">Performance Optimization</a></li>
+    </ul>
+
+    <div class="topic-nav">
+        <a href="message-sources.html" class="nav-prev">Previous: Message Sources</a>
+        <a href="file-monitoring.html" class="nav-next">Next: File Monitoring</a>
+    </div>
+</body>
+</html>

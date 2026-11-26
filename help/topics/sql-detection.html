@@ -1,0 +1,85 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Automatic SQL Detection - UltimateDebugView++</title>
+    <link rel="stylesheet" href="../css/topic-styles.css">
+</head>
+<body>
+    <h1>Automatic SQL Detection</h1>
+    <p class="lead">How UltimateDebugView++ identifies and processes SQL statements in debug messages.</p>
+
+    <h2>Detection Methods</h2>
+
+    <h3>1. Keyword Detection</h3>
+    <p>Recognizes SQL keywords at message start:</p>
+    <ul>
+        <li>SELECT, INSERT, UPDATE, DELETE</li>
+        <li>CREATE, ALTER, DROP</li>
+        <li>EXEC, EXECUTE, CALL</li>
+        <li>WITH (CTE queries)</li>
+    </ul>
+
+    <h3>2. Prefix Detection</h3>
+    <p>Messages with SQL indicators:</p>
+    <ul>
+        <li>[SQL] prefix</li>
+        <li>[QUERY] prefix</li>
+        <li>SQL: at start</li>
+        <li>Query: at start</li>
+    </ul>
+
+    <h3>3. Pattern Recognition</h3>
+    <p>Common SQL patterns:</p>
+    <ul>
+        <li>FROM table_name</li>
+        <li>WHERE conditions</li>
+        <li>JOIN clauses</li>
+        <li>Parameter markers (?, @param, :param)</li>
+    </ul>
+
+    <h2>Improving Detection</h2>
+
+    <h3>Best Practices</h3>
+    <ul>
+        <li>Use [SQL] prefix for guaranteed detection</li>
+        <li>Start messages with SQL keywords</li>
+        <li>Include complete SQL statements</li>
+        <li>Avoid mixing SQL with other text</li>
+    </ul>
+
+    <h3>Example Messages</h3>
+    <pre><code>// Good - Will be detected
+"[SQL] SELECT * FROM users"
+"SELECT id, name FROM customers WHERE active = 1"
+"SQL: INSERT INTO logs (message) VALUES (?)"
+
+// Poor - May not be detected
+"Running query: select data"
+"The SELECT statement failed"
+"Error in: SELECT * FROM..."</code></pre>
+
+    <h2>Detection Settings</h2>
+    <p>Configure detection sensitivity:</p>
+    <ul>
+        <li><strong>Strict:</strong> Only explicit SQL markers</li>
+        <li><strong>Normal:</strong> Keywords and patterns</li>
+        <li><strong>Aggressive:</strong> Any SQL-like content</li>
+    </ul>
+
+    <h2>Custom Detection Rules</h2>
+    <p>Add custom patterns:</p>
+    <ol>
+        <li>Settings â†’ SQL Detection</li>
+        <li>Add custom prefix or pattern</li>
+        <li>Test with sample messages</li>
+        <li>Apply to enable</li>
+    </ol>
+
+    <div class="topic-nav">
+        <a href="sql-formatting.html" class="nav-prev">Previous: SQL Formatting</a>
+        <a href="sql-options.html" class="nav-next">Next: Formatting Options</a>
+    </div>
+</body>
+</html>
