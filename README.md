@@ -143,4 +143,8 @@ If build fails with missing headers:
 
 ## Original Project
 
-This is a cleaned-up version of [DebugView++](https://github.com/CobaltFusion/DebugViewPP) containing only the UltimateDebugViewPP executable without test projects or console variants.
+This is a cleaned-up version of [DebugView++](https://github.com/CobaltFusion/DebugViewPP) by Gert-Jan de Vos and Jan Wilmans, containing only the UltimateDebugViewPP executable without test projects or console variants.
+
+## License
+
+Distributed under the [Boost Software License 1.0](LICENSE), like the original DebugView++; its copyright notices are kept in the source files. Third-party components (Boost, WTL, Scintilla/Lexilla, Snappy, fsqlf under the LGPL v3, the WebView2 SDK) and their licences are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). The licence texts ship with the program in `help/licenses`.

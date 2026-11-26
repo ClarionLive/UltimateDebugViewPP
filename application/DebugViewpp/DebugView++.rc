@@ -314,14 +314,15 @@ BEGIN
     CTEXT           "<date replaced in CAboutDlg::OnInitDialog>",IDC_DATE,54,36,150,8
     LTEXT           "Based on DebugView++ by:",IDC_STATIC,16,52,200,8
     CTEXT           "Gert-Jan de Vos and Jan Wilmans",IDC_STATIC,16,62,200,8
-    CTEXT           "https://github.com/djeedjay/DebugViewPP",IDC_DEBUGVIEW_SRC_URL,16,72,200,8
+    CTEXT           "https://github.com/CobaltFusion/DebugViewPP",IDC_DEBUGVIEW_SRC_URL,16,72,200,8
     LTEXT           "Enhanced with:",IDC_STATIC,16,88,200,8
     LTEXT           "- Dark Mode and Modern UI",IDC_STATIC,26,98,200,8
     LTEXT           "- Scintilla Editor with Syntax Highlighting",IDC_STATIC,26,108,200,8
     LTEXT           "- Clarion Debug Format Support",IDC_STATIC,26,118,200,8
     LTEXT           "- Extended Toolbar and Column Management",IDC_STATIC,26,128,200,8
-    LTEXT           "Third-party components:",IDC_STATIC,16,144,200,8
-    LTEXT           "- fsqlf SQL Formatter (LGPL v3)",IDC_STATIC,26,154,200,8
+    LTEXT           "Boost Software License 1.0. Third-party components:",IDC_STATIC,16,140,220,8
+    LTEXT           "Scintilla/Lexilla, Snappy, WTL, Boost, WebView2, fsqlf (LGPL v3)",IDC_STATIC,26,150,214,8
+    LTEXT           "Licence texts: Help > About, and the help\\licenses folder",IDC_STATIC,26,160,214,8
 END
 
 IDD_FILTER DIALOGEX 0, 0, 381, 241
