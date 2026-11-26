@@ -1406,9 +1406,10 @@ bool CMainFrame::LoadSettings()
     m_mcpSettings.port = std::clamp(static_cast<int>(Win32::RegGetDWORDValue(reg, L"McpPort", 7777)), 1, 65535);
     m_mcpSettings.token = Win32::RegGetStringValue(reg, L"McpToken", L"");
     m_mcpSettings.maskSecrets = Win32::RegGetDWORDValue(reg, L"McpMaskSecrets", 1) != 0;
-    m_mcpSettings.exportMode = static_cast<McpExportMode>(std::clamp(static_cast<int>(Win32::RegGetDWORDValue(reg, L"McpExportMode", 0)), 0, 2));
+    m_mcpSettings.exportMode = Win32::RegGetDWORDValue(reg, L"McpExportMode", 0) == 1 ? McpExportMode::Folder : McpExportMode::Documents;
     m_mcpSettings.exportFolder = Win32::RegGetStringValue(reg, L"McpExportFolder", L"");
     m_mcpSettings.exportSubfolder = Win32::RegGetStringValue(reg, L"McpExportSubfolder", L"");
+    m_mcpSettings.exportPerApp = Win32::RegGetDWORDValue(reg, L"McpExportPerApp", 0) != 0;
 
     return true;
 }
@@ -1445,6 +1446,7 @@ void CMainFrame::SaveSettings()
     reg.SetDWORDValue(L"McpExportMode", static_cast<DWORD>(m_mcpSettings.exportMode));
     reg.SetStringValue(L"McpExportFolder", m_mcpSettings.exportFolder.c_str());
     reg.SetStringValue(L"McpExportSubfolder", m_mcpSettings.exportSubfolder.c_str());
+    reg.SetDWORDValue(L"McpExportPerApp", static_cast<DWORD>(m_mcpSettings.exportPerApp));
 
     reg.SetStringValue(L"FontName", m_logfont.lfFaceName);
     reg.SetDWORDValue(L"FontSize", LogFontSizeToPointSize(m_logfont.lfHeight));
@@ -4411,29 +4413,8 @@ bool IsClearBufferMessage(const std::string& message)
     return message.find("DBGVIEWCLEAR") == 0;
 }
 
-void CMainFrame::RememberExeFolder(DWORD processId, const std::string& processName)
-{
-    // Only while the MCP server is on (save_log / save_view can target the app's folder), once per
-    // pid + name, so the folder is still known after the app exits.
-    if (!m_mcpSettings.enabled || processId == 0 || m_mcpSeenProcesses.size() > 20000)
-    {
-        return;
-    }
-    auto name = WStr(processName).str();
-    if (!m_mcpSeenProcesses.insert(std::to_wstring(processId) + L"|" + name).second)
-    {
-        return;
-    }
-    auto folder = ExeFolderOfProcess(processId, name);
-    if (!folder.empty())
-    {
-        m_mcpExeFolders[LowerCaseProcessKey(name)] = folder;
-    }
-}
-
 void CMainFrame::AddMessage(const Message& message)
 {
-    RememberExeFolder(message.processId, message.processName);
 
     // Check for special "NewDebugView" message
     if (message.text == "@@NEWDEBUGVIEW@@")

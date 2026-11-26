@@ -59,13 +59,13 @@
     </table>
 
     <h2>Where saved logs go</h2>
-    <p>On the <strong>AI / MCP</strong> tab, under <strong>Logs the AI saves</strong>, choose one of:</p>
+    <p>On the <strong>AI / MCP</strong> tab, under <strong>Logs the AI saves</strong>:</p>
     <ul>
-        <li><strong>UltimateDebugView folder in my Documents</strong> (the default).</li>
-        <li><strong>This folder:</strong> any existing folder, for example <code>C:\Temp</code> (use <strong>Browse...</strong>).</li>
-        <li><strong>Next to the app's exe:</strong> the folder of the program that wrote the log lines, for example <code>C:\Apps\Invoice</code> for <code>Invoice.exe</code>. The assistant can name the program (<code>process</code>); otherwise the app that logged most recently is used. The viewer remembers each app's folder while the MCP server is on, so this still works after the app has closed.</li>
+        <li>Choose <strong>My Documents</strong> (the default) or <strong>This folder:</strong> any existing folder, for example <code>C:\Temp</code> (use <strong>Browse...</strong>).</li>
+        <li>Add a <strong>Sub-folder</strong> such as <code>DebugLogs</code>; it is created when needed. In My Documents an empty sub-folder means <code>UltimateDebugView</code>.</li>
+        <li>Tick <strong>A folder per program</strong> to keep each program's logs apart, named after its exe: for example <code>Documents\DebugLogs\PFBExec\run1.dblog</code>.</li>
     </ul>
-    <p>Add an optional <strong>Sub-folder</strong> such as <code>DebugLogs</code>; it is created when needed. Programs installed under Program Files usually cannot be written to; use a sub-folder elsewhere in that case.</p>
+    <p>When the assistant saves a log for one program, only that program's lines go into the file. With a folder per program and several programs in the log, the assistant shows you the list (with line counts) and asks which one you mean.</p>
 
     <h2>A typical test loop</h2>
     <ol>

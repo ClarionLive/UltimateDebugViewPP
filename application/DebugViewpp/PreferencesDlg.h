@@ -217,7 +217,6 @@ private:
             COMMAND_ID_HANDLER_EX(IDC_MCP_EXPORT_BROWSE, OnBrowseExport)
             COMMAND_ID_HANDLER_EX(IDC_MCP_EXPORT_DOCS, OnExportModeChange)
             COMMAND_ID_HANDLER_EX(IDC_MCP_EXPORT_CUSTOM, OnExportModeChange)
-            COMMAND_ID_HANDLER_EX(IDC_MCP_EXPORT_APP, OnExportModeChange)
         END_MSG_MAP()
 
         LRESULT OnInitDialog(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled);

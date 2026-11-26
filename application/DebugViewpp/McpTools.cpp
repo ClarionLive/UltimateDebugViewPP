@@ -62,31 +62,15 @@ std::wstring Utf8ToWide(const std::string& text)
     return result;
 }
 
-std::wstring LowerCaseProcessKey(const std::wstring& processName)
+// Lower-case process name without ".exe": "PFBExec.exe" and "pfbexec" name the same app.
+std::string AppKey(const std::string& processName)
 {
-    std::wstring key;
-    for (wchar_t c : processName)
-        key += static_cast<wchar_t>(::towlower(c));
-    if (key.size() > 4 && key.compare(key.size() - 4, 4, L".exe") == 0)
+    std::string key;
+    for (char c : processName)
+        key += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    if (key.size() > 4 && key.compare(key.size() - 4, 4, ".exe") == 0)
         key.resize(key.size() - 4);
     return key;
-}
-
-std::wstring ExeFolderOfProcess(unsigned long processId, const std::wstring& expectedName)
-{
-    HANDLE process = ::OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, processId);
-    if (process == nullptr)
-        return {};
-    wchar_t buffer[MAX_PATH * 4] = {};
-    DWORD size = static_cast<DWORD>(std::size(buffer));
-    BOOL ok = ::QueryFullProcessImageNameW(process, 0, buffer, &size);
-    ::CloseHandle(process);
-    if (ok == FALSE)
-        return {};
-    std::filesystem::path image(std::wstring(buffer, size));
-    if (!expectedName.empty() && LowerCaseProcessKey(image.filename().wstring()) != LowerCaseProcessKey(expectedName))
-        return {};  // the pid now belongs to another program
-    return image.parent_path().wstring();
 }
 
 std::string ToUtf8Safe(const std::string& text)
@@ -482,19 +466,21 @@ public:
         return tabs;
     }
 
-    static json::object ExportSummary(CMainFrame& f)
+    // <base> and <sub-folder> from Preferences; in Documents an empty sub-folder means UltimateDebugView.
+    static std::pair<std::filesystem::path, std::wstring> ExportBase(CMainFrame& f)
     {
         auto& s = f.m_mcpSettings;
-        std::string sub = s.exportSubfolder.empty() ? std::string() : "\\" + WideToUtf8(s.exportSubfolder);
-        switch (s.exportMode)
-        {
-        case McpExportMode::Folder:
-            return json::object{{"mode", "folder"}, {"folder", WideToUtf8(s.exportFolder) + sub}};
-        case McpExportMode::AppFolder:
-            return json::object{{"mode", "app-folder"}, {"folder", "<folder of the app's exe>" + sub}};
-        default:
-            return json::object{{"mode", "documents"}, {"folder", WideToUtf8(KnownFolder(FOLDERID_Documents).wstring()) + "\\UltimateDebugView" + sub}};
-        }
+        if (s.exportMode == McpExportMode::Folder)
+            return {s.exportFolder, s.exportSubfolder};
+        return {KnownFolder(FOLDERID_Documents), s.exportSubfolder.empty() ? std::wstring(L"UltimateDebugView") : s.exportSubfolder};
+    }
+
+    static json::object ExportSummary(CMainFrame& f)
+    {
+        auto [base, sub] = ExportBase(f);
+        auto folder = sub.empty() ? base : base / sub;
+        std::string shown = WideToUtf8(folder.wstring()) + (f.m_mcpSettings.exportPerApp ? "\\<app name>" : "");
+        return json::object{{"folder", shown}, {"perApp", f.m_mcpSettings.exportPerApp}};
     }
 
     static json::object Status(CMainFrame& f, const std::vector<std::string>& toolNames)
@@ -1311,105 +1297,141 @@ public:
 
     // ---- Phase 2: saving
 
-    // Same line format as File > Save Log / Save View, written to a stream we opened ourselves.
-    static long long WriteLog(CMainFrame& f, std::ofstream& os)
+    // ---- saving: which app, which folder, which lines
+
+    struct App
+    {
+        std::string key;   // AppKey of the process name
+        std::string name;  // process name as captured, e.g. PFBExec.exe
+        long long lines = 0;
+        std::vector<DWORD> pids;
+    };
+
+    static bool PerApp(CMainFrame& f) { return f.m_mcpSettings.exportPerApp; }
+
+    // Programs that wrote to the log (newest 500,000 lines), most lines first. The viewer itself and
+    // internal lines such as markers are left out.
+    static std::vector<App> AppsInLog(CMainFrame& f)
     {
         const LogFile& log = f.m_logFile;
-        for (int i = 0; i < log.Count(); ++i)
-        {
-            auto msg = log[i];
-            WriteLogFileMessage(os, msg.time, msg.systemTime, msg.processId, msg.processName, msg.text);
-        }
-        return log.Count();
-    }
-
-    static long long WriteView(CMainFrame& f, int tab, std::ofstream& os)
-    {
-        auto& view = f.GetView(tab);
-        for (auto& line : view.m_logLines)
-        {
-            auto msg = f.m_logFile[line.line];
-            WriteLogFileMessage(os, msg.time, msg.systemTime, msg.processId, msg.processName, msg.text);
-        }
-        return static_cast<long long>(view.m_logLines.size());
-    }
-
-    // Finds the process whose exe folder to use: the 'process' argument (name or pid), or the most
-    // recent line in the log that did not come from the viewer itself.
-    static std::pair<DWORD, std::wstring> TargetProcess(CMainFrame& f, const json::object& args)
-    {
-        const LogFile& log = f.m_logFile;
-        auto* wanted = Arg(args, "process");
-        std::optional<DWORD> wantedPid;
-        std::wstring wantedKey;
-        if (wanted != nullptr)
-        {
-            if (wanted->is_int64() || wanted->is_uint64())
-                wantedPid = static_cast<DWORD>(wanted->is_int64() ? wanted->as_int64() : static_cast<long long>(wanted->as_uint64()));
-            else if (wanted->is_string())
-                wantedKey = LowerCaseProcessKey(Utf8ToWide(std::string(wanted->as_string())));
-            else
-                throw McpToolError("'process' must be a process name or pid");
-        }
-
         DWORD self = ::GetCurrentProcessId();
-        int stop = std::max(0, log.Count() - MaxScanPerCall);
+        std::map<std::string, App> apps;
+        int stop = std::max(0, log.Count() - 500000);
         for (int i = log.Count() - 1; i >= stop; --i)
         {
             Message msg = log.GetUnparsed(i);
-            auto name = Utf8ToWide(ToUtf8Safe(msg.processName));
-            if (wantedPid && msg.processId != *wantedPid)
+            if (msg.processId == 0 || msg.processId == self || msg.processName.empty() || msg.processName.front() == '[')
                 continue;
-            if (!wantedKey.empty() && LowerCaseProcessKey(name) != wantedKey)
-                continue;
-            if (!wantedPid && wantedKey.empty() && (msg.processId == 0 || msg.processId == self || name.empty() || name.front() == L'['))
-                continue;
-            return {msg.processId, name};
-        }
-        if (!wantedKey.empty())
-            return {0, Utf8ToWide(std::string(wanted->as_string()))};  // not in the log; try the remembered folder
-        throw McpToolError(wanted != nullptr ? "That process has no lines in the log" : "No application lines in the log yet, so there is no app folder to save into; pass 'process'");
-    }
-
-    // The folder save_log / save_view write into, per the user's Preferences.
-    static std::filesystem::path ExportFolder(CMainFrame& f, const json::object& args, json::object& info)
-    {
-        auto& settings = f.m_mcpSettings;
-        switch (settings.exportMode)
-        {
-        case McpExportMode::Folder:
-            info["exportMode"] = "folder";
-            return PrepareExportFolder(settings.exportFolder, settings.exportSubfolder, "chosen folder");
-        case McpExportMode::AppFolder:
-        {
-            info["exportMode"] = "app-folder";
-            auto [pid, name] = TargetProcess(f, args);
-            std::wstring folder = pid != 0 ? ExeFolderOfProcess(pid, name) : std::wstring();
-            if (folder.empty())
+            auto key = AppKey(msg.processName);
+            auto& app = apps[key];
+            if (app.lines++ == 0)
             {
-                auto it = f.m_mcpExeFolders.find(LowerCaseProcessKey(name));
-                if (it != f.m_mcpExeFolders.end())
-                    folder = it->second;
+                app.key = key;
+                app.name = msg.processName;  // newest spelling
             }
-            if (folder.empty())
-                throw McpToolError("Can't tell where " + WideToUtf8(name) + " is installed (it is not running and was not seen while the MCP server was on). Run it once, or pass another 'process'.");
-            info["process"] = WideToUtf8(name);
-            return PrepareExportFolder(folder, settings.exportSubfolder, "folder of " + WideToUtf8(name));
+            if (app.pids.size() < 10 && std::find(app.pids.begin(), app.pids.end(), msg.processId) == app.pids.end())
+                app.pids.push_back(msg.processId);
         }
-        default:
-        {
-            info["exportMode"] = "documents";
-            auto documents = KnownFolder(FOLDERID_Documents);
-            if (documents.empty())
-                throw McpToolError("Could not find the Documents folder");
-            auto folder = documents / L"UltimateDebugView";
-            std::error_code ec;
-            std::filesystem::create_directories(folder, ec);
-            return PrepareExportFolder(folder, settings.exportSubfolder, "Documents\\UltimateDebugView");
-        }
-        }
+        std::vector<App> result;
+        for (auto& [key, app] : apps)
+            result.push_back(app);
+        std::sort(result.begin(), result.end(), [](const App& a, const App& b) { return a.lines > b.lines; });
+        return result;
     }
 
+    static json::array AppsJson(const std::vector<App>& apps)
+    {
+        json::array list;
+        for (auto& app : apps)
+        {
+            json::array pids;
+            for (DWORD pid : app.pids)
+                pids.push_back(static_cast<std::int64_t>(pid));
+            list.push_back(json::object{{"process", ToUtf8Safe(app.name)}, {"lines", app.lines}, {"pids", std::move(pids)}});
+        }
+        return list;
+    }
+
+    // The app named by the 'process' argument (name with or without .exe, or a pid), if any.
+    static std::optional<App> ChosenApp(const json::object& args, const std::vector<App>& apps)
+    {
+        auto* wanted = Arg(args, "process");
+        if (wanted == nullptr)
+            return std::nullopt;
+        for (auto& app : apps)
+        {
+            if (wanted->is_string() && AppKey(Utf8ToAnsi(std::string(wanted->as_string()))) == app.key)
+                return app;
+            if ((wanted->is_int64() || wanted->is_uint64()) &&
+                std::find(app.pids.begin(), app.pids.end(), static_cast<DWORD>(wanted->is_int64() ? wanted->as_int64() : static_cast<long long>(wanted->as_uint64()))) != app.pids.end())
+                return app;
+        }
+        if (!wanted->is_string() && !wanted->is_int64() && !wanted->is_uint64())
+            throw McpToolError("'process' must be a process name or pid");
+        std::string names;
+        for (auto& app : apps)
+            names += (names.empty() ? "" : ", ") + ToUtf8Safe(app.name);
+        throw McpToolError("No program by that name or pid has written to the log. Programs in the log: " + (names.empty() ? std::string("none") : names));
+    }
+
+    // Folder name for an app: the exe name without ".exe", made safe.
+    static std::wstring AppFolderName(const std::string& processName)
+    {
+        std::wstring name = Utf8ToWide(ToUtf8Safe(processName));
+        if (name.size() > 4 && LowerW(name.substr(name.size() - 4)) == L".exe")
+            name.resize(name.size() - 4);
+        for (auto& c : name)
+        {
+            if (::iswalnum(c) == 0 && c != L'.' && c != L'_' && c != L'-' && c != L' ')
+                c = L'_';
+        }
+        while (!name.empty() && (name.back() == L'.' || name.back() == L' '))
+            name.pop_back();
+        while (!name.empty() && name.front() == L'.')
+            name.erase(name.begin());
+        return IsPlainMcpName(name) ? name : std::wstring(L"app");
+    }
+
+    // <base>\<sub-folder>[\<app>] per the user's Preferences; folders below the base are created.
+    static std::filesystem::path ExportFolder(CMainFrame& f, const App* app)
+    {
+        auto [base, sub] = ExportBase(f);
+        auto folder = PrepareExportFolder(base, sub, f.m_mcpSettings.exportMode == McpExportMode::Folder ? "chosen folder" : "Documents");
+        if (app != nullptr && PerApp(f))
+            folder = PrepareExportFolder(folder, AppFolderName(app->name), "export folder");
+        return folder;
+    }
+
+    // Same line format as File > Save Log / Save View, written to a stream we opened ourselves.
+    // A non-empty appKey keeps only that program's lines.
+    static long long WriteLog(CMainFrame& f, std::ofstream& os, const std::string& appKey)
+    {
+        const LogFile& log = f.m_logFile;
+        long long written = 0;
+        for (int i = 0; i < log.Count(); ++i)
+        {
+            auto msg = log[i];
+            if (!appKey.empty() && AppKey(msg.processName) != appKey)
+                continue;
+            WriteLogFileMessage(os, msg.time, msg.systemTime, msg.processId, msg.processName, msg.text);
+            ++written;
+        }
+        return written;
+    }
+
+    static long long WriteView(CMainFrame& f, int tab, std::ofstream& os, const std::string& appKey)
+    {
+        long long written = 0;
+        for (auto& line : f.GetView(tab).m_logLines)
+        {
+            auto msg = f.m_logFile[line.line];
+            if (!appKey.empty() && AppKey(msg.processName) != appKey)
+                continue;
+            WriteLogFileMessage(os, msg.time, msg.systemTime, msg.processId, msg.processName, msg.text);
+            ++written;
+        }
+        return written;
+    }
 };
 
 // ---------------------------------------------------------------- filters
@@ -2242,37 +2264,62 @@ void RegisterDebugViewTools(McpToolRegistry& registry, CMainFrame& frame)
     // ------------------------------------------------ Phase 2: saving
 
     const char* const P_Path = R"("path": {"type": "string", "description": "Plain file name ending in .dblog, .log, .txt or .csv, e.g. \"run1.dblog\". The folder is the one the user chose in Preferences (see get_status exportFolder)."})";
-    const char* const P_SaveProcess = R"("process": {"type": ["string", "integer"], "description": "Only when the user chose to save next to the app: the process name or pid whose exe folder to use (default: the app that logged most recently)."})";
+    const char* const P_SaveProcess = R"("process": {"type": ["string", "integer"], "description": "Program to save a log for (name such as \"PFBExec\" or \"PFBExec.exe\", or a pid). Only that program's lines are saved. When the user keeps a folder per app and several programs are in the log, this is required; if it is missing the result lists the programs so you can ask the user."})";
 
-    // Resolves the folder and writes a brand-new file through one verified handle. UI thread.
-    auto save = [](CMainFrame& frame, const json::object& args, const std::string& name, const std::function<long long(std::ofstream&)>& write,
-                   json::object result) {
-        auto folder = B::ExportFolder(frame, args, result);
-        auto [path, lines] = WriteExportFile(folder, name, write);
+    // Picks the app, resolves the folder and writes a brand-new file through one verified handle. UI thread.
+    auto save = [](CMainFrame& frame, const json::object& args, const std::string& name,
+                   const std::function<long long(std::ofstream&, const std::string&)>& write, json::object result) -> json::value {
+        auto apps = B::AppsInLog(frame);
+        auto app = B::ChosenApp(args, apps);
+        if (!app && B::PerApp(frame))
+        {
+            if (apps.size() == 1)
+                app = apps.front();
+            else if (apps.empty())
+                throw McpToolError("No program has written to the log yet, so there is no app folder to save into");
+            else
+            {
+                return json::value(json::object{
+                    {"saved", false},
+                    {"needsChoice", true},
+                    {"message", "Several programs wrote to the log and the user keeps a folder per program. Ask the user which program to save a log for "
+                                "(show them this list), then call again with process set to the chosen name."},
+                    {"apps", B::AppsJson(apps)}});
+            }
+        }
+        auto folder = B::ExportFolder(frame, app ? &*app : nullptr);
+        std::string appKey = app ? app->key : std::string();
+        auto [path, lines] = WriteExportFile(folder, name, [&](std::ofstream& os) { return write(os, appKey); });
+        result["saved"] = true;
         result["path"] = WideToUtf8(path);
         result["lines"] = lines;
+        if (app)
+            result["process"] = ToUtf8Safe(app->name);
         return json::value(std::move(result));
     };
 
-    AddTool(registry, "save_log", "Save the whole log to a file", false, Close(Props({P_Path, P_SaveProcess}), R"(["path"])").c_str(),
-            "Save every captured line to a NEW file on this computer (same format as File > Save Log). The file is not masked: it stays local. "
-            "It goes into the folder the user chose in Preferences (Documents\\UltimateDebugView, a fixed folder, or next to the app's exe, "
-            "optionally in a sub-folder); only a plain file name is accepted and existing files are never replaced. The result gives the full path.",
+    AddTool(registry, "save_log", "Save the log to a file", false, Close(Props({P_Path, P_SaveProcess}), R"(["path"])").c_str(),
+            "Save captured lines to a NEW file on this computer (same format as File > Save Log): all lines, or only one program's with process. "
+            "The file is not masked: it stays local. It goes into the folder the user chose in Preferences (Documents/UltimateDebugView by default, "
+            "or their own folder and sub-folder, optionally with a folder per program such as .../DebugLogs/PFBExec). Only a plain file name is accepted "
+            "and existing files are never replaced. If the result has needsChoice: true, ask the user which program from apps, then call again with process.",
             [f, save](const json::object& args, McpContext& ctx) {
                 auto name = RequireString(args, "path");
                 return ctx.RunOnUi([f, args, name, save] {
-                    return save(*f, args, name, [f](std::ofstream& os) { return B::WriteLog(*f, os); }, json::object{});
+                    return save(*f, args, name, [f](std::ofstream& os, const std::string& key) { return B::WriteLog(*f, os, key); }, json::object{});
                 });
             });
 
     AddTool(registry, "save_view", "Save a tab to a file", false,
             Close(Props({P_Path, P_SaveProcess, R"("tab": {"type": ["string", "integer"], "description": "Tab to save (default: the current tab)."})"}), R"(["path"])").c_str(),
-            "Save the lines a tab shows to a NEW file on this computer (same as File > Save View). Same folder and name rules as save_log.",
+            "Save the lines a tab shows to a NEW file on this computer (same as File > Save View), optionally only one program's lines. Same folder, "
+            "name and needsChoice rules as save_log.",
             [f, save](const json::object& args, McpContext& ctx) {
                 auto name = RequireString(args, "path");
                 return ctx.RunOnUi([f, args, name, save] {
                     int tab = B::TabOrDefault(*f, args, B::CurrentTab(*f));
-                    return save(*f, args, name, [f, tab](std::ofstream& os) { return B::WriteView(*f, tab, os); }, json::object{{"tab", B::TabJson(*f, tab)}});
+                    return save(*f, args, name, [f, tab](std::ofstream& os, const std::string& key) { return B::WriteView(*f, tab, os, key); },
+                                json::object{{"tab", B::TabJson(*f, tab)}});
                 });
             });
 }

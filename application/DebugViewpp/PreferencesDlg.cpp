@@ -1191,10 +1191,10 @@ void CPreferencesDlg::CMcpPage::Load(const McpSettings& settings, const std::wst
     SetDlgItemInt(IDC_MCP_PORT, static_cast<UINT>(settings.port), FALSE);
     SetDlgItemText(IDC_MCP_TOKEN, settings.token.c_str());
     CheckDlgButton(IDC_MCP_MASK_SECRETS, settings.maskSecrets ? BST_CHECKED : BST_UNCHECKED);
-    int exportButton = settings.exportMode == McpExportMode::Folder ? IDC_MCP_EXPORT_CUSTOM : settings.exportMode == McpExportMode::AppFolder ? IDC_MCP_EXPORT_APP : IDC_MCP_EXPORT_DOCS;
-    CheckRadioButton(IDC_MCP_EXPORT_DOCS, IDC_MCP_EXPORT_APP, exportButton);
+    CheckRadioButton(IDC_MCP_EXPORT_DOCS, IDC_MCP_EXPORT_CUSTOM, settings.exportMode == McpExportMode::Folder ? IDC_MCP_EXPORT_CUSTOM : IDC_MCP_EXPORT_DOCS);
     SetDlgItemText(IDC_MCP_EXPORT_FOLDER, settings.exportFolder.c_str());
     SetDlgItemText(IDC_MCP_EXPORT_SUBFOLDER, settings.exportSubfolder.c_str());
+    CheckDlgButton(IDC_MCP_EXPORT_PERAPP, settings.exportPerApp ? BST_CHECKED : BST_UNCHECKED);
     UpdateExportControls();
     std::wstring text = L"Status: " + (status.empty() ? std::wstring(L"not running") : status) + L"   (changes take effect when you press OK)";
     SetDlgItemText(IDC_MCP_STATUS, text.c_str());
@@ -1271,9 +1271,7 @@ bool CPreferencesDlg::CMcpPage::Save(McpSettings& settings)
         return false;
     }
 
-    auto exportMode = IsDlgButtonChecked(IDC_MCP_EXPORT_CUSTOM) == BST_CHECKED ? McpExportMode::Folder
-                      : IsDlgButtonChecked(IDC_MCP_EXPORT_APP) == BST_CHECKED   ? McpExportMode::AppFolder
-                                                                                 : McpExportMode::Documents;
+    auto exportMode = IsDlgButtonChecked(IDC_MCP_EXPORT_CUSTOM) == BST_CHECKED ? McpExportMode::Folder : McpExportMode::Documents;
     wchar_t folderBuffer[MAX_PATH * 2] = {};
     GetDlgItemText(IDC_MCP_EXPORT_FOLDER, folderBuffer, static_cast<int>(std::size(folderBuffer)) - 1);
     std::wstring exportFolder(folderBuffer);
@@ -1309,6 +1307,7 @@ bool CPreferencesDlg::CMcpPage::Save(McpSettings& settings)
     settings.exportMode = exportMode;
     settings.exportFolder = exportFolder;
     settings.exportSubfolder = exportSubfolder;
+    settings.exportPerApp = IsDlgButtonChecked(IDC_MCP_EXPORT_PERAPP) == BST_CHECKED;
     return true;
 }
 

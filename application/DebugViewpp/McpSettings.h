@@ -15,11 +15,12 @@ namespace fusion {
 namespace debugviewpp {
 
 // Where save_log / save_view write. The AI only ever supplies a file name.
+//   <base>\<sub-folder>[\<app name>]\<file>
+// base = Documents or a folder the user chose; in Documents an empty sub-folder means "UltimateDebugView".
 enum class McpExportMode : int
 {
-    Documents = 0,  // Documents\UltimateDebugView
-    Folder = 1,     // a folder the user chose
-    AppFolder = 2,  // the folder of the exe that wrote the log lines
+    Documents = 0,
+    Folder = 1,
 };
 
 struct McpSettings
@@ -30,12 +31,14 @@ struct McpSettings
     bool maskSecrets = true;
     McpExportMode exportMode = McpExportMode::Documents;
     std::wstring exportFolder;     // used by McpExportMode::Folder
-    std::wstring exportSubfolder;  // optional plain folder name added under the chosen folder, e.g. DebugLogs
+    std::wstring exportSubfolder;  // optional plain folder name, e.g. DebugLogs
+    bool exportPerApp = false;     // add a folder named after the exe, e.g. PFBExec
 
     bool operator==(const McpSettings& other) const
     {
         return enabled == other.enabled && port == other.port && token == other.token && maskSecrets == other.maskSecrets &&
-               exportMode == other.exportMode && exportFolder == other.exportFolder && exportSubfolder == other.exportSubfolder;
+               exportMode == other.exportMode && exportFolder == other.exportFolder && exportSubfolder == other.exportSubfolder &&
+               exportPerApp == other.exportPerApp;
     }
     bool operator!=(const McpSettings& other) const { return !(*this == other); }
 };
