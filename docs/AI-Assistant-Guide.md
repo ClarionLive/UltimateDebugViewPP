@@ -109,7 +109,7 @@ A good habit for repeatable tests: ask the assistant to **insert a marker before
 On the **AI / MCP** tab, under **Logs the AI saves**:
 
 - **My Documents** (default) or **This folder:** any folder you pick with **Browse…**.
-- **Sub-folder:** for example `DebugLogs`. It is created when needed. In My Documents, an empty sub-folder means `UltimateDebugView`.
+- **Sub-folder:** for example `DebugLogs`. It is created when needed. In My Documents, an empty sub-folder means `UltimateDebugView`; with **This folder:**, an empty sub-folder saves straight into that folder.
 - **A folder per program:** each program's logs go into a folder named after its exe, for example `Documents\DebugLogs\PFBExec\test1.dblog`.
 
 How saving behaves:
@@ -153,8 +153,8 @@ Every line in the log has a **line number** that only goes up, even after the lo
 |---|---|---|
 | `get_status` | Version, tool list, capture state, current cursor (`nextLine`), tabs, masking and save-folder settings. | none |
 | `read_messages` | Reads lines, oldest first, from the whole log or one tab. Consecutive identical lines are folded into one with `repeat`. | `tab`, `since_line`, `limit` (≤1000), `tail`, `contains`, `regex`, `process`, `pid`, `collapse_repeats`, `max_bytes` |
-| `search_messages` | Finds lines and returns each with the lines around it. | `pattern`, `regex`, `context` (0–10), `limit`, `tab`, `since_line`, `process`, `pid` |
-| `wait_for_messages` | Waits (up to 55 s per call) until matching lines arrive. Returns `matched`, `timedOut`, the lines and `nextLine`. | `since_line`, `contains`, `regex`, `process`, `pid`, `tab`, `count`, `timeout_seconds` |
+| `search_messages` | Finds lines and returns each with the lines around it. | `pattern`, `regex`, `context` (0–10, default 2), `limit` (1–100, default 20), `tab`, `since_line`, `process`, `pid` |
+| `wait_for_messages` | Waits until matching lines arrive (default 30 s, at most 55 s per call). Returns `matched`, `timedOut`, the lines and `nextLine`. | `since_line`, `contains`, `regex`, `process`, `pid`, `tab`, `count` (1–100, default 1), `timeout_seconds` |
 | `list_processes` | Programs that wrote to the log: pid, name, line count, first and last line and time. | none |
 | `get_message_detail` | Everything about one line: Clarion fields (thread, procedure, module, call depth, open/close), queue, error fields, detected format, and formatted text (SQL with your formatting options). | `line` |
 
@@ -194,7 +194,7 @@ A filter has `text`, `matchType` (`simple`, `wildcard`, `regex`, `regexgroups`, 
 |---|---|---|
 | `get_procedure_stats` | Open and close counts per procedure, most unbalanced first, plus what is open now on each thread. `unbalanced > 0` means more opens than closes. | `tab`, `procedure`, `unbalanced_only`, `limit` |
 | `get_procedure_timeline` | Opens and closes in order, with call depth and (for closes) duration. | `tab`, `since_line`, `procedure`, `thread`, `process`, `limit` |
-| `list_queues` / `get_queue` | Queues dumped with UltimateDebug: list, then headers and rows. | `queue_id`, `offset`, `limit` |
+| `list_queues` / `get_queue` | Clarion queues dumped to the log by the UltimateDebug class: list, then headers and rows. | `queue_id`, `offset`, `limit` |
 | `create_procedure_view` | A tab (**AI: Proc: <name>**) showing one procedure's lines. | `procedure`, `process` |
 
 ### Saving

@@ -20,8 +20,8 @@
         <tr><th>Tool</th><th>What it does</th><th>Main parameters</th></tr>
         <tr><td><code>get_status</code></td><td>Version, tool list, capture state, current cursor, tabs, masking and save-folder settings.</td><td>none</td></tr>
         <tr><td><code>read_messages</code></td><td>Reads lines, oldest first, from the whole log or one tab. Identical consecutive lines are folded into one with a repeat count.</td><td><code>tab</code>, <code>since_line</code>, <code>limit</code>, <code>tail</code>, <code>contains</code>, <code>regex</code>, <code>process</code>, <code>pid</code></td></tr>
-        <tr><td><code>search_messages</code></td><td>Finds lines and returns each with the lines around it.</td><td><code>pattern</code>, <code>regex</code>, <code>context</code>, <code>limit</code>, <code>tab</code></td></tr>
-        <tr><td><code>wait_for_messages</code></td><td>Waits (up to 55 seconds per call) until matching lines arrive. The viewer stays responsive.</td><td><code>since_line</code>, <code>contains</code>, <code>regex</code>, <code>count</code>, <code>timeout_seconds</code></td></tr>
+        <tr><td><code>search_messages</code></td><td>Finds lines and returns each with the lines around it.</td><td><code>pattern</code>, <code>regex</code>, <code>context</code> (0-10), <code>limit</code> (1-100), <code>tab</code></td></tr>
+        <tr><td><code>wait_for_messages</code></td><td>Waits until matching lines arrive (default 30 seconds, at most 55 per call). The viewer stays responsive.</td><td><code>since_line</code>, <code>contains</code>, <code>regex</code>, <code>count</code>, <code>timeout_seconds</code></td></tr>
         <tr><td><code>list_processes</code></td><td>Programs that wrote to the log, with line counts and first/last seen times.</td><td>none</td></tr>
         <tr><td><code>get_message_detail</code></td><td>Everything about one line: Clarion fields (thread, procedure, module, call depth, open/close), queue, error fields, detected format, and formatted text (SQL with your formatting options).</td><td><code>line</code></td></tr>
     </table>
@@ -58,7 +58,7 @@
         <tr><th>Tool</th><th>What it does</th><th>Main parameters</th></tr>
         <tr><td><code>get_procedure_stats</code></td><td>Open/close counts per procedure, most unbalanced first, and what is open now on each thread. <code>unbalanced</code> above 0 means opened more often than closed.</td><td><code>procedure</code>, <code>unbalanced_only</code>, <code>tab</code></td></tr>
         <tr><td><code>get_procedure_timeline</code></td><td>Opens and closes in order, with call depth and durations.</td><td><code>since_line</code>, <code>procedure</code>, <code>thread</code></td></tr>
-        <tr><td><code>list_queues</code>, <code>get_queue</code></td><td>Queues dumped with UltimateDebug, then their headers and rows.</td><td><code>queue_id</code>, <code>offset</code>, <code>limit</code></td></tr>
+        <tr><td><code>list_queues</code>, <code>get_queue</code></td><td>Clarion queues dumped to the log by the UltimateDebug class, then their headers and rows.</td><td><code>queue_id</code>, <code>offset</code>, <code>limit</code></td></tr>
         <tr><td><code>create_procedure_view</code></td><td>A tab (<strong>AI: Proc: &lt;name&gt;</strong>) showing one procedure's lines.</td><td><code>procedure</code></td></tr>
     </table>
 
