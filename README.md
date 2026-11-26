@@ -122,7 +122,7 @@ UltimateDebugViewPP has a built-in [Model Context Protocol](https://modelcontext
 - **Cursors:** every line has a `line` number that only increases (also across clears). Pass `nextLine` back as `since_line` to read only new output.
 - **Your tabs are protected:** tabs the AI creates are named `AI: ...`; changing other tabs needs `allow_user_tab: true`.
 
-Full guide: in-app Help > Advanced Features > *AI Assistants (MCP)* (`help/topics/ai-mcp.html`). Code: `application/DebugViewpp/McpServer.*`, `McpTools.*`.
+User guide: [`docs/AI-Assistant-Guide.md`](docs/AI-Assistant-Guide.md). In-app: Help > Advanced Features > *AI Assistants (MCP)* (`help/topics/ai-mcp.html`). Code: `application/DebugViewpp/McpServer.*`, `McpTools.*`.
 
 ## Troubleshooting
 

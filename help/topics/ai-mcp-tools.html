@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MCP Tool Reference - UltimateDebugView++</title>
+    <link rel="stylesheet" href="../css/topic-styles.css">
+</head>
+<body>
+    <h1>MCP Tool Reference</h1>
+    <p class="lead">The 30 tools an AI assistant can use through the built-in MCP server. See <a href="ai-mcp.html">AI Assistants (MCP)</a> for setup.</p>
+
+    <p>You never call these tools yourself: you ask your assistant in plain words and it picks them. This page explains what each one does, so you know what to ask for.</p>
+
+    <h2>Line numbers and cursors</h2>
+    <p>Every captured line has a <strong>line number</strong> that only goes up, even after the log is cleared. Read tools return <code>nextLine</code>. When the assistant passes it back as <code>since_line</code>, it gets only what is new. <code>insert_marker</code> returns the same kind of number, so "everything after the marker" is exact.</p>
+
+    <h2>Status and reading</h2>
+    <table>
+        <tr><th>Tool</th><th>What it does</th><th>Main parameters</th></tr>
+        <tr><td><code>get_status</code></td><td>Version, tool list, capture state, current cursor, tabs, masking and save-folder settings.</td><td>none</td></tr>
+        <tr><td><code>read_messages</code></td><td>Reads lines, oldest first, from the whole log or one tab. Identical consecutive lines are folded into one with a repeat count.</td><td><code>tab</code>, <code>since_line</code>, <code>limit</code>, <code>tail</code>, <code>contains</code>, <code>regex</code>, <code>process</code>, <code>pid</code></td></tr>
+        <tr><td><code>search_messages</code></td><td>Finds lines and returns each with the lines around it.</td><td><code>pattern</code>, <code>regex</code>, <code>context</code>, <code>limit</code>, <code>tab</code></td></tr>
+        <tr><td><code>wait_for_messages</code></td><td>Waits (up to 55 seconds per call) until matching lines arrive. The viewer stays responsive.</td><td><code>since_line</code>, <code>contains</code>, <code>regex</code>, <code>count</code>, <code>timeout_seconds</code></td></tr>
+        <tr><td><code>list_processes</code></td><td>Programs that wrote to the log, with line counts and first/last seen times.</td><td>none</td></tr>
+        <tr><td><code>get_message_detail</code></td><td>Everything about one line: Clarion fields (thread, procedure, module, call depth, open/close), queue, error fields, detected format, and formatted text (SQL with your formatting options).</td><td><code>line</code></td></tr>
+    </table>
+
+    <h2>Control</h2>
+    <table>
+        <tr><th>Tool</th><th>What it does</th><th>Main parameters</th></tr>
+        <tr><td><code>insert_marker</code></td><td>Writes a marker line such as <code>=== test 3 ===</code> and returns its cursor.</td><td><code>text</code></td></tr>
+        <tr><td><code>clear_log</code></td><td>Clears the log and every tab, like the Clear button.</td><td>none</td></tr>
+        <tr><td><code>pause_capture</code>, <code>resume_capture</code></td><td>Like the Pause button.</td><td>none</td></tr>
+    </table>
+
+    <h2>Tabs and filters</h2>
+    <table>
+        <tr><th>Tool</th><th>What it does</th><th>Main parameters</th></tr>
+        <tr><td><code>list_tabs</code></td><td>All tabs, with lines shown, filter count and who created them.</td><td>none</td></tr>
+        <tr><td><code>create_tab</code></td><td>A new tab named <strong>AI: &lt;name&gt;</strong>, optionally with filters.</td><td><code>name</code>, <code>filters</code>, <code>select</code></td></tr>
+        <tr><td><code>switch_tab</code></td><td>Shows a tab.</td><td><code>tab</code></td></tr>
+        <tr><td><code>rename_tab</code>, <code>close_tab</code></td><td>For the assistant's own tabs, or yours when you asked (<code>allow_user_tab</code>). The first tab never closes.</td><td><code>tab</code>, <code>name</code></td></tr>
+        <tr><td><code>get_filters</code></td><td>A tab's filters.</td><td><code>tab</code></td></tr>
+        <tr><td><code>set_filters</code>, <code>add_filter</code>, <code>remove_filter</code>, <code>enable_filter</code></td><td>Replace, add, remove, or switch filters on and off.</td><td><code>tab</code>, filter fields</td></tr>
+    </table>
+    <p>A filter has a <code>text</code>, a <code>matchType</code> (simple, wildcard, regex, regexgroups, regexcase), a <code>filterType</code> (include, exclude, highlight, token, stop, track, once, clear, beep, matchcolor, bookmark), a <code>category</code> (message, process, prefix, procedure), colours (<code>#RRGGBB</code>) and <code>enabled</code>.</p>
+
+    <h2>Pointing things out</h2>
+    <table>
+        <tr><th>Tool</th><th>What it does</th><th>Main parameters</th></tr>
+        <tr><td><code>jump_to_line</code></td><td>Scrolls the viewer to a line and selects it.</td><td><code>line</code>, <code>tab</code></td></tr>
+        <tr><td><code>set_bookmark</code>, <code>list_bookmarks</code></td><td>Sets, clears or lists bookmarks.</td><td><code>line</code>, <code>tab</code></td></tr>
+    </table>
+
+    <h2>Clarion</h2>
+    <table>
+        <tr><th>Tool</th><th>What it does</th><th>Main parameters</th></tr>
+        <tr><td><code>get_procedure_stats</code></td><td>Open/close counts per procedure, most unbalanced first, and what is open now on each thread. <code>unbalanced</code> above 0 means opened more often than closed.</td><td><code>procedure</code>, <code>unbalanced_only</code>, <code>tab</code></td></tr>
+        <tr><td><code>get_procedure_timeline</code></td><td>Opens and closes in order, with call depth and durations.</td><td><code>since_line</code>, <code>procedure</code>, <code>thread</code></td></tr>
+        <tr><td><code>list_queues</code>, <code>get_queue</code></td><td>Queues dumped with UltimateDebug, then their headers and rows.</td><td><code>queue_id</code>, <code>offset</code>, <code>limit</code></td></tr>
+        <tr><td><code>create_procedure_view</code></td><td>A tab (<strong>AI: Proc: &lt;name&gt;</strong>) showing one procedure's lines.</td><td><code>procedure</code></td></tr>
+    </table>
+
+    <h2>Saving</h2>
+    <table>
+        <tr><th>Tool</th><th>What it does</th><th>Main parameters</th></tr>
+        <tr><td><code>save_log</code></td><td>Saves the log, or one program's lines, to a <strong>new</strong> file in the folder you chose in Preferences.</td><td><code>path</code> (file name only), <code>process</code></td></tr>
+        <tr><td><code>save_view</code></td><td>Saves the lines a tab shows.</td><td><code>path</code>, <code>tab</code>, <code>process</code></td></tr>
+    </table>
+    <p>With <strong>A folder per program</strong> on and several programs in the log, a save returns the list of programs, and the assistant asks you which one before saving.</p>
+</body>
+</html>
