@@ -216,8 +216,10 @@ private:
 CHelpTabView::CHelpTabView(const std::wstring& helpTitle)
     : m_helpTitle(helpTitle)
     , m_webViewReady(false)
-    , m_isVisible(true)
+    , m_isVisible(false)
+    , m_webViewStarted(false)
     , m_currentZoomFactor(1.0)
+    , m_alive(std::make_shared<bool>(true))
 {
 }
 
@@ -233,15 +235,18 @@ CHelpTabView::~CHelpTabView()
 void CHelpTabView::Create(HWND parent, const RECT& rc)
 {
     RECT rcCopy = rc;
+    // Created hidden: the tab container shows it with SetVisible(true) when the Help tab is selected.
     CWindowImpl<CHelpTabView>::Create(parent, &rcCopy, NULL,
-        WS_CHILD | WS_VISIBLE | WS_CLIPCHILDREN | WS_CLIPSIBLINGS,
+        WS_CHILD | WS_CLIPCHILDREN | WS_CLIPSIBLINGS,
         WS_EX_CONTROLPARENT);
 }
 
 LRESULT CHelpTabView::OnCreate(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/)
 {
     CreateNavigationToolbar();
-    InitializeWebView();
+    // The browser is started the first time the Help tab is shown (EnsureWebView). Every view tab
+    // has its own Help tab, so starting them all here launched one browser per tab at startup and
+    // made the bottom of the window flicker for seconds.
     return 0;
 }
 
@@ -251,6 +256,24 @@ LRESULT CHelpTabView::OnSize(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/
     return 0;
 }
 
+LRESULT CHelpTabView::OnShowWindow(UINT /*uMsg*/, WPARAM wParam, LPARAM /*lParam*/, BOOL& bHandled)
+{
+    // Also covers a Help tab popped out into its own window.
+    if (wParam != FALSE)
+        EnsureWebView();
+    bHandled = FALSE;
+    return 0;
+}
+
+void CHelpTabView::EnsureWebView()
+{
+    if (m_webViewStarted || !IsWindow())
+        return;
+    m_webViewStarted = true;
+    if (FAILED(InitializeWebView()))
+        m_webViewStarted = false;  // e.g. no WebView2 runtime; try again next time the tab is shown
+}
+
 LRESULT CHelpTabView::OnEraseBkgnd(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/)
 {
     return 1; // Prevent flicker
@@ -258,6 +281,7 @@ LRESULT CHelpTabView::OnEraseBkgnd(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lP
 
 LRESULT CHelpTabView::OnDestroy(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/)
 {
+    *m_alive = false;  // creation callbacks still in flight must not touch this object
     if (m_webView)
     {
         m_webView->remove_NavigationCompleted(m_navigationCompletedToken);
@@ -277,6 +301,8 @@ void CHelpTabView::SetVisible(bool visible)
 {
     m_isVisible = visible;
     ShowWindow(visible ? SW_SHOW : SW_HIDE);
+    if (visible)
+        EnsureWebView();
     if (m_webViewController)
     {
         m_webViewController->put_IsVisible(visible ? TRUE : FALSE);
@@ -352,10 +378,13 @@ HRESULT CHelpTabView::InitializeWebView()
     }
     ::CoTaskMemFree(localAppData);
 
+    auto alive = m_alive;
     HRESULT hr = CreateCoreWebView2EnvironmentWithOptions(nullptr, userDataFolder.empty() ? nullptr : userDataFolder.c_str(), nullptr,
         new EnvCompletedHandler(
-            [this](HRESULT result, ICoreWebView2Environment* environment) -> HRESULT
+            [this, alive](HRESULT result, ICoreWebView2Environment* environment) -> HRESULT
             {
+                if (!*alive)
+                    return S_OK;
                 return OnCreateEnvironmentCompleted(result, environment);
             }));
 
@@ -374,11 +403,18 @@ HRESULT CHelpTabView::OnCreateEnvironmentCompleted(HRESULT result, ICoreWebView2
     GetClientRect(&bounds);
     bounds.top += TOOLBAR_HEIGHT;
 
+    auto alive = m_alive;
     return m_webViewEnvironment->CreateCoreWebView2Controller(
         m_hWnd,
         new ControllerCompletedHandler(
-            [this](HRESULT result, ICoreWebView2Controller* controller) -> HRESULT
+            [this, alive](HRESULT result, ICoreWebView2Controller* controller) -> HRESULT
             {
+                if (!*alive)
+                {
+                    if (controller != nullptr)
+                        controller->Close();
+                    return S_OK;
+                }
                 return OnCreateWebViewControllerCompleted(result, controller);
             }));
 }
@@ -417,6 +453,8 @@ HRESULT CHelpTabView::OnCreateWebViewControllerCompleted(HRESULT result, ICoreWe
     settings->put_AreDevToolsEnabled(FALSE);
 
     m_webViewReady = true;
+    // The user may have switched away while it was starting.
+    m_webViewController->put_IsVisible(m_isVisible && IsWindowVisible() ? TRUE : FALSE);
     ResizeWebView();
 
     // Navigate to home URL if set

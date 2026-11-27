@@ -28,6 +28,7 @@ public:
     BEGIN_MSG_MAP(CHelpTabView)
         MESSAGE_HANDLER(WM_CREATE, OnCreate)
         MESSAGE_HANDLER(WM_SIZE, OnSize)
+        MESSAGE_HANDLER(WM_SHOWWINDOW, OnShowWindow)
         MESSAGE_HANDLER(WM_ERASEBKGND, OnEraseBkgnd)
         MESSAGE_HANDLER(WM_DESTROY, OnDestroy)
         MESSAGE_HANDLER(WM_KEYDOWN, OnKeyDown)
@@ -75,6 +76,7 @@ public:
 protected:
     LRESULT OnCreate(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled);
     LRESULT OnSize(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled);
+    LRESULT OnShowWindow(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled);
     LRESULT OnEraseBkgnd(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled);
     LRESULT OnDestroy(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled);
     LRESULT OnKeyDown(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled);
@@ -106,9 +108,12 @@ private:
     std::wstring m_currentURL;
     bool m_webViewReady;
     bool m_isVisible;
+    bool m_webViewStarted;            // browser creation has begun (it starts when the tab is first shown)
     double m_currentZoomFactor;
+    std::shared_ptr<bool> m_alive;    // false once destroyed; checked by async WebView2 callbacks
 
     // Helper methods
+    void EnsureWebView();
     HRESULT InitializeWebView();
     void ResizeWebView();
     void CreateNavigationToolbar();
