@@ -13,7 +13,7 @@ Guidance for Claude Code (and other agents) working in this repository.
 - a **built-in MCP server** so AI assistants can drive the viewer
 
 - Repo: https://github.com/ClarionLive/UltimateDebugViewPP (public). `main` is the default branch; work happens on `develop` and task branches.
-- Exe: `UltimateDebugviewpp.exe`, version 2.0.0.13 (`application/DebugViewpp/version.h`).
+- Exe: `UltimateDebugviewpp.exe`, version 2.0.0.14 (`application/DebugViewpp/version.h`).
 - Deployed copy (the Owner's shortcut): `C:\Utilities\UltimateDebugPP\UltimateDebugViewPP`. It holds the exe, `fsqlf.dll` and `help\`.
 
 ## Build
