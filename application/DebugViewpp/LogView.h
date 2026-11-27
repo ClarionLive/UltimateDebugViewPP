@@ -12,6 +12,7 @@
 #include "CobaltFusion/stringbuilder.h"
 #include "DebugViewppLib/LogFile.h"
 #include "DebugViewppLib/ClarionProcedureTracker.h"
+#include "DebugViewppLib/ThemeManager.h"
 #include "FilterDlg.h"
 #include "DropTargetSupport.h"
 #include "Win32/Com.h"
@@ -120,6 +121,10 @@ public:
         CDC dc(GetDC());
         RECT rect;
         dc.GetClipBox(&rect);
+
+        // The dark theme paints the header itself (DarkMode.cpp), including its bottom line
+        if (fusion::debugviewpp::ThemeManager::Instance().IsDarkTheme())
+            return;
 
         CPen graypen(CreatePen(PS_SOLID, 1, RGB(208, 212, 208)));
         dc.SelectPen(graypen);

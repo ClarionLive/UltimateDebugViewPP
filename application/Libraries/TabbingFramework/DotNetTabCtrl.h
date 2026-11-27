@@ -111,6 +111,7 @@
 #ifndef __CUSTOMTABCTRL_H__
 #include "CustomTabCtrl.h"
 #endif
+#include "DebugViewppLib/ThemeManager.h"
 
 // NOTE: If you are compiling under VC7, be sure to put the following in
 // your precompiled header:
@@ -793,6 +794,24 @@ public:
 		lpNMCustomDraw->clrHighlightHotTrack = ::GetSysColor(COLOR_HIGHLIGHT);
 #endif
 		lpNMCustomDraw->clrHighlightText = ::GetSysColor(COLOR_HIGHLIGHTTEXT);
+
+		// Dark theme: the colours are taken from the application theme instead of the system colours
+		if (fusion::debugviewpp::ThemeManager::Instance().IsDarkTheme())
+		{
+			const auto& colors = fusion::debugviewpp::ThemeManager::Instance().GetColors();
+			static HBRUSH s_hbrDarkTab = ::CreateSolidBrush(colors.tabBackground);
+			lpNMCustomDraw->hBrushBackground = s_hbrDarkTab;
+			lpNMCustomDraw->clrTextSelected = colors.tabText;
+			lpNMCustomDraw->clrTextInactive = RGB(160, 160, 160);
+			lpNMCustomDraw->clrSelectedTab = colors.background;
+			lpNMCustomDraw->clrBtnFace = colors.background;
+			lpNMCustomDraw->clrBtnShadow = RGB(85, 85, 85);
+			lpNMCustomDraw->clrBtnHighlight = RGB(85, 85, 85);
+			lpNMCustomDraw->clrBtnText = colors.tabText;
+			lpNMCustomDraw->clrHighlight = colors.itemHighlight;
+			lpNMCustomDraw->clrHighlightHotTrack = RGB(255, 255, 255);
+			lpNMCustomDraw->clrHighlightText = RGB(255, 255, 255);
+		}
 	}
 
 	void DoPrePaint(RECT rcClient, LPNMCTCCUSTOMDRAW lpNMCustomDraw)

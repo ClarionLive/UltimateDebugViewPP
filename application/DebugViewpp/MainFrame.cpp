@@ -428,7 +428,13 @@ LRESULT CMainFrame::OnCreate(const CREATESTRUCT* /*pCreate*/)
 {
     m_notifyIconData.cbSize = 0;
 
+    // Dark mode: install the hooks before the first control is created so every control is themed on creation
+    DarkMode::Initialize();
+
     HWND hWndCmdBar = m_cmdBar.Create(*this, rcDefault, nullptr, ATL_SIMPLE_CMDBAR_PANE_STYLE);
+    // Must come after the command bar is created: the command bar subclasses the frame to draw its hot
+    // buttons, and the dark mode hook has to sit on top of that subclass to take precedence.
+    DarkMode::InstallFrameHooks(m_hWnd);
     m_cmdBar.AttachMenu(GetMenu());
     m_cmdBar.LoadImages(IDR_MAINFRAME);
     SetMenu(nullptr); // disable second menu bar
@@ -495,25 +501,10 @@ LRESULT CMainFrame::OnCreate(const CREATESTRUCT* /*pCreate*/)
     Colors::UpdateThemeColors();
     themeManager.ApplyToWindow(m_hWnd);
     UISetCheck(ID_VIEW_DARKMODE, themeManager.IsDarkTheme());
-    
-    // Apply dark mode to toolbar and status bar if needed
-    if (themeManager.IsDarkTheme())
-    {
-        // Apply dark theme to status bar
-        if (m_hWndStatusBar)
-        {
-            themeManager.ApplyToWindow(m_hWndStatusBar);
-            ::SendMessage(m_hWndStatusBar, SB_SETBKCOLOR, 0, RGB(45, 45, 45));
-            ::InvalidateRect(m_hWndStatusBar, nullptr, TRUE);
-        }
-        
-        // Note: We're NOT applying dark theme to the rebar/toolbar because
-        // the "Find:" label text becomes invisible in dark mode due to Windows limitations.
-        // The rebar will remain in light mode for better usability.
-        
-        // Find dialog no longer needs custom theme handling
-    }
-    
+
+    // Dark mode for the whole window: menus, toolbars, tabs, list headers, status bar, scroll bars
+    DarkMode::Refresh(m_hWnd);
+
     // Apply expanded toolbar state if it was previously enabled
     if (m_expandedToolbar)
     {
@@ -2551,10 +2542,13 @@ void CMainFrame::AddFilterView(std::shared_ptr<CLogView> logview)
     pRawTabItem->SetDetailLineNumbers(m_newViewDefaults.detailLineNumbers);
     
     // Apply theme if not system default
+    bool themeChanged = false;
     if (m_newViewDefaults.defaultTheme != Theme::System)
     {
+        const bool wasDark = ThemeManager::Instance().IsDarkTheme();
         ThemeManager::Instance().SetTheme(m_newViewDefaults.defaultTheme);
         Colors::UpdateThemeColors();
+        themeChanged = (wasDark != ThemeManager::Instance().IsDarkTheme());
     }
 
     // notice: InsertItem takes ownership of the raw pointer, DeleteItem calls delete
@@ -2564,9 +2558,12 @@ void CMainFrame::AddFilterView(std::shared_ptr<CLogView> logview)
     m_bProgrammaticTabChange = true;
     GetTabCtrl().SetCurSel(newIndex);
     m_bProgrammaticTabChange = false;
-    
+
     ShowTabControl();
     UpdateViewTabCloseStates();
+
+    if (themeChanged)
+        DarkMode::Refresh(m_hWnd);
 }
 
 void CMainFrame::AddPlusTab()
@@ -4087,36 +4084,10 @@ void CMainFrame::OnViewDarkMode(UINT /*uNotifyCode*/, int /*nID*/, CWindow /*wnd
     
     // Apply theme to main window
     themeManager.ApplyToWindow(m_hWnd);
-    
-    // Note: We're NOT applying dark theme to the rebar/toolbar because
-    // the "Find:" label text becomes invisible in dark mode due to Windows limitations.
-    // Just refresh the rebar to ensure it's properly displayed
-    if (m_hWndToolBar)
-    {
-        ::InvalidateRect(m_hWndToolBar, nullptr, TRUE);
-        ::UpdateWindow(m_hWndToolBar);
-    }
-    
-    // Update status bar colors
-    if (m_hWndStatusBar)
-    {
-        if (themeManager.IsDarkTheme())
-        {
-            // Apply dark theme to status bar
-            themeManager.ApplyToWindow(m_hWndStatusBar);
-            
-            // Set dark background color for status bar
-            ::SendMessage(m_hWndStatusBar, SB_SETBKCOLOR, 0, RGB(45, 45, 45));
-        }
-        else
-        {
-            // Reset to default colors
-            ::SendMessage(m_hWndStatusBar, SB_SETBKCOLOR, 0, CLR_DEFAULT);
-        }
-        
-        ::InvalidateRect(m_hWndStatusBar, nullptr, TRUE);
-    }
-    
+
+    // Menus, toolbars, rebar, tabs, list headers, scroll bars, status bar and open dialogs
+    DarkMode::Refresh(m_hWnd);
+
     // Refresh all views and detail panes (only actual views, not the "+" tab)
     for (int i = 0; i < GetActualViewCount(); ++i)
     {

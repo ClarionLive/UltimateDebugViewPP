@@ -38,6 +38,7 @@ using ATL::CString;
 #include "DebugViewppLib/LogSources.h"
 #include "DebugViewppLib/FileWriter.h"
 #include "CLogViewTabItem2.h"
+#include "DarkCommandBar.h"
 #include "ClarionProcedureView.h"
 #include "FloatingMainTabWindow.h"
 #include "FindDlg.h"
@@ -293,7 +294,7 @@ private:
     void WriteDriverFromResource();
     void RemoveDriver();
 
-    CCommandBarCtrl m_cmdBar;
+    CDarkCommandBarCtrl m_cmdBar;
     CMultiPaneStatusBarCtrl m_statusBar;
 
     LogFile m_logFile;
