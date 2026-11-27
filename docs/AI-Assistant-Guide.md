@@ -111,7 +111,7 @@ How saving behaves:
 
 ## 6. Privacy and security
 
-- **Local only:** the server listens on `127.0.0.1`, and requests from web pages on other sites are refused.
+- **Local only:** the server listens on `127.0.0.1`, and requests from web pages are refused, even pages served from your own computer.
 - **Your Windows user only:** for every connection the viewer checks which program is on the other end. Programs running as another Windows user are refused, and so are sandboxed programs running as you (low integrity or AppContainer, such as a browser's web page process). Any ordinary program you run yourself can connect, the same as it could read your files.
 - **Access token (optional):** tick **Also require an access token** if you also want a secret.
 - **Masking:** on by default. Values of `PWD=`, `Password=` / `"password":`, `secret`, `token`, `api_key`, `Bearer …` and passwords in URLs (`user:pass@host`) reach the assistant as `***`. Its searches only see the masked text. This is **best effort**; it cannot recognise every kind of secret. Your own view of the log is never changed.

@@ -94,7 +94,21 @@ CommandResult RunCommand(const std::wstring& command, const std::wstring& config
         ::CloseHandle(nul);
         return result;
     }
-    ::UpdateProcThreadAttribute(attributes, 0, PROC_THREAD_ATTRIBUTE_HANDLE_LIST, &nul, sizeof(nul), nullptr, nullptr);
+    if (::UpdateProcThreadAttribute(attributes, 0, PROC_THREAD_ATTRIBUTE_HANDLE_LIST, &nul, sizeof(nul), nullptr, nullptr) == FALSE)
+    {
+        ::DeleteProcThreadAttributeList(attributes);
+        ::CloseHandle(nul);
+        return result;
+    }
+
+    // A job, so a timeout ends the whole tree (cmd, node, claude), not only cmd.
+    HANDLE job = ::CreateJobObjectW(nullptr, nullptr);
+    if (job != nullptr)
+    {
+        JOBOBJECT_EXTENDED_LIMIT_INFORMATION limits = {};
+        limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+        ::SetInformationJobObject(job, JobObjectExtendedLimitInformation, &limits, sizeof(limits));
+    }
 
     STARTUPINFOEXW si = {};
     si.StartupInfo.cb = sizeof(si);
@@ -105,26 +119,41 @@ CommandResult RunCommand(const std::wstring& command, const std::wstring& config
     si.StartupInfo.hStdError = nul;
     si.lpAttributeList = attributes;
 
-    std::wstring profile = GetEnv(L"USERPROFILE");
+    // Start in the system folder: cmd looks for claude.cmd / codex.cmd in the current folder before PATH.
+    wchar_t systemDir[MAX_PATH] = {};
+    UINT systemDirLength = ::GetSystemDirectoryW(systemDir, MAX_PATH);
     PROCESS_INFORMATION pi = {};
-    BOOL started = ::CreateProcessW(nullptr, commandLine.data(), nullptr, nullptr, TRUE, CREATE_NO_WINDOW | CREATE_UNICODE_ENVIRONMENT | EXTENDED_STARTUPINFO_PRESENT,
-        environment.data(), profile.empty() ? nullptr : profile.c_str(), &si.StartupInfo, &pi);
+    BOOL started = ::CreateProcessW(nullptr, commandLine.data(), nullptr, nullptr, TRUE,
+        CREATE_NO_WINDOW | CREATE_UNICODE_ENVIRONMENT | EXTENDED_STARTUPINFO_PRESENT | CREATE_SUSPENDED, environment.data(),
+        systemDirLength > 0 && systemDirLength < MAX_PATH ? systemDir : nullptr, &si.StartupInfo, &pi);
     ::DeleteProcThreadAttributeList(attributes);
     ::CloseHandle(nul);
     if (started == FALSE)
+    {
+        if (job != nullptr)
+            ::CloseHandle(job);
         return result;
+    }
 
+    if (job != nullptr)
+        ::AssignProcessToJobObject(job, pi.hProcess);
+    ::ResumeThread(pi.hThread);
     ::CloseHandle(pi.hThread);
     if (::WaitForSingleObject(pi.hProcess, CommandTimeoutMs) == WAIT_TIMEOUT)
     {
         result.timedOut = true;
-        ::TerminateProcess(pi.hProcess, 1);
+        if (job != nullptr)
+            ::TerminateJobObject(job, 1);
+        else
+            ::TerminateProcess(pi.hProcess, 1);
     }
     else
     {
         ::GetExitCodeProcess(pi.hProcess, &result.exitCode);
     }
     ::CloseHandle(pi.hProcess);
+    if (job != nullptr)
+        ::CloseHandle(job);  // KILL_ON_JOB_CLOSE: also ends anything cmd left running
     return result;
 }
 

@@ -84,16 +84,6 @@ bool IsLoopbackHost(std::string_view host)
     return false;
 }
 
-bool IsLoopbackOrigin(std::string_view origin)
-{
-    for (std::string_view scheme : {"http://", "https://"})
-    {
-        if (StartsWith(origin, scheme))
-            return IsLoopbackHost(origin.substr(scheme.size()));
-    }
-    return false;
-}
-
 bool ConstantTimeEquals(std::string_view a, std::string_view b)
 {
     unsigned char diff = static_cast<unsigned char>(a.size() != b.size());
@@ -194,18 +184,15 @@ PeerCheck CheckProcessUserFromSystem(DWORD pid, const Sid& expectedUser)
     return result;
 }
 
-PeerCheck CheckProcess(DWORD pid, const Sid& expectedUser)
+PeerCheck CheckProcess(HANDLE process, DWORD pid, const Sid& expectedUser)
 {
-    if (pid == 0 || pid == 4 || expectedUser.empty())  // System Idle / System
-        return PeerCheck::Unknown;
-    HANDLE process = ::OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
-    if (process == nullptr)
-        return CheckProcessUserFromSystem(pid, expectedUser);
     HANDLE token = nullptr;
-    BOOL opened = ::OpenProcessToken(process, TOKEN_QUERY, &token);
-    ::CloseHandle(process);
-    if (opened == FALSE)
-        return CheckProcessUserFromSystem(pid, expectedUser);
+    if (::OpenProcessToken(process, TOKEN_QUERY, &token) == FALSE)
+    {
+        // The process could be opened but not its token: an elevated client seen from a non-elevated
+        // viewer. Anything else stays unidentified.
+        return ::GetLastError() == ERROR_ACCESS_DENIED ? CheckProcessUserFromSystem(pid, expectedUser) : PeerCheck::Unknown;
+    }
     PeerCheck result = CheckToken(token, expectedUser);
     ::CloseHandle(token);
     return result;
@@ -253,7 +240,19 @@ PeerCheck CheckPeer(tcp::socket& socket, const Sid& expectedUser)
     auto local = socket.local_endpoint(ec);
     if (ec)
         return PeerCheck::Unknown;
-    return CheckProcess(PeerProcessId(peer, local), expectedUser);
+    DWORD pid = PeerProcessId(peer, local);
+    if (pid == 0 || pid == 4 || expectedUser.empty())  // System Idle / System
+        return PeerCheck::Unknown;
+    HANDLE process = ::OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
+    if (process == nullptr)
+        return PeerCheck::Unknown;
+    PeerCheck result = CheckProcess(process, pid, expectedUser);
+    // The open handle keeps the pid from being reused. If the connection still belongs to that pid,
+    // the process just checked is the one on the other end (and not a newcomer that took over the pid).
+    if (result == PeerCheck::SameUser && PeerProcessId(peer, local) != pid)
+        result = PeerCheck::Unknown;
+    ::CloseHandle(process);
+    return result;
 }
 
 json::object RpcError(const json::value& id, int code, const std::string& message)
@@ -439,13 +438,15 @@ http::response<http::string_body> McpServer::Impl::HandleHttp(const http::reques
     if (target != "/mcp" && target != "/")
         return reply(http::status::not_found, "text/plain", "Not found. The MCP endpoint is /mcp");
 
-    // DNS-rebinding guard: only loopback hosts and origins.
+    // DNS-rebinding guard: only loopback hosts.
     auto host = req[http::field::host];
     if (!host.empty() && !IsLoopbackHost(std::string_view(host.data(), host.size())))
         return reply(http::status::forbidden, "text/plain", "Forbidden host");
-    auto origin = req[http::field::origin];
-    if (!origin.empty() && !IsLoopbackOrigin(std::string_view(origin.data(), origin.size())))
-        return reply(http::status::forbidden, "text/plain", "Forbidden origin");
+    // No web page may talk to the server, not even one served from localhost: a browser runs as the
+    // same user, so the peer check alone would let any local page send blind requests. Browsers always
+    // send Origin on such requests; MCP clients (Claude Code, Codex) do not.
+    if (req.find(http::field::origin) != req.end())
+        return reply(http::status::forbidden, "text/plain", "Forbidden: requests from web pages are not accepted");
 
     // Loopback is reachable by every local process and user: only processes running as the same
     // Windows user as the viewer (and not sandboxed) may connect.
@@ -474,6 +475,20 @@ http::response<http::string_body> McpServer::Impl::HandleHttp(const http::reques
         auto res = reply(http::status::method_not_allowed, "text/plain", "Use POST (this server does not offer an SSE stream)");
         res.set(http::field::allow, "POST");
         return res;
+    }
+
+    // application/json is not a "simple" content type, so a browser would have to ask first (CORS
+    // preflight), which this server never allows.
+    {
+        auto contentType = req[http::field::content_type];
+        std::string type(contentType.data(), contentType.size());
+        type = type.substr(0, type.find(';'));
+        while (!type.empty() && type.back() == ' ')
+            type.pop_back();
+        for (auto& c : type)
+            c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+        if (type != "application/json")
+            return reply(http::status::unsupported_media_type, "text/plain", "Content-Type must be application/json");
     }
 
     boost::system::error_code ec;
