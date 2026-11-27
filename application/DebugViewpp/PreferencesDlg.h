@@ -201,6 +201,9 @@ private:
         CEdit m_previewEdit;
     };
 
+    // Posted by the agent setup worker; lParam is a heap std::wstring with the report.
+    static constexpr UINT WM_MCP_AGENTS_DONE = WM_APP + 0x51;
+
     // Tab page for the MCP (AI assistant) server
     class CMcpPage : public CDialogImpl<CMcpPage>
     {
@@ -217,6 +220,10 @@ private:
             COMMAND_ID_HANDLER_EX(IDC_MCP_EXPORT_BROWSE, OnBrowseExport)
             COMMAND_ID_HANDLER_EX(IDC_MCP_EXPORT_DOCS, OnExportModeChange)
             COMMAND_ID_HANDLER_EX(IDC_MCP_EXPORT_CUSTOM, OnExportModeChange)
+            COMMAND_ID_HANDLER_EX(IDC_MCP_REQUIRE_TOKEN, OnRequireTokenChange)
+            COMMAND_ID_HANDLER_EX(IDC_MCP_SETUP_AGENTS, OnSetupAgents)
+            COMMAND_ID_HANDLER_EX(IDC_MCP_REMOVE_AGENTS, OnRemoveAgents)
+            MESSAGE_HANDLER_EX(WM_MCP_AGENTS_DONE, OnAgentsDone)
         END_MSG_MAP()
 
         LRESULT OnInitDialog(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled);
@@ -227,11 +234,18 @@ private:
         void OnChange(UINT uNotifyCode, int nID, CWindow wndCtl);
         void OnBrowseExport(UINT uNotifyCode, int nID, CWindow wndCtl);
         void OnExportModeChange(UINT uNotifyCode, int nID, CWindow wndCtl);
+        void OnRequireTokenChange(UINT uNotifyCode, int nID, CWindow wndCtl);
+        void OnSetupAgents(UINT uNotifyCode, int nID, CWindow wndCtl);
+        void OnRemoveAgents(UINT uNotifyCode, int nID, CWindow wndCtl);
+        LRESULT OnAgentsDone(UINT uMsg, WPARAM wParam, LPARAM lParam);
+        void RunAgentJob(bool setUp, int port, const std::wstring& token);
         void UpdateExportControls();
+        void UpdateTokenControls();
         void UpdateUrl();
 
     private:
         CPreferencesDlg& m_parent;
+        bool m_enabledBySetup = false;
     };
 
     void CreateTabPages();

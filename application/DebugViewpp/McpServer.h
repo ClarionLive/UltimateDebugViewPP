@@ -17,7 +17,8 @@ class McpToolRegistry;
 struct McpServerConfig
 {
     unsigned short port = 7777;
-    std::string token;          // empty = no bearer token required
+    bool requireToken = false;  // also require "Authorization: Bearer <token>" (16+ characters)
+    std::string token;
     std::string serverVersion;  // reported in initialize
     // Runs fn on the UI thread (asynchronously). Returns false if it could not be queued.
     std::function<bool(std::function<void()>)> postToUi;

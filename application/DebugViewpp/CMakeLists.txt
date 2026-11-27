@@ -19,6 +19,7 @@ add_executable(UltimateDebugviewpp
     HistoryDlg.cpp
     LogView.cpp
     MainFrame.cpp
+    McpAgentSetup.cpp
     McpServer.cpp
     McpTools.cpp
     ModernToolbar.cpp

@@ -249,8 +249,8 @@ void CMainFrame::StartMcpServer()
         return;
     }
 
-    // The server never runs without a token; create one the first time it is needed.
-    if (m_mcpSettings.token.size() < McpMinTokenLength)
+    // Create a token the first time one is required.
+    if (m_mcpSettings.requireToken && m_mcpSettings.token.size() < McpMinTokenLength)
     {
         m_mcpSettings.token = GenerateMcpToken();
         CRegKey reg;
@@ -272,6 +272,7 @@ void CMainFrame::StartMcpServer()
 
     McpServerConfig config;
     config.port = static_cast<unsigned short>(m_mcpSettings.port);
+    config.requireToken = m_mcpSettings.requireToken;
     config.token = WideToUtf8(m_mcpSettings.token);
     config.serverVersion = VERSION_STR;
     HWND hwnd = m_hWnd;
@@ -1404,6 +1405,7 @@ bool CMainFrame::LoadSettings()
     // MCP server settings (server is started at the end of OnCreate)
     m_mcpSettings.enabled = Win32::RegGetDWORDValue(reg, L"McpEnabled", 0) != 0;
     m_mcpSettings.port = std::clamp(static_cast<int>(Win32::RegGetDWORDValue(reg, L"McpPort", 7777)), 1, 65535);
+    m_mcpSettings.requireToken = Win32::RegGetDWORDValue(reg, L"McpRequireToken", 0) != 0;
     m_mcpSettings.token = Win32::RegGetStringValue(reg, L"McpToken", L"");
     m_mcpSettings.maskSecrets = Win32::RegGetDWORDValue(reg, L"McpMaskSecrets", 1) != 0;
     m_mcpSettings.exportMode = Win32::RegGetDWORDValue(reg, L"McpExportMode", 0) == 1 ? McpExportMode::Folder : McpExportMode::Documents;
@@ -1441,6 +1443,7 @@ void CMainFrame::SaveSettings()
     reg.SetDWORDValue(L"ExpandedToolbar", static_cast<DWORD>(m_expandedToolbar));
     reg.SetDWORDValue(L"McpEnabled", static_cast<DWORD>(m_mcpSettings.enabled));
     reg.SetDWORDValue(L"McpPort", static_cast<DWORD>(m_mcpSettings.port));
+    reg.SetDWORDValue(L"McpRequireToken", static_cast<DWORD>(m_mcpSettings.requireToken));
     reg.SetStringValue(L"McpToken", m_mcpSettings.token.c_str());
     reg.SetDWORDValue(L"McpMaskSecrets", static_cast<DWORD>(m_mcpSettings.maskSecrets));
     reg.SetDWORDValue(L"McpExportMode", static_cast<DWORD>(m_mcpSettings.exportMode));

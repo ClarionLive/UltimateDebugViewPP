@@ -17,9 +17,16 @@
 #include <mutex>
 #include <optional>
 #include <thread>
+#include <vector>
+
+#include <iphlpapi.h>
+#include <wtsapi32.h>
 
 #include "McpServer.h"
 #include "McpTools.h"
+
+#pragma comment(lib, "iphlpapi.lib")
+#pragma comment(lib, "wtsapi32.lib")
 
 namespace fusion {
 namespace debugviewpp {
@@ -97,6 +104,158 @@ bool ConstantTimeEquals(std::string_view a, std::string_view b)
     return diff == 0;
 }
 
+using Sid = std::vector<BYTE>;
+
+// Who is on the other end of a connection, decided once when it is accepted.
+enum class PeerCheck
+{
+    SameUser,
+    OtherUser,  // a different Windows user, or a sandboxed / low-integrity process
+    Unknown,    // the process or its user could not be found
+};
+
+Sid CopySid(PSID sid)
+{
+    if (sid == nullptr || ::IsValidSid(sid) == FALSE)
+        return {};
+    auto* bytes = static_cast<const BYTE*>(sid);
+    return Sid(bytes, bytes + ::GetLengthSid(sid));
+}
+
+bool SameSid(const Sid& a, const Sid& b)
+{
+    return !a.empty() && !b.empty() && ::EqualSid(const_cast<BYTE*>(a.data()), const_cast<BYTE*>(b.data())) != FALSE;
+}
+
+std::vector<BYTE> TokenInfo(HANDLE token, TOKEN_INFORMATION_CLASS infoClass)
+{
+    DWORD size = 0;
+    ::GetTokenInformation(token, infoClass, nullptr, 0, &size);
+    if (size == 0)
+        return {};
+    std::vector<BYTE> buffer(size);
+    if (::GetTokenInformation(token, infoClass, buffer.data(), size, &size) == FALSE)
+        return {};
+    return buffer;
+}
+
+// The user of a token, provided it is not sandboxed: AppContainer and below-medium integrity
+// processes (browser renderers, for example) run as the same user but must not drive the viewer.
+PeerCheck CheckToken(HANDLE token, const Sid& expectedUser)
+{
+    auto user = TokenInfo(token, TokenUser);
+    if (user.empty())
+        return PeerCheck::Unknown;
+    if (!SameSid(CopySid(reinterpret_cast<TOKEN_USER*>(user.data())->User.Sid), expectedUser))
+        return PeerCheck::OtherUser;
+
+    DWORD isAppContainer = 0;
+    DWORD size = sizeof(isAppContainer);
+    if (::GetTokenInformation(token, TokenIsAppContainer, &isAppContainer, size, &size) == FALSE || isAppContainer != 0)
+        return PeerCheck::OtherUser;
+
+    auto label = TokenInfo(token, TokenIntegrityLevel);
+    if (label.empty())
+        return PeerCheck::Unknown;
+    PSID labelSid = reinterpret_cast<TOKEN_MANDATORY_LABEL*>(label.data())->Label.Sid;
+    DWORD rid = *::GetSidSubAuthority(labelSid, *::GetSidSubAuthorityCount(labelSid) - 1);
+    return rid >= SECURITY_MANDATORY_MEDIUM_RID ? PeerCheck::SameUser : PeerCheck::OtherUser;
+}
+
+Sid CurrentUserSid()
+{
+    HANDLE token = nullptr;
+    if (::OpenProcessToken(::GetCurrentProcess(), TOKEN_QUERY, &token) == FALSE)
+        return {};
+    auto user = TokenInfo(token, TokenUser);
+    ::CloseHandle(token);
+    return user.empty() ? Sid() : CopySid(reinterpret_cast<TOKEN_USER*>(user.data())->User.Sid);
+}
+
+// Fallback when the client's token cannot be opened (an elevated client seen from a non-elevated
+// viewer): Windows reports the user of every process in the session without needing a handle.
+PeerCheck CheckProcessUserFromSystem(DWORD pid, const Sid& expectedUser)
+{
+    DWORD level = 1;
+    WTS_PROCESS_INFO_EXW* processes = nullptr;
+    DWORD count = 0;
+    if (::WTSEnumerateProcessesExW(WTS_CURRENT_SERVER_HANDLE, &level, WTS_ANY_SESSION, reinterpret_cast<LPWSTR*>(&processes), &count) == FALSE)
+        return PeerCheck::Unknown;
+    PeerCheck result = PeerCheck::Unknown;
+    for (DWORD i = 0; i < count; ++i)
+    {
+        if (processes[i].ProcessId == pid)
+        {
+            result = SameSid(CopySid(processes[i].pUserSid), expectedUser) ? PeerCheck::SameUser : PeerCheck::OtherUser;
+            break;
+        }
+    }
+    ::WTSFreeMemoryExW(WTSTypeProcessInfoLevel1, processes, count);
+    return result;
+}
+
+PeerCheck CheckProcess(DWORD pid, const Sid& expectedUser)
+{
+    if (pid == 0 || pid == 4 || expectedUser.empty())  // System Idle / System
+        return PeerCheck::Unknown;
+    HANDLE process = ::OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
+    if (process == nullptr)
+        return CheckProcessUserFromSystem(pid, expectedUser);
+    HANDLE token = nullptr;
+    BOOL opened = ::OpenProcessToken(process, TOKEN_QUERY, &token);
+    ::CloseHandle(process);
+    if (opened == FALSE)
+        return CheckProcessUserFromSystem(pid, expectedUser);
+    PeerCheck result = CheckToken(token, expectedUser);
+    ::CloseHandle(token);
+    return result;
+}
+
+// The process owning the client end of an IPv4 loopback connection, or 0. The client's row has
+// local = the peer's address and port and remote = our address and port.
+DWORD PeerProcessId(const tcp::endpoint& peer, const tcp::endpoint& local)
+{
+    if (!peer.address().is_v4() || !local.address().is_v4())
+        return 0;
+    std::vector<BYTE> buffer;
+    ULONG size = 16 * 1024;
+    DWORD status = ERROR_INSUFFICIENT_BUFFER;
+    for (int attempt = 0; attempt < 5 && status == ERROR_INSUFFICIENT_BUFFER; ++attempt)
+    {
+        size += 4 * 1024;  // the table can grow between the two calls
+        buffer.resize(size);
+        status = ::GetExtendedTcpTable(buffer.data(), &size, FALSE, AF_INET, TCP_TABLE_OWNER_PID_CONNECTIONS, 0);
+    }
+    if (status != NO_ERROR)
+        return 0;
+
+    const DWORD peerAddress = ::htonl(peer.address().to_v4().to_uint());
+    const DWORD localAddress = ::htonl(local.address().to_v4().to_uint());
+    const auto* table = reinterpret_cast<const MIB_TCPTABLE_OWNER_PID*>(buffer.data());
+    for (DWORD i = 0; i < table->dwNumEntries; ++i)
+    {
+        const auto& row = table->table[i];
+        if (row.dwState == MIB_TCP_STATE_ESTAB && row.dwLocalAddr == peerAddress && row.dwRemoteAddr == localAddress &&
+            ::ntohs(static_cast<u_short>(row.dwLocalPort)) == peer.port() && ::ntohs(static_cast<u_short>(row.dwRemotePort)) == local.port())
+        {
+            return row.dwOwningPid;
+        }
+    }
+    return 0;
+}
+
+PeerCheck CheckPeer(tcp::socket& socket, const Sid& expectedUser)
+{
+    boost::system::error_code ec;
+    auto peer = socket.remote_endpoint(ec);
+    if (ec)
+        return PeerCheck::Unknown;
+    auto local = socket.local_endpoint(ec);
+    if (ec)
+        return PeerCheck::Unknown;
+    return CheckProcess(PeerProcessId(peer, local), expectedUser);
+}
+
 json::object RpcError(const json::value& id, int code, const std::string& message)
 {
     return json::object{{"jsonrpc", "2.0"}, {"id", id}, {"error", json::object{{"code", code}, {"message", message}}}};
@@ -145,13 +304,14 @@ struct McpServer::Impl
     std::atomic<bool> running{false};
     std::atomic<bool> stopping{false};
     unsigned short port = 0;
+    Sid userSid;  // the Windows user the viewer runs as; only that user's processes may connect
     std::mutex connectionsMutex;
     std::list<Connection> connections;
 
     void AcceptLoop();
     void ReapFinished();
     void Serve(std::shared_ptr<tcp::socket> socket, std::shared_ptr<std::atomic<bool>> done);
-    http::response<http::string_body> HandleHttp(const http::request<http::string_body>& req);
+    http::response<http::string_body> HandleHttp(const http::request<http::string_body>& req, PeerCheck peer);
     std::optional<json::value> HandleRpc(const json::object& message);
     json::value CallTool(const json::object& params);
     json::value RunOnUi(std::function<json::value()> fn);
@@ -218,6 +378,8 @@ void McpServer::Impl::Serve(std::shared_ptr<tcp::socket> socket, std::shared_ptr
     beast::flat_buffer buffer;
     boost::system::error_code ec;
     bool authenticated = false;
+    // The connection belongs to one client process for its whole life, so check it once.
+    const PeerCheck peer = CheckPeer(*socket, userSid);
     while (!stopping)
     {
         http::request_parser<http::string_body> parser;
@@ -230,7 +392,7 @@ void McpServer::Impl::Serve(std::shared_ptr<tcp::socket> socket, std::shared_ptr
         http::response<http::string_body> res;
         try
         {
-            res = HandleHttp(req);
+            res = HandleHttp(req, peer);
         }
         catch (const std::exception& ex)
         {
@@ -238,7 +400,7 @@ void McpServer::Impl::Serve(std::shared_ptr<tcp::socket> socket, std::shared_ptr
             res.set(http::field::content_type, "text/plain");
             res.body() = ex.what();
         }
-        // Only a successful (2xx) response proves the client holds the token; before that, any other
+        // Only a successful (2xx) response proves the client passed the checks; before that, any other
         // response closes the connection so it cannot keep a slot under the long idle timeout.
         bool success = res.result_int() >= 200 && res.result_int() < 300;
         res.keep_alive(req.keep_alive() && (success || authenticated));
@@ -258,7 +420,7 @@ void McpServer::Impl::Serve(std::shared_ptr<tcp::socket> socket, std::shared_ptr
     done->store(true);
 }
 
-http::response<http::string_body> McpServer::Impl::HandleHttp(const http::request<http::string_body>& req)
+http::response<http::string_body> McpServer::Impl::HandleHttp(const http::request<http::string_body>& req, PeerCheck peer)
 {
     auto reply = [&req](http::status status, const std::string& contentType, std::string body) {
         http::response<http::string_body> res(status, req.version());
@@ -285,7 +447,17 @@ http::response<http::string_body> McpServer::Impl::HandleHttp(const http::reques
     if (!origin.empty() && !IsLoopbackOrigin(std::string_view(origin.data(), origin.size())))
         return reply(http::status::forbidden, "text/plain", "Forbidden origin");
 
-    // Every request must carry the token: loopback is reachable by every local process and user.
+    // Loopback is reachable by every local process and user: only processes running as the same
+    // Windows user as the viewer (and not sandboxed) may connect.
+    if (peer != PeerCheck::SameUser)
+    {
+        return reply(http::status::forbidden, "text/plain",
+            peer == PeerCheck::OtherUser ? "Forbidden: only programs running as the same Windows user as Ultimate DebugView++ may connect"
+                                         : "Forbidden: the connecting program could not be identified");
+    }
+
+    // Optional extra: a bearer token as well.
+    if (config.requireToken)
     {
         auto auth = req[http::field::authorization];
         std::string expected = "Bearer " + config.token;
@@ -476,12 +648,18 @@ McpServer::~McpServer()
 bool McpServer::Start(const McpServerConfig& config, std::string& error)
 {
     Stop();
-    if (config.token.size() < 16)
+    if (config.requireToken && config.token.size() < 16)
     {
         error = "an access token of at least 16 characters is required";
         return false;
     }
     auto& impl = *m_impl;
+    impl.userSid = CurrentUserSid();
+    if (impl.userSid.empty())
+    {
+        error = "could not read the current Windows user";
+        return false;
+    }
     impl.config = config;
     impl.stopping = false;
     try

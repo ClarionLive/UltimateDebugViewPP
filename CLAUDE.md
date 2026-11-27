@@ -56,9 +56,9 @@ cmake --build build --config Release --target UltimateDebugviewpp -- -m:4 -v:m
 
 ## MCP server (AI assistants)
 
-- Files: `McpServer.*` (HTTP/JSON-RPC), `McpTools.*` (30 tools; `McpBridge` is a friend of `CMainFrame` and `CLogView`), `McpSettings.h`, the AI / MCP page in `PreferencesDlg.*`.
-- Streamable HTTP on `127.0.0.1:7777/mcp`. It is off by default, a bearer token is required, and Host/Origin are checked. Tool calls are marshalled to the UI thread (`WM_MCP_CALL`) with claim/cancel and held while a modal dialog is open.
-- Registry keys: `McpEnabled`, `McpPort`, `McpToken`, `McpMaskSecrets`, `McpExportMode`, `McpExportFolder`, `McpExportSubfolder`, `McpExportPerApp`.
+- Files: `McpServer.*` (HTTP/JSON-RPC), `McpTools.*` (30 tools; `McpBridge` is a friend of `CMainFrame` and `CLogView`), `McpSettings.h`, `McpAgentSetup.*` (the *Set up my AI agents* button: `claude mcp add --scope user` per Claude profile, `codex mcp add --url`), the AI / MCP page in `PreferencesDlg.*`.
+- Streamable HTTP on `127.0.0.1:7777/mcp`. It is off by default and Host/Origin are checked. Each connection's peer process is looked up (`GetExtendedTcpTable`) and must run as the same Windows user, not AppContainer, at medium integrity or above. The bearer token is optional (`McpRequireToken`). Tool calls are marshalled to the UI thread (`WM_MCP_CALL`) with claim/cancel and held while a modal dialog is open.
+- Registry keys: `McpEnabled`, `McpPort`, `McpRequireToken`, `McpToken`, `McpMaskSecrets`, `McpExportMode`, `McpExportFolder`, `McpExportSubfolder`, `McpExportPerApp`.
 - Security rules any change must keep:
   - Save tools write **new files only**, through one verified handle, into the folder the user chose. The AI supplies a plain file name only.
   - Tabs the AI creates are named `AI: …`. User tabs need `allow_user_tab`.

@@ -2,7 +2,7 @@
 
 Ultimate DebugView++ can let an AI coding assistant (Claude Code, Codex or any other MCP client) **read, wait for, search, filter and save your debug output** while it builds and tests your application. You no longer need to copy messages out of the viewer or send screenshots: the assistant can put a marker in the log, run your program, wait for the line it expects and read what happened.
 
-It works through the **Model Context Protocol (MCP)**, built into the viewer. The server only listens on your own computer, is off until you turn it on, and needs an access token.
+It works through the **Model Context Protocol (MCP)**, built into the viewer. The server only listens on your own computer, is off until you turn it on, and only lets in programs that run as your Windows user. Setup is one button; there are no files to edit.
 
 ---
 
@@ -22,44 +22,33 @@ It works through the **Model Context Protocol (MCP)**, built into the viewer. Th
 ## 1. Turn it on
 
 1. Open **Preferences** and choose the **AI / MCP** tab.
-2. Tick **Enable MCP server**. The port is `7777` unless you change it.
-3. An **access token** is filled in for you. Press **Generate** to make a new one at any time.
-4. Leave **Mask passwords and tokens** ticked (recommended).
-5. Press **OK**.
+2. Press **Set up my AI agents**. This ticks **Enable MCP server** and connects your assistants (see below).
+3. Leave **Mask passwords and tokens** ticked (recommended).
+4. Press **OK**.
 
-The status bar now shows `Ready | MCP :7777`. If it shows `MCP off: …`, the reason follows. Usually another program already uses the port, so pick another one.
+The status bar now shows `Ready | MCP :7777`. If it shows `MCP off: …`, the reason follows. Usually another program already uses the port, so pick another one and press **Set up my AI agents** again.
 
 ## 2. Connect your AI assistant
 
-### Claude Code
+**Set up my AI agents** registers the viewer with every assistant it finds for your Windows user, using their own setup commands:
 
-On the **AI / MCP** tab, press **Copy .mcp.json entry**. Paste it into a file called `.mcp.json` in the folder of the project you work on. If the file already exists, add the `"ultimate-debugview"` entry to its `"mcpServers"` section:
+- **Claude Code**, for every folder and every session: the terminals in MultiTerminal, the Clarion Clone assistant and any `claude` you start yourself. It is added to your default Claude profile and to any other Claude profile folder (`%USERPROFILE%\.claude-…`).
+- **Codex**, if it is installed.
 
-```json
-{
-  "mcpServers": {
-    "ultimate-debugview": {
-      "type": "http",
-      "url": "http://127.0.0.1:7777/mcp",
-      "headers": { "Authorization": "Bearer <your token>" }
-    }
-  }
-}
-```
+The result is shown under the button, for example *Claude Code: registered for every folder (default profile, .claude-work). Codex: not installed.* Assistants that are already running pick the server up the next time they start. In Claude Code, type `/mcp` to see **ultimate-debugview** connected with 30 tools.
 
-Start (or restart) Claude Code in that folder and type `/mcp`. You should see **ultimate-debugview** connected with 30 tools.
+Pressing the button again is harmless; do it after you change the port. **Remove** takes the entry out of the same assistants again.
 
-You can also add it from a terminal:
-
-```
-claude mcp add --transport http ultimate-debugview http://127.0.0.1:7777/mcp --header "Authorization: Bearer <your token>"
-```
+> A Claude profile kept somewhere other than `%USERPROFILE%\.claude-…` is not found automatically. Add the server to it from a terminal, with `CLAUDE_CONFIG_DIR` set to that profile's folder:
+> `set CLAUDE_CONFIG_DIR=D:\Profiles\claude-client` and then `claude mcp add --scope user --transport http ultimate-debugview http://127.0.0.1:7777/mcp`
 
 ### Other assistants
 
-Any MCP client that supports the **Streamable HTTP** transport can connect. It needs the URL `http://127.0.0.1:7777/mcp` and the header `Authorization: Bearer <your token>`.
+Any MCP client that supports the **Streamable HTTP** transport can connect to `http://127.0.0.1:7777/mcp`. It needs no token, as long as it runs as your Windows user.
 
-> If you change the port or generate a new token, update `.mcp.json` too. Copy the entry again and paste it over the old one.
+### Optional: an access token as well
+
+If you want a client to prove itself with a secret too, tick **Also require an access token**. A token is created for you (**Generate** makes a new one). Then every client must send `Authorization: Bearer <token>`. **Set up my AI agents** adds the token to Claude Code for you, and **Copy .mcp.json entry** copies an entry with it for clients you set up yourself. Codex cannot be set up this way while the token is required.
 
 ## 3. Things to ask for
 
@@ -123,7 +112,8 @@ How saving behaves:
 ## 6. Privacy and security
 
 - **Local only:** the server listens on `127.0.0.1`, and requests from web pages on other sites are refused.
-- **Access token:** always required, so other programs and other Windows users on the same computer cannot use the server.
+- **Your Windows user only:** for every connection the viewer checks which program is on the other end. Programs running as another Windows user are refused, and so are sandboxed programs running as you (low integrity or AppContainer, such as a browser's web page process). Any ordinary program you run yourself can connect, the same as it could read your files.
+- **Access token (optional):** tick **Also require an access token** if you also want a secret.
 - **Masking:** on by default. Values of `PWD=`, `Password=` / `"password":`, `secret`, `token`, `api_key`, `Bearer …` and passwords in URLs (`user:pass@host`) reach the assistant as `***`. Its searches only see the masked text. This is **best effort**; it cannot recognise every kind of secret. Your own view of the log is never changed.
 - **Saved files are not masked:** they contain the log as captured and stay on your computer.
 - **What the assistant reads goes to its AI service.** Only enable the server while you use it, and keep masking on.
@@ -133,8 +123,12 @@ How saving behaves:
 
 | Symptom | What to do |
 |---|---|
-| Status bar shows `MCP off: …` | The port is in use. Choose another port, press OK, and update `.mcp.json`. |
-| `/mcp` shows the server as failed or **401** | The token in `.mcp.json` doesn't match Preferences. Copy the entry again. |
+| Status bar shows `MCP off: …` | The port is in use. Choose another port, press **Set up my AI agents** again, then OK. |
+| `/mcp` doesn't list **ultimate-debugview** | The assistant was already running. Restart it. Check the result under **Set up my AI agents**. |
+| `/mcp` shows the server as failed | Make sure the viewer is running with the server on (status bar `MCP :7777`). |
+| **403** "only programs running as the same Windows user" | The assistant runs as another user, or sandboxed. Run it as yourself, not elevated as another account. |
+| **401** | **Also require an access token** is on and the client's token doesn't match. Press **Set up my AI agents** again, or copy the entry again. |
+| An old project `.mcp.json` still has an `ultimate-debugview` entry | It is no longer needed; the one-click setup covers every folder. You can delete that entry. |
 | Nothing is captured | Capture may be paused. Press Resume, or ask the assistant to resume capture. Another debug viewer (Sysinternals DebugView, Visual Studio's debugger) may also hold the capture. |
 | "The viewer was busy for 15 s…" | A dialog was open in the viewer. Close it and ask again; nothing was changed. |
 | The assistant can't find a line it "should" see | It may be reading one tab whose filters hide the line. Ask it to read the whole log. |

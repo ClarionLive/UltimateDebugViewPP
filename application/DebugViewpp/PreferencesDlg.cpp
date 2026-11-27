@@ -13,6 +13,9 @@
 #include <algorithm>
 #include <iterator>
 #include <shobjidl.h>
+#include <memory>
+#include <thread>
+#include "McpAgentSetup.h"
 
 namespace fusion {
 namespace debugviewpp {
@@ -1189,6 +1192,7 @@ void CPreferencesDlg::CMcpPage::Load(const McpSettings& settings, const std::wst
 {
     CheckDlgButton(IDC_MCP_ENABLE, settings.enabled ? BST_CHECKED : BST_UNCHECKED);
     SetDlgItemInt(IDC_MCP_PORT, static_cast<UINT>(settings.port), FALSE);
+    CheckDlgButton(IDC_MCP_REQUIRE_TOKEN, settings.requireToken ? BST_CHECKED : BST_UNCHECKED);
     SetDlgItemText(IDC_MCP_TOKEN, settings.token.c_str());
     CheckDlgButton(IDC_MCP_MASK_SECRETS, settings.maskSecrets ? BST_CHECKED : BST_UNCHECKED);
     CheckRadioButton(IDC_MCP_EXPORT_DOCS, IDC_MCP_EXPORT_CUSTOM, settings.exportMode == McpExportMode::Folder ? IDC_MCP_EXPORT_CUSTOM : IDC_MCP_EXPORT_DOCS);
@@ -1196,6 +1200,7 @@ void CPreferencesDlg::CMcpPage::Load(const McpSettings& settings, const std::wst
     SetDlgItemText(IDC_MCP_EXPORT_SUBFOLDER, settings.exportSubfolder.c_str());
     CheckDlgButton(IDC_MCP_EXPORT_PERAPP, settings.exportPerApp ? BST_CHECKED : BST_UNCHECKED);
     UpdateExportControls();
+    UpdateTokenControls();
     std::wstring text = L"Status: " + (status.empty() ? std::wstring(L"not running") : status) + L"   (changes take effect when you press OK)";
     SetDlgItemText(IDC_MCP_STATUS, text.c_str());
     UpdateUrl();
@@ -1206,6 +1211,65 @@ void CPreferencesDlg::CMcpPage::UpdateExportControls()
     bool custom = IsDlgButtonChecked(IDC_MCP_EXPORT_CUSTOM) == BST_CHECKED;
     GetDlgItem(IDC_MCP_EXPORT_FOLDER).EnableWindow(custom);
     GetDlgItem(IDC_MCP_EXPORT_BROWSE).EnableWindow(custom);
+}
+
+void CPreferencesDlg::CMcpPage::UpdateTokenControls()
+{
+    bool required = IsDlgButtonChecked(IDC_MCP_REQUIRE_TOKEN) == BST_CHECKED;
+    for (int id : {IDC_MCP_TOKEN, IDC_MCP_GENERATE_TOKEN, IDC_MCP_COPY_CONFIG})
+        GetDlgItem(id).EnableWindow(required);
+}
+
+void CPreferencesDlg::CMcpPage::OnRequireTokenChange(UINT /*uNotifyCode*/, int /*nID*/, CWindow /*wndCtl*/)
+{
+    UpdateTokenControls();
+}
+
+void CPreferencesDlg::CMcpPage::OnSetupAgents(UINT /*uNotifyCode*/, int /*nID*/, CWindow /*wndCtl*/)
+{
+    // Setting the agents up only makes sense with the server on.
+    m_enabledBySetup = IsDlgButtonChecked(IDC_MCP_ENABLE) != BST_CHECKED;
+    CheckDlgButton(IDC_MCP_ENABLE, BST_CHECKED);
+    McpSettings settings;
+    if (!Save(settings))
+        return;
+    if (settings.requireToken && !IsCommandLineSafeToken(settings.token))
+    {
+        MessageBox(L"The access token has characters that cannot be passed to the agents' setup commands. Press Generate for a new one.", L"Preferences", MB_OK | MB_ICONWARNING);
+        return;
+    }
+    RunAgentJob(true, settings.port, settings.requireToken ? settings.token : std::wstring());
+}
+
+void CPreferencesDlg::CMcpPage::OnRemoveAgents(UINT /*uNotifyCode*/, int /*nID*/, CWindow /*wndCtl*/)
+{
+    m_enabledBySetup = false;
+    RunAgentJob(false, 0, std::wstring());
+}
+
+void CPreferencesDlg::CMcpPage::RunAgentJob(bool setUp, int port, const std::wstring& token)
+{
+    GetDlgItem(IDC_MCP_SETUP_AGENTS).EnableWindow(FALSE);
+    GetDlgItem(IDC_MCP_REMOVE_AGENTS).EnableWindow(FALSE);
+    SetDlgItemText(IDC_MCP_AGENTS_RESULT, setUp ? L"Setting up your AI agents..." : L"Removing the server from your AI agents...");
+    HWND hwnd = m_hWnd;
+    std::thread([hwnd, setUp, port, token] {
+        auto report = std::make_unique<std::wstring>(setUp ? SetUpAiAgents(port, token) : RemoveAiAgents());
+        if (::PostMessage(hwnd, WM_MCP_AGENTS_DONE, 0, reinterpret_cast<LPARAM>(report.get())) != FALSE)
+            report.release();  // the page owns it now; if the page is gone, it is freed here
+    }).detach();
+}
+
+LRESULT CPreferencesDlg::CMcpPage::OnAgentsDone(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM lParam)
+{
+    std::unique_ptr<std::wstring> report(reinterpret_cast<std::wstring*>(lParam));
+    std::wstring text = *report;
+    if (m_enabledBySetup)
+        text += L" Press OK to turn the server on.";
+    SetDlgItemText(IDC_MCP_AGENTS_RESULT, text.c_str());
+    GetDlgItem(IDC_MCP_SETUP_AGENTS).EnableWindow(TRUE);
+    GetDlgItem(IDC_MCP_REMOVE_AGENTS).EnableWindow(TRUE);
+    return 0;
 }
 
 void CPreferencesDlg::CMcpPage::OnExportModeChange(UINT /*uNotifyCode*/, int /*nID*/, CWindow /*wndCtl*/)
@@ -1258,13 +1322,14 @@ bool CPreferencesDlg::CMcpPage::Save(McpSettings& settings)
     }
 
     bool enabled = IsDlgButtonChecked(IDC_MCP_ENABLE) == BST_CHECKED;
-    if (token.empty())
+    bool requireToken = IsDlgButtonChecked(IDC_MCP_REQUIRE_TOKEN) == BST_CHECKED;
+    if (requireToken && token.empty())
     {
-        // A token is always required; create one so enabling the server is one click.
+        // Create one so turning the option on is one click.
         token = GenerateMcpToken();
         SetDlgItemText(IDC_MCP_TOKEN, token.c_str());
     }
-    else if (token.size() < McpMinTokenLength)
+    else if (requireToken && token.size() < McpMinTokenLength)
     {
         MessageBox(L"The access token must be at least 16 characters. Press Generate for a random one.", L"Preferences", MB_OK | MB_ICONWARNING);
         GetDlgItem(IDC_MCP_TOKEN).SetFocus();
@@ -1302,6 +1367,7 @@ bool CPreferencesDlg::CMcpPage::Save(McpSettings& settings)
 
     settings.enabled = enabled;
     settings.port = static_cast<int>(port);
+    settings.requireToken = requireToken;
     settings.token = token;
     settings.maskSecrets = IsDlgButtonChecked(IDC_MCP_MASK_SECRETS) == BST_CHECKED;
     settings.exportMode = exportMode;
@@ -1343,7 +1409,7 @@ void CPreferencesDlg::CMcpPage::OnCopyConfig(UINT /*uNotifyCode*/, int /*nID*/, 
 
     std::wstring json = L"{\r\n  \"mcpServers\": {\r\n    \"ultimate-debugview\": {\r\n      \"type\": \"http\",\r\n      \"url\": \"http://127.0.0.1:" +
                         std::to_wstring(settings.port) + L"/mcp\"";
-    if (!settings.token.empty())
+    if (settings.requireToken && !settings.token.empty())
     {
         json += L",\r\n      \"headers\": { \"Authorization\": \"Bearer " + settings.token + L"\" }";
     }

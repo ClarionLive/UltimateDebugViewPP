@@ -15,26 +15,22 @@
     <h2>Turning it on</h2>
     <ol>
         <li>Open <strong>Preferences</strong> and choose the <strong>AI / MCP</strong> tab.</li>
-        <li>Tick <strong>Enable MCP server</strong>. The default port is <code>7777</code>.</li>
-        <li>An access token is created automatically (press <strong>Generate</strong> for a new one). Every client must send it.</li>
+        <li>Press <strong>Set up my AI agents</strong>. This ticks <strong>Enable MCP server</strong> (default port <code>7777</code>) and connects your assistants.</li>
         <li>Press <strong>OK</strong>. The status bar shows <code>MCP :7777</code> while the server runs, or the reason it could not start (for example, the port is in use).</li>
     </ol>
-    <p>The server is off by default and only accepts connections from this computer (<code>127.0.0.1</code>).</p>
+    <p>The server is off by default, only accepts connections from this computer (<code>127.0.0.1</code>) and only from programs running as your Windows user.</p>
 
-    <h2>Connecting Claude Code</h2>
-    <p>Press <strong>Copy .mcp.json entry</strong> on the AI / MCP tab and paste it into <code>.mcp.json</code> in your project folder. It looks like this:</p>
-    <pre><code>{
-  "mcpServers": {
-    "ultimate-debugview": {
-      "type": "http",
-      "url": "http://127.0.0.1:7777/mcp",
-      "headers": { "Authorization": "Bearer &lt;your token&gt;" }
-    }
-  }
-}</code></pre>
-    <p>The <code>headers</code> line is required. You can also add it from a terminal:</p>
-    <pre><code>claude mcp add --transport http ultimate-debugview http://127.0.0.1:7777/mcp --header "Authorization: Bearer &lt;your token&gt;"</code></pre>
-    <p>Any MCP client that supports the Streamable HTTP transport can connect the same way.</p>
+    <h2>Connecting your assistants</h2>
+    <p><strong>Set up my AI agents</strong> registers the viewer with the assistants it finds, using their own setup commands. There are no files to edit:</p>
+    <ul>
+        <li><strong>Claude Code</strong>, for every folder and session: MultiTerminal terminals, the Clarion Clone assistant and any <code>claude</code> you start. It goes into your default Claude profile and every <code>%USERPROFILE%\.claude-…</code> profile folder.</li>
+        <li><strong>Codex</strong>, if it is installed.</li>
+    </ul>
+    <p>The result appears under the button. Assistants that are already running pick it up when they next start. Press the button again after changing the port; <strong>Remove</strong> takes the entries out again.</p>
+    <p>A Claude profile kept elsewhere is not found automatically. Set <code>CLAUDE_CONFIG_DIR</code> to its folder and run:</p>
+    <pre><code>claude mcp add --scope user --transport http ultimate-debugview http://127.0.0.1:7777/mcp</code></pre>
+    <p>Any other MCP client that supports the Streamable HTTP transport can connect to <code>http://127.0.0.1:7777/mcp</code> with no token.</p>
+    <p><strong>Optional access token:</strong> tick <strong>Also require an access token</strong> to make every client send <code>Authorization: Bearer &lt;token&gt;</code> as well. <strong>Set up my AI agents</strong> passes it to Claude Code; <strong>Copy .mcp.json entry</strong> copies an entry with it for other clients.</p>
 
     <h2>What the assistant can do</h2>
     <p>For every tool and its parameters, see the <a href="ai-mcp-tools.html">MCP Tool Reference</a>.</p>
@@ -86,7 +82,7 @@
     <h2>Security and privacy</h2>
     <ul>
         <li><strong>Local only:</strong> the server listens on <code>127.0.0.1</code> and rejects requests from web pages on other sites.</li>
-        <li><strong>Access token:</strong> always required, so other programs and other users on this computer cannot use the server. It is created for you when you enable the server.</li>
+        <li><strong>Your Windows user only:</strong> the viewer checks the program on the other end of every connection. Programs of other Windows users are refused, and so are sandboxed programs (low integrity or AppContainer, such as a browser's web page process). An optional access token can be required as well.</li>
         <li><strong>Password masking:</strong> on by default. Values of <code>PWD=</code>, <code>Password=</code> / <code>"password":</code>, <code>secret</code>, <code>token</code>, <code>api_key</code>, <code>Bearer</code> tokens and passwords in URLs (<code>user:pass@</code>) are replaced by <code>***</code> in everything the assistant receives, and its searches only see the masked text. This is best effort: it cannot recognise every kind of secret. The log on your screen is not changed.</li>
         <li><strong>No program launching:</strong> none of the tools can start programs or run commands.</li>
         <li><strong>Saved files are not masked:</strong> <code>save_log</code> and <code>save_view</code> write the log as captured, only into the folder you chose in Preferences. The assistant cannot choose another folder.</li>
@@ -95,8 +91,10 @@
 
     <h2>Troubleshooting</h2>
     <ul>
-        <li><strong>Status bar says "MCP off: ..."</strong>: the port is probably used by another program. Pick another port on the AI / MCP tab and update <code>.mcp.json</code>.</li>
-        <li><strong>The assistant gets "401"</strong>: the token in <code>.mcp.json</code> does not match the one in Preferences.</li>
+        <li><strong>Status bar says "MCP off: ..."</strong>: the port is probably used by another program. Pick another port on the AI / MCP tab and press <strong>Set up my AI agents</strong> again.</li>
+        <li><strong>The assistant doesn't list ultimate-debugview</strong>: it was already running when you set it up. Restart it.</li>
+        <li><strong>The assistant gets "403"</strong>: it runs as another Windows user or sandboxed.</li>
+        <li><strong>The assistant gets "401"</strong>: <strong>Also require an access token</strong> is on and the client's token does not match. Press <strong>Set up my AI agents</strong> again.</li>
         <li><strong>A call reports "did not respond within 15 s"</strong>: a dialog is open in the viewer. Close it and try again.</li>
         <li><strong>Nothing is captured</strong>: check that capture is not paused (<code>get_status</code> shows <code>paused</code>).</li>
     </ul>

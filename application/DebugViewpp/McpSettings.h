@@ -27,7 +27,8 @@ struct McpSettings
 {
     bool enabled = false;
     int port = 7777;
-    std::wstring token;  // required while enabled; generated automatically when missing
+    bool requireToken = false;  // only processes of the same Windows user may connect; the token is an extra
+    std::wstring token;         // used when requireToken; generated automatically when missing
     bool maskSecrets = true;
     McpExportMode exportMode = McpExportMode::Documents;
     std::wstring exportFolder;     // used by McpExportMode::Folder
@@ -36,7 +37,7 @@ struct McpSettings
 
     bool operator==(const McpSettings& other) const
     {
-        return enabled == other.enabled && port == other.port && token == other.token && maskSecrets == other.maskSecrets &&
+        return enabled == other.enabled && port == other.port && requireToken == other.requireToken && token == other.token && maskSecrets == other.maskSecrets &&
                exportMode == other.exportMode && exportFolder == other.exportFolder && exportSubfolder == other.exportSubfolder &&
                exportPerApp == other.exportPerApp;
     }
