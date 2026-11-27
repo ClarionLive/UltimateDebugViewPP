@@ -22,12 +22,64 @@ namespace debugviewpp {
 // Forward declaration
 class ClarionProcedureTracker;
 
+static std::string TrimSpaces(const std::string& s)
+{
+    size_t first = s.find_first_not_of(" \t");
+    if (first == std::string::npos)
+        return std::string();
+    size_t last = s.find_last_not_of(" \t");
+    return s.substr(first, last - first + 1);
+}
+
+// Parses the legacy format emitted by the UltimateDebug class assert hook (ASSERT(0, eqDBG & ...)):
+//     [||]X <prefix>,T <line>,P <file>[||]<message>
+// Note that T is the source line number (not the thread) and P is the source file (not the procedure),
+// so neither is mapped to the thread/procedure fields: that would confuse the procedure tracker.
+// Returns false if the text does not match this layout.
+static bool ParseLegacyClarionFormat(Message& msg, bool modifyText)
+{
+    static const std::string marker = "[||]X ";
+    static const std::string separator = "[||]";
+    if (msg.text.compare(0, marker.size(), marker) != 0)
+        return false;
+
+    size_t sepPos = msg.text.find(separator, marker.size());
+    if (sepPos == std::string::npos)
+        return false;
+
+    // head = "<prefix>,T <line>,P <file>"
+    std::string head = msg.text.substr(marker.size(), sepPos - marker.size());
+    size_t tPos = head.find(",T ");
+    if (tPos == std::string::npos)
+        return false;
+    size_t pPos = head.find(",P ", tPos + 3);
+    if (pPos == std::string::npos)
+        return false;
+
+    msg.isClarionFormat = true;
+    msg.clarionPrefix = TrimSpaces(head.substr(0, tPos));
+    msg.clarionModule = TrimSpaces(head.substr(pPos + 3));
+    std::string line = TrimSpaces(head.substr(tPos + 3, pPos - (tPos + 3)));
+
+    if (modifyText)
+    {
+        std::string text = msg.text.substr(sepPos + separator.size());
+        if (!line.empty())
+            text = "(L" + line + ") " + text;
+        msg.text = text;
+    }
+    return true;
+}
+
 // Helper function to parse Clarion format
 static void ParseClarionFormat(Message& msg, bool modifyText = true, ClarionProcedureTracker* tracker = nullptr, int lineIndex = -1)
 {
     // Check if message starts with [||]X,
     if (msg.text.size() < 6 || msg.text.substr(0, 6) != "[||]X,")
+    {
+        ParseLegacyClarionFormat(msg, modifyText);
         return;
+    }
     
     msg.isClarionFormat = true;
     
