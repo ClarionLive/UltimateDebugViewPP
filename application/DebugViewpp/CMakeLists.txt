@@ -29,6 +29,7 @@ add_executable(UltimateDebugviewpp
     ManageLayoutsDlg.cpp
     RunDlg.cpp
     ScintillaWrapper.cpp
+    SplashScreen.cpp
     SourceDlg.cpp
     SourcesDlg.cpp
     DebugView++.rc

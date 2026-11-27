@@ -52,6 +52,8 @@
 #include "ProcedureStatsSplitter.h"
 #include "NewTabItem.h"
 #include "McpServer.h"
+#include "StartupTrace.h"
+#include "SplashScreen.h"
 #include "McpTools.h"
 #include "version.h"
 
@@ -140,6 +142,7 @@ BEGIN_MSG_MAP2(CMainFrame)
     MSG_WM_SYSCOMMAND(OnSysCommand)
     MESSAGE_HANDLER_EX(WM_SYSTEMTRAYICON, OnSystemTrayIcon)
     MESSAGE_HANDLER_EX(WM_MCP_CALL, OnMcpCall)
+    MESSAGE_HANDLER_EX(WM_STARTUP_COMPLETE, OnStartupComplete)
     MESSAGE_HANDLER(WM_ERASEBKGND, OnEraseBkgnd)
     NOTIFY_CODE_HANDLER(NM_CUSTOMDRAW, OnCustomDraw)
     COMMAND_ID_HANDLER_EX(SC_RESTORE, OnScRestore)
@@ -418,15 +421,40 @@ BOOL CMainFrame::PreTranslateMessage(MSG* pMsg)
 
 BOOL CMainFrame::OnIdle()
 {
+    static bool firstIdle = true;
+    if (firstIdle)
+    {
+        firstIdle = false;
+        StartupMark("first idle (message loop running)");
+    }
     UpdateUI();
     UIUpdateToolBar();
     UIUpdateStatusBar();
     return FALSE;
 }
 
+void CMainFrame::FinishStartup(int showCmd)
+{
+    // Posted, so it runs after the layout and timer messages queued while the views were built.
+    PostMessage(WM_STARTUP_COMPLETE, static_cast<WPARAM>(showCmd));
+}
+
+LRESULT CMainFrame::OnStartupComplete(UINT /*uMsg*/, WPARAM wParam, LPARAM /*lParam*/)
+{
+    SplashScreen::Progress(100, L"Ready");
+    ShowWindow(static_cast<int>(wParam));
+    UpdateWindow();
+    SplashScreen::Close();
+    ::SetForegroundWindow(m_hWnd);
+    StartupMark("main window shown");
+    return 0;
+}
+
 LRESULT CMainFrame::OnCreate(const CREATESTRUCT* /*pCreate*/)
 {
     m_notifyIconData.cbSize = 0;
+    StartupMark("OnCreate start");
+    SplashScreen::Progress(3, L"Creating the window...");
 
     HWND hWndCmdBar = m_cmdBar.Create(*this, rcDefault, nullptr, ATL_SIMPLE_CMDBAR_PANE_STYLE);
     m_cmdBar.AttachMenu(GetMenu());
@@ -487,7 +515,10 @@ LRESULT CMainFrame::OnCreate(const CREATESTRUCT* /*pCreate*/)
     m_wndProcedureView.ShowWindow(SW_HIDE);
 
     SetLogFont();
+    StartupMark("LoadSettings start");
+    SplashScreen::Progress(8, L"Loading settings...");
     LoadSettings();
+    StartupMark("LoadSettings done");
     
     // Load and apply theme
     auto& themeManager = ThemeManager::Instance();
@@ -519,6 +550,7 @@ LRESULT CMainFrame::OnCreate(const CREATESTRUCT* /*pCreate*/)
     {
         ApplyExpandedToolbarState();
     }
+    StartupMark("theme + toolbar done");
     
     // Apply word wrap state and detail font to the detail view if it exists
     // Views are created in LoadSettings, so apply settings to all of them
@@ -547,12 +579,16 @@ LRESULT CMainFrame::OnCreate(const CREATESTRUCT* /*pCreate*/)
 
     // Resume can throw if a second debugview is running
     // so do not rely on any commands executed afterwards
+    StartupMark("per-view setup done");
+    SplashScreen::Progress(92, L"Starting capture...");
     Resume();
+    StartupMark("Resume (capture) done");
 
     // Initialization is complete, allow AddFilterView to be called from "+" tab clicks
     m_bInitializing = false;
 
     StartMcpServer();
+    StartupMark("OnCreate end");
 
     return 0;
 }
@@ -1213,7 +1249,9 @@ bool CMainFrame::LoadSettings()
         else if (reg.QueryDWORDValue(L"Minimized", on) == ERROR_SUCCESS && on)
             m_showCmd = SW_SHOWMINIMIZED;
 
-        placement.showCmd = SW_SHOWNORMAL;
+        // SW_HIDE (not SW_SHOWNORMAL): the window stays hidden while the views are built behind the
+        // splash screen; Main shows it, with m_showCmd, once start-up is complete.
+        placement.showCmd = SW_HIDE;
 
         // Ignore errors, the worst that can happen is that the window doesn't
         // appear at the correct position, but this is not the end of the world.
@@ -1303,10 +1341,14 @@ bool CMainFrame::LoadSettings()
                 name = L"View";  // Default name if not found
             }
 
+            SplashScreen::Progress(10 + static_cast<int>(80 * i / viewCount),
+                L"Loading view \"" + name + L"\" (" + std::to_wstring(i + 1) + L" of " + std::to_wstring(viewCount) + L")...");
             // Always create new views since we cleared all existing ones
             AddFilterView(name, LogFilter());
+            StartupMark("  view created");
             // Then load the actual filters and settings
             GetView(static_cast<int>(i)).LoadSettings(regView);
+            StartupMark("  view settings loaded");
         }
 
         // If no views were loaded, create a default one
@@ -1356,9 +1398,11 @@ bool CMainFrame::LoadSettings()
             AddPlusTab();
         }
         
+        StartupMark("  detail panes configured");
         GetTabCtrl().SetCurSel(Win32::RegGetDWORDValue(regViews, L"Current", 0));
         GetTabCtrl().UpdateLayout();
         GetTabCtrl().Invalidate();
+        StartupMark("  current tab selected");
     }
     else
     {

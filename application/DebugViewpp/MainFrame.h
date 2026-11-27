@@ -149,7 +149,15 @@ private:
         WM_FIRST = WM_APP,
         WM_SYSTEMTRAYICON,
         WM_MCP_CALL,
+        WM_STARTUP_COMPLETE,
     };
+
+public:
+    // Posted by Main once start-up is complete: shows the (until then hidden) window and closes the splash.
+    void FinishStartup(int showCmd);
+
+private:
+    LRESULT OnStartupComplete(UINT uMsg, WPARAM wParam, LPARAM lParam);
 
     void StartMcpServer();
     void StopMcpServer();

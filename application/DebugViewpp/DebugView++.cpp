@@ -4,6 +4,9 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 
 #include "MainFrame.h"
+#include "StartupTrace.h"
+#include "SplashScreen.h"
+#include "version.h"
 
 #include <boost/algorithm/string.hpp>
 #include "CobaltFusion/scope_guard.h"
@@ -112,6 +115,7 @@ private:
 
 int Main(HINSTANCE hInstance, HINSTANCE /*hPrevInstance*/, LPWSTR /*lpstrCmdLine*/, int cmdShow)
 {
+    StartupMark("Main start");
     Win32::SetPrivilege(SE_DEBUG_NAME, true);
     Win32::SetPrivilege(SE_CREATE_GLOBAL_NAME, true);
     Win32::SetPrivilege(SE_LOAD_DRIVER_NAME, true);
@@ -178,12 +182,24 @@ int Main(HINSTANCE hInstance, HINSTANCE /*hPrevInstance*/, LPWSTR /*lpstrCmdLine
         }
     }
 
+    // The main window is built hidden behind a splash screen (building the views takes seconds).
+    const bool showSplash = cmdShow != SW_MINIMIZE && cmdShow != SW_SHOWMINIMIZED && cmdShow != SW_SHOWMINNOACTIVE;
+    struct SplashGuard
+    {
+        ~SplashGuard() { SplashScreen::Close(); }  // also on errors during start-up
+    } splashGuard;
+    if (showSplash)
+        SplashScreen::Start(hInstance, L"" VERSION_STR);
+
+    StartupMark("CreateEx start");
     if (wndMain.CreateEx() == nullptr)
     {
         Win32::ThrowLastError(L"Main window creation failed!");
     }
+    StartupMark("CreateEx done");
 
-    wndMain.ShowWindow(cmdShow == SW_SHOWDEFAULT ? wndMain.GetShowCommand() : cmdShow);
+    const int showCmd = cmdShow == SW_SHOWDEFAULT ? wndMain.GetShowCommand() : cmdShow;
+    StartupMark("CreateEx returned; window still hidden");
     if (boost::algorithm::iends_with(fileName, ".dbconf"))
     {
         wndMain.LoadConfiguration(fileName);
@@ -206,6 +222,7 @@ int Main(HINSTANCE hInstance, HINSTANCE /*hPrevInstance*/, LPWSTR /*lpstrCmdLine
         wndMain.SetSelectTabByName(selectTabName);
     }
 
+    wndMain.FinishStartup(showCmd == SW_SHOWDEFAULT ? SW_SHOWNORMAL : showCmd);
     return theLoop.Run();
 }
 
