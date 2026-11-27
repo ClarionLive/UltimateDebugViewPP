@@ -32,7 +32,7 @@ The status bar now shows `Ready | MCP :7777`. If it shows `MCP off: …`, the re
 
 **Set up my AI agents** registers the viewer with every assistant it finds for your Windows user, using their own setup commands:
 
-- **Claude Code**, for every folder and every session: the terminals in MultiTerminal, the Clarion Clone assistant and any `claude` you start yourself. It is added to your default Claude profile and to any other Claude profile folder (`%USERPROFILE%\.claude-…`).
+- **Claude Code**, for every folder and every session: the terminals in MultiTerminal and any `claude` you start yourself. It is added to your default Claude profile and to any other Claude profile folder (`%USERPROFILE%\.claude-…`).
 - **Codex**, if it is installed.
 
 The result is shown under the button, for example *Claude Code: registered for every folder (default profile, .claude-work). Codex: not installed.* Assistants that are already running pick the server up the next time they start. In Claude Code, type `/mcp` to see **ultimate-debugview** connected with 30 tools.
