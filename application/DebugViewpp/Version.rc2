@@ -27,13 +27,13 @@ BEGIN
     BEGIN
         BLOCK "040904B0"
         BEGIN
-            VALUE "CompanyName", "Cobalt Fusion"
-            VALUE "FileDescription", "DebugView++"
+            VALUE "CompanyName", "ClarionLive"
+            VALUE "FileDescription", "Ultimate DebugView++"
             VALUE "FileVersion", VERSION_STR
-            VALUE "LegalCopyright", "(c) 2014 Cobalt Fusion.  All rights reserved."
-            VALUE "InternalName", "DebugView++"
-            VALUE "OriginalFilename", "DebugView++"
-            VALUE "ProductName", "DebugView++"
+            VALUE "LegalCopyright", "(c) 2025-2026 ClarionLive. Based on DebugView++ (c) Gert-Jan de Vos and Jan Wilmans. Boost Software License 1.0."
+            VALUE "InternalName", "UltimateDebugviewpp"
+            VALUE "OriginalFilename", "UltimateDebugviewpp.exe"
+            VALUE "ProductName", "Ultimate DebugView++"
             VALUE "ProductVersion", VERSION_STR
         END
     END

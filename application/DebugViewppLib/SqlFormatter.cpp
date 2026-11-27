@@ -87,19 +87,12 @@ private:
         }
         
         LogDebug(L"Trying to load DLL from: " + std::wstring(path));
-        s_hDll = LoadLibraryW(path);
+        // Only ever from the exe's own folder (full path, with the exe folder as the DLL's dependency
+        // search path): never by bare name, which would also search the current directory and PATH.
+        s_hDll = LoadLibraryExW(path, nullptr, LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32);
         if (!s_hDll) {
             DWORD error = GetLastError();
             LogDebug(L"Failed to load from exe directory, error: " + std::to_wstring(error));
-            
-            // Try loading from current directory
-            LogDebug(L"Trying to load from current directory");
-            s_hDll = LoadLibraryW(L"fsqlf.dll");
-            
-            if (!s_hDll) {
-                error = GetLastError();
-                LogDebug(L"Failed to load from current directory, error: " + std::to_wstring(error));
-            }
         }
         
         if (!s_hDll) {

@@ -75,6 +75,26 @@ cd C:\Dev\UltimateDebugViewPP; cmake -B build -G 'Visual Studio 17 2022' .; cmak
 2. Set configuration to Release
 3. Build UltimateDebugviewpp project
 
+## Installer
+
+`installer\build-installer.cmd` builds the Release exe and `fsqlf.dll`, signs them, and builds the installer with Inno Setup 6. The result is `installer\Output\UltimateDebugViewPP-Setup-<version>.exe`.
+
+```bat
+installer\build-installer.cmd          :: signed: plug in the code-signing USB token first; enter its PIN when asked
+installer\build-installer.cmd nosign   :: unsigned test build
+```
+
+- Needs Inno Setup 6 and `signtool.exe` from the Windows SDK.
+- Everything is signed: the exe, `fsqlf.dll`, the setup and the uninstaller. Signatures are SHA-256 with an RFC 3161 timestamp, so they stay valid after the certificate expires. The script checks them with `signtool verify /pa`.
+- The version comes from `application/DebugViewpp/version.h`, via the exe's version resource.
+- The installer:
+  - installs to Program Files, or "for me only" without admin rights
+  - adds a Start-menu shortcut and an optional desktop shortcut
+  - offers to install the WebView2 Runtime if it is missing (it is needed for the in-app help)
+  - closes a running viewer
+  - asks on uninstall whether to keep your settings
+- The in-app help keeps its WebView2 data in `%LOCALAPPDATA%\UltimateDebugView++\WebView2`.
+
 ## Quick Rebuild
 
 For subsequent builds after code changes:

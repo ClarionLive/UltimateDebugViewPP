@@ -27,3 +27,4 @@ C:Dev*
 /build.laptop/
 /.claude/worktrees/
 build_configure.log
+/installer/Output/

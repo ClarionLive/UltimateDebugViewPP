@@ -13,7 +13,7 @@ Guidance for Claude Code (and other agents) working in this repository.
 - a **built-in MCP server** so AI assistants can drive the viewer
 
 - Repo: https://github.com/ClarionLive/UltimateDebugViewPP (public). `main` is the default branch; work happens on `develop` and task branches.
-- Exe: `UltimateDebugviewpp.exe`, version 2.0.0.12 (`application/DebugViewpp/version.h`).
+- Exe: `UltimateDebugviewpp.exe`, version 2.0.0.13 (`application/DebugViewpp/version.h`).
 - Deployed copy (the Owner's shortcut): `C:\Utilities\UltimateDebugPP\UltimateDebugViewPP`. It holds the exe, `fsqlf.dll` and `help\`.
 
 ## Build
@@ -31,6 +31,9 @@ cmake --build build --config Release --target UltimateDebugviewpp -- -m:4 -v:m
 - **Close the viewer before building.** A running `bin\Release\UltimateDebugviewpp.exe` makes the link fail with LNK1104. The Owner often has it open, so ask them to close it; don't kill it.
 - A post-build step copies `help\` (the tracked in-app help) to `bin\<config>\help`.
 - C++20 (`cxx_std_20`), Unicode, static CRT (`/MT`), `/W4`. Boost.JSON is compiled header-only into `McpServer.cpp`.
+- Installer: `installer\build-installer.cmd [nosign]` builds the app and fsqlf, signs them and compiles `installer\UltimateDebugViewPP.iss` (Inno Setup 6) into `installer\Output\`.
+  - Signing needs the Owner's USB token and its PIN, so agents run only `nosign` builds.
+  - Bump `version.h` for every release; the installer takes its version from the exe.
 - `build.bat`, `build_with_ninja.bat` and `azure-pipelines.yml` come from the original project and are not maintained.
 - `build.laptop\` is the Owner's old build tree, kept for reference and ignored by git.
 

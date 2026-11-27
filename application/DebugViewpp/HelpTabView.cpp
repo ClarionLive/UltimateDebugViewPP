@@ -1,6 +1,8 @@
 #include "HelpTabView.h"
 #include "resource.h"
 #include <shlwapi.h>
+#include <shlobj.h>
+#include <knownfolders.h>
 #include <string>
 #include <cwctype>
 #include <WebView2EnvironmentOptions.h>
@@ -339,8 +341,18 @@ void CHelpTabView::CreateNavigationToolbar()
 
 HRESULT CHelpTabView::InitializeWebView()
 {
-    // Create WebView2 environment
-    HRESULT hr = CreateCoreWebView2Environment(
+    // WebView2 keeps its data next to the exe by default, which is read-only under Program Files.
+    // Use %LOCALAPPDATA%\UltimateDebugView++\WebView2 instead.
+    std::wstring userDataFolder;
+    PWSTR localAppData = nullptr;
+    if (SUCCEEDED(::SHGetKnownFolderPath(FOLDERID_LocalAppData, KF_FLAG_CREATE, nullptr, &localAppData)) && localAppData != nullptr)
+    {
+        userDataFolder = std::wstring(localAppData) + L"\\UltimateDebugView++\\WebView2";
+        ::SHCreateDirectoryExW(nullptr, userDataFolder.c_str(), nullptr);
+    }
+    ::CoTaskMemFree(localAppData);
+
+    HRESULT hr = CreateCoreWebView2EnvironmentWithOptions(nullptr, userDataFolder.empty() ? nullptr : userDataFolder.c_str(), nullptr,
         new EnvCompletedHandler(
             [this](HRESULT result, ICoreWebView2Environment* environment) -> HRESULT
             {
