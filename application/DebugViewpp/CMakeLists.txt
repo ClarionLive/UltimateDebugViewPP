@@ -8,6 +8,7 @@ add_executable(UltimateDebugviewpp
     CQueueGridView.cpp
     FloatingTabWindow.cpp
     FloatingMainTabWindow.cpp
+    DarkMode.cpp
     DebugView++.cpp
     DropTargetSupport.cpp
     FileOptionDlg.cpp
